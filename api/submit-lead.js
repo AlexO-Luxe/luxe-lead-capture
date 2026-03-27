@@ -11,7 +11,7 @@ export default async function handler(req, res) {
       firstname, lastname,
       movein, checkout,
       budget, contact_phone, contact_email, contact_method,
-      utm_source, utm_campaign, utm_content, utm_term, utm_medium, gclid,
+      utm_campaign, utm_adgroup, utm_term, gclid,
       user_journey, city, notes
     } = req.body;
 
@@ -28,10 +28,10 @@ export default async function handler(req, res) {
       email:            contact_email ? { email: contact_email, text: contact_email } : {},
       dropdown40:       contact_method ? { labels: [contact_method] } : {},
       dropdown_mm1v31yb: { labels: ['Short Form'] },
+      text8:            city          || '',
       text_mm1c3b5w:    utm_campaign  || '',
-      text43__1:        utm_content   || '',
+      text43__1:        utm_adgroup   || '',
       text3__1:         utm_term      || '',
-      text_mm1jnrbw:    utm_medium    || '',
       text4__1:         gclid         || '',
       long_text7:       notes         || '',
       long_text__1:     user_journey  || ''
