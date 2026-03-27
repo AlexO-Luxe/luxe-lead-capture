@@ -12,7 +12,7 @@ export default async function handler(req, res) {
       movein, checkout,
       budget, contact_phone, contact_email,
       utm_source, utm_campaign, utm_content, utm_term, utm_medium, gclid,
-      user_journey, city
+      user_journey, city, notes
     } = req.body;
 
     const itemName = `${firstname} ${lastname}`.trim();
@@ -32,6 +32,7 @@ export default async function handler(req, res) {
       text3__1:         utm_term      || '',
       text_mm1jnrbw:    utm_medium    || '',
       text4__1:         gclid         || '',
+      long_text7:       notes         || '',
       long_text__1:     user_journey  || ''
     };
 
