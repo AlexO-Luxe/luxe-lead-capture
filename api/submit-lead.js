@@ -12,7 +12,7 @@ export default async function handler(req, res) {
       movein, checkout,
       budget, contact_phone, contact_email,
       utm_source, utm_campaign, utm_content, utm_term, utm_medium, gclid,
-      user_journey
+      user_journey, city
     } = req.body;
 
     const itemName = `${firstname} ${lastname}`.trim();
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       budget_per_week:  budget        || '',
       phone_1:          contact_phone ? { phone: contact_phone, countryShortName: 'GB' } : {},
       email:            contact_email ? { email: contact_email, text: contact_email } : {},
-      text_mm1j4zey:    utm_source    || '',
+      text8:            city          || '',
       text_mm1c3b5w:    utm_campaign  || '',
       text43__1:        utm_content   || '',
       text3__1:         utm_term      || '',
