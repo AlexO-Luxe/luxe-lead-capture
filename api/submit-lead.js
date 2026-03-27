@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       budget_per_week:  budget        || '',
       phone_1:          contact_phone ? { phone: contact_phone, countryShortName: 'GB' } : {},
       email:            contact_email ? { email: contact_email, text: contact_email } : {},
-      text8:            city          || '',
+      text_mktcfac3:    'Short Form',
       text_mm1c3b5w:    utm_campaign  || '',
       text43__1:        utm_content   || '',
       text3__1:         utm_term      || '',
