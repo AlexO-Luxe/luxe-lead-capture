@@ -11,7 +11,7 @@ export default async function handler(req, res) {
       firstname, lastname,
       movein, checkout,
       budget, contact_phone, contact_email, contact_method,
-      utm_campaign, utm_adgroup, utm_term, gclid,
+      utm_campaign, utm_adgroup, utm_term, utm_matchtype, gclid,
       user_journey, city, notes
     } = req.body;
 
@@ -32,6 +32,7 @@ export default async function handler(req, res) {
       text_mm1c3b5w:    utm_campaign  || '',
       text43__1:        utm_adgroup   || '',
       text3__1:         utm_term      || '',
+      text_mm1d87rp:    utm_matchtype || '',
       text4__1:         gclid         || '',
       long_text7:       notes         || '',
       long_text__1:     user_journey  || ''
