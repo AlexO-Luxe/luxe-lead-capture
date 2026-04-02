@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -85,7 +86,7 @@ async function sendGuestConfirmation(p) {
 
   <!-- HEADER -->
   <tr><td style="background:#0d1a2e;padding:36px 40px 32px;">
-    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:28px;font-weight:400;color:#f0ece2;line-height:1.15;white-space:nowrap;">We've received your enquiry</h1>
+    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:28px;font-weight:400;color:#f0ece2;line-height:1.15;letter-spacing:-0.03em;">We've received your enquiry</h1>
     <p style="margin:0;font-size:13px;color:rgba(240,236,226,0.5);font-weight:300;">Our Reservations team will reach out shortly.</p>
   </td></tr>
 
@@ -93,12 +94,12 @@ async function sendGuestConfirmation(p) {
   <tr><td style="background:#ffffff;padding:32px 40px;">
     <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Dear ${escHtml(firstName)},</p>
     ${isTypeA ? `
-    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your enquiry about <strong>${escHtml(p.apartment_ref || 'your chosen apartment')}</strong> — we're currently checking the latest availability and pricing for your dates.</p>
-    <p style="margin:0 0 20px;font-size:14px;color:#1a1a1a;line-height:1.7;">A member of our Reservations team will be in touch within 24 hours (10am–6pm GMT, Mon–Fri) to confirm these details, and discuss any other options that might suit your needs.</p>
-    <p style="margin:0 0 20px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your enquiry about <strong>${escHtml(p.apartment_ref || 'your chosen apartment')}</strong> — we're currently checking the latest availability and pricing at this building for your chosen dates.</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">A member of our Reservations team will be in touch within 24 hours to confirm these details, and discuss any other options that might suit your needs.</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
     ` : `
-    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your ${escHtml(formatCity(p.city))} apartment enquiry. A member of our Reservations team will be in touch within 24 hours (10am–6pm GMT, Mon–Fri) to discuss this further.</p>
-    <p style="margin:0 0 20px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your ${escHtml(formatCity(p.city))} apartment enquiry. A member of our Reservations team will be in touch within 24 hours to discuss this further. We'll send over a selection of apartments based on your initial details, and then take time to understand your needs in more depth.</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
     `}
 
     <!-- Summary table -->
@@ -121,6 +122,40 @@ async function sendGuestConfirmation(p) {
     <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
       <tr><td style="background:#B8966E;border-radius:8px;">
         <a href="${siteUrl}" style="display:inline-block;padding:13px 32px;font-size:12px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:#ffffff;text-decoration:none;">Browse apartments</a>
+      </td></tr>
+    </table>
+
+    <!-- About blurb -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+      <tr><td style="border-top:0.5px solid #ede9e3;padding-top:20px;">
+        <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:14px;font-weight:400;letter-spacing:-0.01em;color:#1a1a1a;">About Student Luxe</p>
+        <p style="margin:0 0 12px;font-size:12px;color:#6b6b6b;line-height:1.75;">We combine premium apartments with exceptional service to make student and professional living effortless. Our expert team will help you find &amp; book the perfect space — offering local insights, personalised recommendations, and support wherever it's needed.</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid #ede9e3;padding-top:10px;margin-top:4px;">
+          <tr>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>All-inclusive
+            </td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Fully furnished
+            </td>
+          </tr>
+          <tr>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Hotel-style amenities
+            </td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Bills included
+            </td>
+          </tr>
+          <tr>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Weekly housekeeping
+            </td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Dedicated support
+            </td>
+          </tr>
+        </table>
       </td></tr>
     </table>
 
