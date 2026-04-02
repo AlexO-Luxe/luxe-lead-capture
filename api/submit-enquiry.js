@@ -4,8 +4,7 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = reservations@studentluxe.co.uk
-//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -161,14 +160,14 @@ async function sendGuestConfirmation(p) {
   </td></tr>
 
   <!-- FOOTER -->
-  <tr><td style="background:#f7f2eb;padding:18px 40px;border-top:0.5px solid rgba(184,150,110,0.2);">
+  <tr><td style="background:#f7f2eb;padding:18px 0;border-top:0.5px solid rgba(184,150,110,0.2);text-align:center;">
     <p style="margin:0 0 10px;font-size:11px;color:#9b9b9b;line-height:1.9;">
       Student Luxe Apartments<br>
       Dog &amp; Duck Yard, Princeton St, London, WC1R 4BH<br>
       +44 (0)203 007 0017 &nbsp;·&nbsp; Mon–Fri, 10am–6pm GMT<br>
       © 2026 Student Luxe Apartments. All rights reserved.
     </p>
-    <p style="margin:0;font-size:10px;color:#b9b9b9;line-height:1.6;">If you didn't submit this enquiry, please disregard this email. Your details are safe and will never be shared with third parties.</p>
+    <p style="margin:0;font-size:10px;color:#b9b9b9;line-height:1.6;padding:0 20px;">If you didn't submit this enquiry, please disregard this email. Your details are safe and will never be shared with third parties.</p>
   </td></tr>
 
 </table>
