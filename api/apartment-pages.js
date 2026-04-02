@@ -149,18 +149,40 @@ module.exports = async function handler(req, res) {
 
 // ── Detect city from slug ────────────────────────────────────
 function detectCity(slug) {
-  if (slug.includes('/barcelona'))  return 'barcelona';
-  if (slug.includes('/paris'))      return 'paris';
-  if (slug.includes('/madrid'))     return 'madrid';
+  // Sub-path cities (check these first — most specific)
+  if (slug.includes('/barcelona'))    return 'barcelona';
+  if (slug.includes('/paris'))        return 'paris';
+  if (slug.includes('/madrid'))       return 'madrid';
   if (slug.includes('/new-york') || slug.includes('/newyork')) return 'new-york';
-  if (slug.includes('/lisbon'))     return 'lisbon';
-  if (slug.includes('/amsterdam'))  return 'amsterdam';
-  if (slug.includes('/edinburgh') || slug.includes('edinburgh'))  return 'edinburgh';
-  if (slug.includes('/manchester') || slug.includes('manchester')) return 'manchester';
-  if (slug.includes('/cambridge')  || slug.includes('cambridge'))  return 'cambridge';
-  if (slug.includes('/bristol')    || slug.includes('bristol'))    return 'bristol';
-  if (slug.includes('/durham')     || slug.includes('durham'))     return 'durham';
-  if (slug.includes('/glasgow')    || slug.includes('glasgow'))    return 'glasgow';
-  if (slug.includes('/salford'))    return 'manchester';
+  if (slug.includes('/lisbon'))       return 'lisbon';
+  if (slug.includes('/amsterdam'))    return 'amsterdam';
+  if (slug.includes('/boston'))       return 'boston';
+  if (slug.includes('/chicago'))      return 'chicago';
+  if (slug.includes('/philadelphia')) return 'philadelphia';
+  if (slug.includes('/washingtondc')) return 'washington';
+  if (slug.includes('/virginia'))     return 'washington';
+  if (slug.includes('/dublin'))       return 'dublin';
+  if (slug.includes('/florence'))     return 'florence';
+  if (slug.includes('/milan'))        return 'milan';
+  if (slug.includes('/rome'))         return 'rome';
+  if (slug.includes('/helsinki'))     return 'helsinki';
+  if (slug.includes('/porto'))        return 'porto';
+  if (slug.includes('/liverpool'))    return 'liverpool';
+  if (slug.includes('/birmingham'))   return 'birmingham';
+  if (slug.includes('/nottingham'))   return 'nottingham';
+  if (slug.includes('/brighton'))     return 'brighton';
+  if (slug.includes('/bristol'))      return 'bristol';
+  if (slug.includes('/valencia'))     return 'valencia';
+
+  // Slug-keyword cities (no subfolder)
+  if (slug.includes('edinburgh'))  return 'edinburgh';
+  if (slug.includes('manchester') || slug.includes('salford') || slug.includes('deansgate')) return 'manchester';
+  if (slug.includes('cambridge'))  return 'cambridge';
+  if (slug.includes('glasgow'))    return 'glasgow';
+  if (slug.includes('durham'))     return 'durham';
+  if (slug.includes('bristol'))    return 'bristol';
+  if (slug.includes('brighton'))   return 'brighton';
+  if (slug.includes('birmingham')) return 'birmingham';
+
   return 'london';
 }
