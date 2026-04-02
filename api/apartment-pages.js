@@ -141,16 +141,18 @@ module.exports = async function handler(req, res) {
 
 // ── Detect city from slug ────────────────────────────────────
 function detectCity(slug) {
-  if (slug.includes('barcelona'))  return 'barcelona';
-  if (slug.includes('paris'))      return 'paris';
-  if (slug.includes('madrid'))     return 'madrid';
-  if (slug.includes('new-york') || slug.includes('newyork')) return 'new-york';
-  if (slug.includes('edinburgh'))  return 'edinburgh';
-  if (slug.includes('manchester')) return 'manchester';
-  if (slug.includes('cambridge'))  return 'cambridge';
-  if (slug.includes('bristol'))    return 'bristol';
-  if (slug.includes('durham'))     return 'durham';
-  if (slug.includes('glasgow'))    return 'glasgow';
-  // Default to London
+  if (slug.includes('/barcelona'))  return 'barcelona';
+  if (slug.includes('/paris'))      return 'paris';
+  if (slug.includes('/madrid'))     return 'madrid';
+  if (slug.includes('/new-york') || slug.includes('/newyork')) return 'new-york';
+  if (slug.includes('/lisbon'))     return 'lisbon';
+  if (slug.includes('/amsterdam'))  return 'amsterdam';
+  if (slug.includes('/edinburgh') || slug.includes('edinburgh'))  return 'edinburgh';
+  if (slug.includes('/manchester') || slug.includes('manchester')) return 'manchester';
+  if (slug.includes('/cambridge')  || slug.includes('cambridge'))  return 'cambridge';
+  if (slug.includes('/bristol')    || slug.includes('bristol'))    return 'bristol';
+  if (slug.includes('/durham')     || slug.includes('durham'))     return 'durham';
+  if (slug.includes('/glasgow')    || slug.includes('glasgow'))    return 'glasgow';
+  if (slug.includes('/salford'))    return 'manchester';
   return 'london';
 }
