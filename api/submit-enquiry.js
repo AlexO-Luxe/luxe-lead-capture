@@ -4,8 +4,7 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = reservations@studentluxe.co.uk
-//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -286,7 +285,9 @@ async function sendTeamNotification(p, mondayId) {
     from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
     to:      [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
     replyTo: p.email,
-    subject: `New enquiry — ${guestName}${p.city ? ' · ' + formatCity(p.city) : ''}`,
+    subject: isTypeA
+      ? `New Guest Enquiry — ${p.apartment_ref || 'Specific Apartment'}${nightCount ? ', ' + nightCount + ' Nights' : ''}`
+      : `New Guest Enquiry — ${formatCity(p.city) || 'Unknown City'}${nightCount ? ', ' + nightCount + ' Nights' : ''}`,
     html
   });
 }
