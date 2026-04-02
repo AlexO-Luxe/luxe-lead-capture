@@ -322,12 +322,17 @@ async function pushToMonday(p) {
     text37:              firstname,
     text60:              lastname,
     email:               p.email ? { email: p.email, text: p.email } : {},
-    phone_1:             p.phone ? { phone: p.phone.replace(/[\s\-().]/g,''), countryShortName: 'GB' } : {},
+    phone_1: p.phone ? (function(){
+      // Form sends "+XX XXXXXXXXX" — strip dial code, keep number only
+      const raw = p.phone.replace(/[\s\-().]/g, '');
+      // If starts with +, pass as-is — Monday handles international format
+      return { phone: raw, countryShortName: 'GB' };
+    })() : {},
 
     // ── Stay details ───────────────────────────────────────────
     date47:              p.check_in  ? { date: p.check_in  } : {},
     date_1:              p.check_out ? { date: p.check_out } : {},
-    budget_per_week:     formatBudget(p.budget) || '',
+    budget_per_week:     formatBudget(p.budget) !== p.budget ? formatBudget(p.budget) : (p.budget || ''),
     text8:               formatCity(p.city)     || '',
 
     // ── Contact preference ─────────────────────────────────────
@@ -355,9 +360,6 @@ async function pushToMonday(p) {
     text_mm1d87rp:       p.utm_matchtype || '',
     text4__1:            p.gclid || p.fbclid || '',
     text_mm1jhhe7:       p.landing_page  || '',
-
-    // ── Source ─────────────────────────────────────────────────
-    dropdown_mm1v31yb:   { labels: ['Enquiry Form'] },
   };
 
   const mutation = `
