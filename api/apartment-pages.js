@@ -25,107 +25,115 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'GET')    return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    // Allow cache bypass with ?bust=1
+    const bust = req.query && req.query.bust;
+
     // Return cached result if still fresh
-    if (cache && Date.now() - cacheTime < CACHE_TTL_MS) {
-      return res.status(200).json({ apartments: cache });
+    if (!bust && cache && Date.now() - cacheTime < CACHE_TTL_MS) {
+      return res.status(200).json({ apartments: cache, cached: true });
     }
 
-    const query = `
-      {
-        boards(ids: [${BOARD_ID}]) {
-          items_page(limit: 500) {
-            items {
-              name
-              column_values(ids: ["${STATUS_COL}", "${URL_COL}"]) {
-                id
-                text
-                value
+    const apartments = [];
+    let cursor = null;
+    let page = 0;
+
+    // Paginate through all items using cursor
+    do {
+      page++;
+      const query = `
+        {
+          boards(ids: [${BOARD_ID}]) {
+            items_page(limit: 500${cursor ? `, cursor: "${cursor}"` : ''}) {
+              cursor
+              items {
+                name
+                column_values(ids: ["${STATUS_COL}", "${URL_COL}"]) {
+                  id
+                  text
+                  value
+                }
               }
             }
           }
         }
+      `;
+
+      const response = await fetch(MONDAY_API, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': process.env.MONDAY_API_KEY
+        },
+        body: JSON.stringify({ query })
+      });
+
+      const data = await response.json();
+
+      if (data.errors) {
+        console.error('Monday API errors:', data.errors);
+        return res.status(500).json({ error: 'Monday API error' });
       }
-    `;
 
-    const response = await fetch(MONDAY_API, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': process.env.MONDAY_API_KEY
-      },
-      body: JSON.stringify({ query })
-    });
+      const page_data = data?.data?.boards?.[0]?.items_page;
+      const items     = page_data?.items || [];
+      cursor          = page_data?.cursor || null;
 
-    const data = await response.json();
+      console.log(`Page ${page}: fetched ${items.length} items, cursor: ${cursor ? 'yes' : 'end'}`);
 
-    if (data.errors) {
-      console.error('Monday API errors:', data.errors);
-      return res.status(500).json({ error: 'Monday API error' });
-    }
+      for (const item of items) {
+        const statusCol = item.column_values.find(c => c.id === STATUS_COL);
+        const urlCol    = item.column_values.find(c => c.id === URL_COL);
 
-    const items = data?.data?.boards?.[0]?.items_page?.items || [];
-    const apartments = [];
+        if (!statusCol || statusCol.text !== 'Apartment Page') continue;
 
-    for (const item of items) {
-      const statusCol = item.column_values.find(c => c.id === STATUS_COL);
-      const urlCol    = item.column_values.find(c => c.id === URL_COL);
-
-      // Only include items marked as Apartment Page
-      if (!statusCol || statusCol.text !== 'Apartment Page') continue;
-
-      // Extract URL value — Monday link columns have several possible formats
-      let rawUrl = '';
-      if (urlCol) {
-        if (urlCol.value) {
-          try {
-            const parsed = JSON.parse(urlCol.value);
-            // Monday stores links as {url: "...", text: "..."} or {url: "..."}
-            rawUrl = parsed.url || parsed.text || '';
-          } catch {
-            rawUrl = urlCol.text || '';
+        // Extract URL value
+        let rawUrl = '';
+        if (urlCol) {
+          if (urlCol.value) {
+            try {
+              const parsed = JSON.parse(urlCol.value);
+              rawUrl = parsed.url || parsed.text || '';
+            } catch {
+              rawUrl = urlCol.text || '';
+            }
           }
+          if (!rawUrl) rawUrl = urlCol.text || '';
         }
-        // Fallback to plain text value if JSON parse yielded nothing
-        if (!rawUrl) rawUrl = urlCol.text || '';
-      }
 
-      if (!rawUrl) {
-        console.log(`Skipping "${item.name}" — no URL found in ${URL_COL}`);
-        continue;
-      }
+        if (!rawUrl) {
+          console.log(`Skipping "${item.name}" — no URL found`);
+          continue;
+        }
 
-      console.log(`Processing: "${item.name}" → raw URL: ${rawUrl}`);
-
-      // Extract slug — strip domain, keep path
-      let slug = rawUrl
-        .replace(/^https?:\/\/(www\.)?studentluxe\.co\.uk/, '')
-        .replace(/\/$/, '')
-        .toLowerCase()
-        .trim();
-
-      if (!slug) continue;
-
-      console.log(`  → slug: ${slug}`);
-
-      // Clean display name from item name
-      // If item name looks like a URL, extract meaningful part
-      let name = item.name.trim();
-      if (name.startsWith('http')) {
-        // e.g. https://www.studentluxe.co.uk/barcelona/fontana-suites → Fontana Suites
-        name = name
+        // Extract slug
+        let slug = rawUrl
           .replace(/^https?:\/\/(www\.)?studentluxe\.co\.uk/, '')
           .replace(/\/$/, '')
-          .split('/')
-          .pop()                          // take last path segment
-          .replace(/-/g, ' ')             // hyphens to spaces
-          .replace(/\b\w/g, c => c.toUpperCase()); // title case
+          .toLowerCase()
+          .trim();
+
+        if (!slug) continue;
+
+        console.log(`  → slug: ${slug}`);
+
+        // Use item name as display name
+        // If it looks like a URL, extract a clean name from the path
+        let name = item.name.trim();
+        if (name.startsWith('http')) {
+          name = name
+            .replace(/^https?:\/\/(www\.)?studentluxe\.co\.uk/, '')
+            .replace(/\/$/, '')
+            .split('/')
+            .pop()
+            .replace(/-/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        const city = detectCity(slug);
+        apartments.push({ slug, name, city });
       }
 
-      // Detect city from slug
-      const city = detectCity(slug);
-
-      apartments.push({ slug, name, city });
-    }
+    } while (cursor); // keep fetching until no more pages
 
     cache     = apartments;
     cacheTime = Date.now();
