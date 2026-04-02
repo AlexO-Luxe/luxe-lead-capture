@@ -4,8 +4,7 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = reservations@studentluxe.co.uk
-//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -26,20 +25,20 @@ export default async function handler(req, res) {
 
   const p = req.body;
 
-  try {
-    // ── Run emails + Monday in parallel ─────────────────────
-    await Promise.all([
-      sendGuestConfirmation(p),
-      sendTeamNotification(p),
-      pushToMonday(p)
-    ]);
+  // Run all three independently so one failure doesn't block others
+  const results = await Promise.allSettled([
+    sendGuestConfirmation(p),
+    sendTeamNotification(p),
+    pushToMonday(p)
+  ]);
 
-    return res.status(200).json({ success: true });
+  results.forEach((r, i) => {
+    const label = ['Guest email', 'Team email', 'Monday'][i];
+    if(r.status === 'rejected') console.error(`${label} failed:`, r.reason?.message || r.reason);
+    else console.log(`${label} OK`);
+  });
 
-  } catch (err) {
-    console.error('Handler error:', err);
-    return res.status(500).json({ success: false, error: err.message });
-  }
+  return res.status(200).json({ success: true });
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -134,6 +133,12 @@ async function sendGuestConfirmation(p) {
 </td></tr>
 </table>
 </body></html>`;
+
+  // Guard — skip if email missing or malformed
+  if(!p.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)){
+    console.warn('Guest confirmation skipped — invalid email:', p.email);
+    return;
+  }
 
   return resendSend({
     from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
