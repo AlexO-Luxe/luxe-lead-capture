@@ -254,13 +254,9 @@ async function sendTeamNotification(p) {
     <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:12px 16px;width:100%;">
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_campaign||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Ad group</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_adgroup||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Match type</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_matchtype||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">gclid</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.gclid||'—')}</td></tr>
       <tr><td colspan="2" style="padding:8px 0 0;border-top:0.5px solid rgba(184,150,110,0.2);"></td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Landing page</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.landing_page||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Submit page</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.submit_page||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;vertical-align:top;">Journey</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;line-height:1.7;">${escHtml(p.visited_paths||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Submitted at</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${p.submitted_at ? new Date(p.submitted_at).toLocaleString('en-GB', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'}) + ' GMT' : '—'}</td></tr>
     </table>
   </td></tr>
