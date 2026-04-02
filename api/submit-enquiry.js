@@ -43,7 +43,8 @@ export default async function handler(req, res) {
 // ──────────────────────────────────────────────────────────────
 async function sendGuestConfirmation(p) {
   const firstName = (p.full_name || '').split(' ')[0] || 'there';
-  const siteUrl   = process.env.SITE_URL || 'https://www.studentluxe.com';
+  const siteUrl   = process.env.SITE_URL || 'https://www.studentluxe.co.uk';
+  const isTypeA   = p.enquiry_type === 'A';
 
   // Build stay summary rows
   const rows = [
@@ -73,15 +74,22 @@ async function sendGuestConfirmation(p) {
 
   <!-- HEADER -->
   <tr><td style="background:#0d1a2e;padding:36px 40px 32px;">
-    <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.2em;color:#B8966E;text-transform:uppercase;">Student Luxe · Reservations</p>
-    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:28px;font-weight:400;color:#f0ece2;line-height:1.15;">We've received<br>your enquiry</h1>
-    <p style="margin:0;font-size:13px;color:rgba(240,236,226,0.5);font-weight:300;">A member of our team will be in touch shortly.</p>
+    <div class="eh-eye">Student Luxe Apartments · Reservations</div>
+    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:28px;font-weight:400;color:#f0ece2;line-height:1.15;white-space:nowrap;">We've received your enquiry</h1>
+    <p style="margin:0;font-size:13px;color:rgba(240,236,226,0.5);font-weight:300;">Our Reservations team will reach out shortly.</p>
   </td></tr>
 
   <!-- BODY -->
   <tr><td style="background:#ffffff;padding:32px 40px;">
     <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Dear ${escHtml(firstName)},</p>
-    <p style="margin:0 0 20px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for getting in touch with Student Luxe. Your enquiry has been received and a member of our Reservations team will respond via your preferred contact method within <strong>one business day</strong>.</p>
+    ${isTypeA ? `
+    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your enquiry about <strong>${escHtml(p.apartment_ref || 'your chosen apartment')}</strong> — we're currently checking the latest availability and pricing for your dates.</p>
+    <p style="margin:0 0 20px;font-size:14px;color:#1a1a1a;line-height:1.7;">A member of our Reservations team will be in touch within 24 hours (10am–6pm GMT, Mon–Fri) to confirm these details, and discuss any other options that might suit your needs.</p>
+    <p style="margin:0 0 20px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
+    ` : `
+    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your ${escHtml(formatCity(p.city))} apartment enquiry. A member of our Reservations team will be in touch within 24 hours (10am–6pm GMT, Mon–Fri) to discuss this further.</p>
+    <p style="margin:0 0 20px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
+    `}
 
     <!-- Summary table -->
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;padding:4px 20px;margin:0 0 24px;">
@@ -102,10 +110,11 @@ async function sendGuestConfirmation(p) {
 
   <!-- FOOTER -->
   <tr><td style="background:#f7f2eb;padding:18px 40px;border-top:0.5px solid rgba(184,150,110,0.2);">
-    <p style="margin:0;font-size:11px;color:#9b9b9b;line-height:1.7;">
-      Student Luxe · Luxury Student Residences<br>
-      London · Edinburgh · Paris · Barcelona · New York and more<br>
-      © ${new Date().getFullYear()} Student Luxe. All rights reserved.
+    <p style="margin:0;font-size:11px;color:#9b9b9b;line-height:1.9;">
+      Student Luxe Apartments<br>
+      Dog &amp; Duck Yard, Princeton St, London, WC1R 4BH<br>
+      +44 (0)203 007 0017 &nbsp;·&nbsp; Mon–Fri, 10am–6pm GMT<br>
+      © 2026 Student Luxe Apartments. All rights reserved.
     </p>
   </td></tr>
 
@@ -117,7 +126,9 @@ async function sendGuestConfirmation(p) {
   return resendSend({
     from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
     to:      [p.email],
-    subject: 'Your Student Luxe enquiry — we\'re on it',
+    subject: isTypeA
+      ? `Your enquiry about ${p.apartment_ref || 'your apartment'} — Student Luxe Apartments`
+      : `Your Student Luxe Apartments enquiry — we're on it`,
     html
   });
 }
