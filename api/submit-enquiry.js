@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -315,29 +316,26 @@ async function pushToMonday(p) {
     // ── Personal ──────────────────────────────────────────────
     text37:              firstname,
     text60:              lastname,
-    email:               p.email  ? { email: p.email,  text: p.email  } : {},
-    phone_1:             p.phone  ? { phone: p.phone.replace(/\s/g,''), countryShortName: 'GB' } : {},
+    email:               p.email ? { email: p.email, text: p.email } : {},
+    phone_1:             p.phone ? { phone: p.phone.replace(/[\s\-().]/g,''), countryShortName: 'GB' } : {},
 
     // ── Stay details ───────────────────────────────────────────
     date47:              p.check_in  ? { date: p.check_in  } : {},
     date_1:              p.check_out ? { date: p.check_out } : {},
     budget_per_week:     formatBudget(p.budget) || '',
     text8:               formatCity(p.city)     || '',
-    dropdown19:          areaLabels.length      ? { labels: areaLabels }    : {},
-    dropdown6:           p.apartment_ref        ? { labels: [p.apartment_ref] } : {},
 
     // ── Contact preference ─────────────────────────────────────
     dropdown40:          p.response_methods
-                           ? { labels: p.response_methods.split(',').map(s => s.trim()) }
+                           ? { labels: [p.response_methods.split(',')[0].trim()] }
                            : {},
 
     // ── Guest details ──────────────────────────────────────────
-    color_mktcnwyb:      p.stay_type   ? { label: stayTypeMap[p.stay_type] || p.stay_type } : {},
     text_mknfnmsb:       p.university  || '',
     text9__1:            p.nationality || '',
 
     // ── Message ────────────────────────────────────────────────
-    long_text7:          p.message     || '',
+    long_text7:          p.message || '',
 
     // ── Tracking ───────────────────────────────────────────────
     text_mm1c3b5w:       p.utm_campaign  || '',
@@ -347,12 +345,8 @@ async function pushToMonday(p) {
     text4__1:            p.gclid || p.fbclid || '',
     text_mm1jhhe7:       p.landing_page  || '',
 
-    // ── Source / channel ───────────────────────────────────────
+    // ── Source ─────────────────────────────────────────────────
     dropdown_mm1v31yb:   { labels: ['Enquiry Form'] },
-    ...(hasPPC && {
-      color_mkxk8y67:    { label: 'PPC' },
-      dropdown_mkxkfbff: { labels: ['Google Advert'] }
-    })
   };
 
   const mutation = `
@@ -378,7 +372,8 @@ async function pushToMonday(p) {
 
   const data = await response.json();
   if (data.errors) {
-    console.error('Monday API errors:', data.errors);
+    console.error('Monday API errors:', JSON.stringify(data.errors, null, 2));
+    console.error('Column values sent:', JSON.stringify(columnValues, null, 2));
     throw new Error('Monday API error: ' + JSON.stringify(data.errors));
   }
   return data?.data?.create_item?.id;
