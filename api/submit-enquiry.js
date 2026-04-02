@@ -135,8 +135,8 @@ async function sendGuestConfirmation(p) {
     from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
     to:      [p.email],
     subject: isTypeA
-      ? `Your enquiry about ${p.apartment_ref || 'your apartment'} — Student Luxe Apartments`
-      : `Your Student Luxe Apartments enquiry — we're on it`,
+      ? `Your enquiry about ${p.apartment_ref || 'your apartment'}`
+      : `Your ${formatCity(p.city) || ''} apartment enquiry`.trim(),
     html
   });
 }
