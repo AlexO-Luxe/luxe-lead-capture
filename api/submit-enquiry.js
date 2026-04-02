@@ -336,6 +336,8 @@ async function pushToMonday(p) {
     text8:               formatCity(p.city)     || '',
     dropdown6:           p.apartment_ref        || '',
     apt_type_mkmn4bgg:   formatAptType(p.apartment_type) || '',
+    dropdown19:          p.areas || '',
+    dropdown19:          p.areas || '',
 
     // ── Contact preference ─────────────────────────────────────
     dropdown40: p.response_methods ? {
