@@ -4,8 +4,7 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = reservations@studentluxe.co.uk
-//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -321,7 +320,7 @@ async function pushToMonday(p) {
   const hasGclid    = !!p.gclid;
   const hasFbclid   = !!p.fbclid;
   const hasPPC      = hasGclid || hasFbclid;
-  const hasVisited  = !!(p.landing_page || p.last_page);
+  const hasVisited  = !!(p.visited_paths || p.landing_page);
 
   // Extract clean domain from referrer e.g. "https://search.yahoo.com/search" → "Yahoo"
   function extractChannel(referrer) {
@@ -409,9 +408,7 @@ async function pushToMonday(p) {
     text_mm1d87rp:       p.utm_matchtype || '',
     text4__1:            p.gclid || p.fbclid || '',
     text_mm1jhhe7:       p.landing_page  || '',
-    long_text__1:        p.landing_page || p.last_page
-                           ? [p.landing_page, p.last_page].filter(Boolean).join(' → ')
-                           : '',
+    long_text__1:        p.visited_paths || '',
 
     // ── Lead source ────────────────────────────────────────────
     ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
