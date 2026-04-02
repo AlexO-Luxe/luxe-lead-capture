@@ -73,18 +73,28 @@ module.exports = async function handler(req, res) {
       // Only include items marked as Apartment Page
       if (!statusCol || statusCol.text !== 'Apartment Page') continue;
 
-      // Extract URL value
+      // Extract URL value — Monday link columns have several possible formats
       let rawUrl = '';
-      if (urlCol?.value) {
-        try {
-          const parsed = JSON.parse(urlCol.value);
-          rawUrl = parsed.url || parsed.text || urlCol.text || '';
-        } catch {
-          rawUrl = urlCol.text || '';
+      if (urlCol) {
+        if (urlCol.value) {
+          try {
+            const parsed = JSON.parse(urlCol.value);
+            // Monday stores links as {url: "...", text: "..."} or {url: "..."}
+            rawUrl = parsed.url || parsed.text || '';
+          } catch {
+            rawUrl = urlCol.text || '';
+          }
         }
+        // Fallback to plain text value if JSON parse yielded nothing
+        if (!rawUrl) rawUrl = urlCol.text || '';
       }
 
-      if (!rawUrl) continue;
+      if (!rawUrl) {
+        console.log(`Skipping "${item.name}" — no URL found in ${URL_COL}`);
+        continue;
+      }
+
+      console.log(`Processing: "${item.name}" → raw URL: ${rawUrl}`);
 
       // Extract slug — strip domain, keep path
       let slug = rawUrl
@@ -94,6 +104,8 @@ module.exports = async function handler(req, res) {
         .trim();
 
       if (!slug) continue;
+
+      console.log(`  → slug: ${slug}`);
 
       // Clean display name from item name
       // If item name looks like a URL, extract meaningful part
