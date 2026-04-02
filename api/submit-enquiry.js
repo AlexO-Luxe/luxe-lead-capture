@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -74,7 +75,6 @@ async function sendGuestConfirmation(p) {
 
   <!-- HEADER -->
   <tr><td style="background:#0d1a2e;padding:36px 40px 32px;">
-    <div class="eh-eye">Student Luxe Apartments · Reservations</div>
     <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:28px;font-weight:400;color:#f0ece2;line-height:1.15;white-space:nowrap;">We've received your enquiry</h1>
     <p style="margin:0;font-size:13px;color:rgba(240,236,226,0.5);font-weight:300;">Our Reservations team will reach out shortly.</p>
   </td></tr>
@@ -95,6 +95,15 @@ async function sendGuestConfirmation(p) {
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;padding:4px 20px;margin:0 0 24px;">
       <tbody>${summaryRows}</tbody>
     </table>
+
+    ${p.message ? `
+    <!-- Guest message -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+      <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:14px 18px;">
+        <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Your message</p>
+        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">${escHtml(p.message)}</p>
+      </td></tr>
+    </table>` : ''}
 
     <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">In the meantime, you're welcome to browse our full portfolio of apartments.</p>
 
