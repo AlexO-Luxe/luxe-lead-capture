@@ -331,9 +331,15 @@ async function pushToMonday(p) {
     text8:               formatCity(p.city)     || '',
 
     // ── Contact preference ─────────────────────────────────────
-    dropdown40:          p.response_methods
-                           ? { labels: [p.response_methods.split(',')[0].trim()] }
-                           : {},
+    dropdown40: p.response_methods ? {
+      labels: p.response_methods.split(',').map(s => {
+        const v = s.trim().toLowerCase();
+        if(v === 'phone')     return 'Phone Call (preferred option)';
+        if(v === 'whatsapp')  return 'WhatsApp (preferred option)';
+        if(v === 'email')     return 'Email';
+        return s.trim();
+      })
+    } : {},
 
     // ── Guest details ──────────────────────────────────────────
     text_mknfnmsb:       p.university  || '',
