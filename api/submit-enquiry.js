@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -317,6 +318,42 @@ async function pushToMonday(p) {
     'other-stay':       'Other'
   };
 
+  // ── Lead source detection ────────────────────────────────────
+  const hasGclid    = !!p.gclid;
+  const hasFbclid   = !!p.fbclid;
+  const hasPPC      = hasGclid || hasFbclid;
+  const hasVisited  = !!(p.landing_page || p.last_page);
+
+  // Extract clean domain from referrer e.g. "https://search.yahoo.com/search" → "Yahoo"
+  function extractChannel(referrer) {
+    if(!referrer) return '';
+    try {
+      const host = new URL(referrer).hostname.replace('www.', '').replace('search.', '');
+      const domainMap = {
+        'google.com': 'Google', 'google.co.uk': 'Google',
+        'bing.com': 'Bing', 'yahoo.com': 'Yahoo', 'duckduckgo.com': 'DuckDuckGo',
+        'instagram.com': 'Instagram', 'facebook.com': 'Facebook', 'meta.com': 'Facebook',
+        'linkedin.com': 'LinkedIn', 'twitter.com': 'X (Twitter)', 'x.com': 'X (Twitter)',
+        'tiktok.com': 'TikTok', 'youtube.com': 'YouTube'
+      };
+      return domainMap[host] || host;
+    } catch(e) { return referrer; }
+  }
+
+  let leadSource = '';
+  let leadChannel = '';
+
+  if(hasGclid){
+    leadSource  = 'PPC';
+    leadChannel = 'Google Advert';
+  } else if(hasFbclid){
+    leadSource  = 'Socials';
+    leadChannel = extractChannel(p.referrer) || 'Instagram';
+  } else if(hasVisited){
+    leadSource  = 'SEO';
+    leadChannel = extractChannel(p.referrer);
+  }
+
   const columnValues = {
     // ── Personal ──────────────────────────────────────────────
     text37:              firstname,
@@ -351,6 +388,15 @@ async function pushToMonday(p) {
     } : {},
 
     // ── Guest details ──────────────────────────────────────────
+    color_mktcnwyb: p.stay_type ? { label: {
+      'student':             'Student',
+      'parent':              'Parent or guardian (on behalf of student)',
+      'working-professional':'Working professional',
+      'corporate':           'Corporate',
+      'medical':             'Medical',
+      'tourism':             'Tourism',
+      'agent':               'Agent (on behalf of client)'
+    }[p.stay_type] || p.stay_type } : {},
     text_mknfnmsb:       p.university  || '',
     text9__1:            p.nationality || '',
 
@@ -364,6 +410,13 @@ async function pushToMonday(p) {
     text_mm1d87rp:       p.utm_matchtype || '',
     text4__1:            p.gclid || p.fbclid || '',
     text_mm1jhhe7:       p.landing_page  || '',
+    long_text__1:        p.landing_page || p.last_page
+                           ? [p.landing_page, p.last_page].filter(Boolean).join(' → ')
+                           : '',
+
+    // ── Lead source ────────────────────────────────────────────
+    ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
+    ...(leadChannel && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
   };
 
   const mutation = `
@@ -477,8 +530,13 @@ function formatBudget(b) {
 function formatStayType(type, university) {
   if (!type) return '';
   const map = {
-    'student':'Student','young-professional':'Young professional',
-    'corporate':'Corporate','parent':'Parent / guardian','other-stay':'Other'
+    'student':              'Student',
+    'parent':               'Parent or guardian (on behalf of student)',
+    'working-professional': 'Working professional',
+    'corporate':            'Corporate',
+    'medical':              'Medical',
+    'tourism':              'Tourism',
+    'agent':                'Agent (on behalf of client)'
   };
   const label = map[type] || type;
   return university ? `${label} · ${university}` : label;
