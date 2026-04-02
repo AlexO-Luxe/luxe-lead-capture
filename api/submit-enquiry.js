@@ -8,13 +8,15 @@
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
+//    MONDAY_API_KEY      = (your Monday API key from monday.com/developers)
 // ============================================================
 
-const RESEND_API = 'https://api.resend.com/emails';
+const RESEND_API  = 'https://api.resend.com/emails';
+const MONDAY_API  = 'https://api.monday.com/v2';
+const MONDAY_BOARD = 2171015719;
 
 export default async function handler(req, res) {
 
-  // CORS — allow your Squarespace domain
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -24,16 +26,17 @@ export default async function handler(req, res) {
   const p = req.body;
 
   try {
-    // ── Send both emails in parallel ────────────────────────
+    // ── Run emails + Monday in parallel ─────────────────────
     await Promise.all([
       sendGuestConfirmation(p),
-      sendTeamNotification(p)
+      sendTeamNotification(p),
+      pushToMonday(p)
     ]);
 
     return res.status(200).json({ success: true });
 
   } catch (err) {
-    console.error('Email send error:', err);
+    console.error('Handler error:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 }
@@ -277,6 +280,108 @@ async function sendTeamNotification(p) {
     subject: `New enquiry — ${guestName}${p.city ? ' · ' + formatCity(p.city) : ''}`,
     html
   });
+}
+
+// ──────────────────────────────────────────────────────────────
+//  MONDAY.COM — Push lead to board 2171015719
+// ──────────────────────────────────────────────────────────────
+async function pushToMonday(p) {
+  const nameParts  = (p.full_name || '').trim().split(' ');
+  const firstname  = nameParts[0] || '';
+  const lastname   = nameParts.slice(1).join(' ') || '';
+  const itemName   = p.full_name || 'New Enquiry';
+  const hasPPC     = !!(p.gclid || p.fbclid);
+
+  // Format areas — Monday dropdown expects array of label strings
+  const areaLabels = p.areas
+    ? p.areas.split(',').map(a => a.trim()).filter(Boolean)
+    : [];
+
+  // Apartment type label for dropdown
+  const aptTypeLabels = p.apartment_type
+    ? [formatAptType(p.apartment_type)]
+    : [];
+
+  // Stay type label for status column
+  const stayTypeMap = {
+    'student':          'Student',
+    'young-professional':'Young Professional',
+    'corporate':        'Corporate',
+    'parent':           'Parent / Guardian',
+    'other-stay':       'Other'
+  };
+
+  const columnValues = {
+    // ── Personal ──────────────────────────────────────────────
+    text37:              firstname,
+    text60:              lastname,
+    email:               p.email  ? { email: p.email,  text: p.email  } : {},
+    phone_1:             p.phone  ? { phone: p.phone.replace(/\s/g,''), countryShortName: 'GB' } : {},
+
+    // ── Stay details ───────────────────────────────────────────
+    date47:              p.check_in  ? { date: p.check_in  } : {},
+    date_1:              p.check_out ? { date: p.check_out } : {},
+    budget_per_week:     formatBudget(p.budget) || '',
+    text8:               formatCity(p.city)     || '',
+    dropdown19:          areaLabels.length      ? { labels: areaLabels }    : {},
+    dropdown6:           p.apartment_ref        ? { labels: [p.apartment_ref] } : {},
+
+    // ── Contact preference ─────────────────────────────────────
+    dropdown40:          p.response_methods
+                           ? { labels: p.response_methods.split(',').map(s => s.trim()) }
+                           : {},
+
+    // ── Guest details ──────────────────────────────────────────
+    color_mktcnwyb:      p.stay_type   ? { label: stayTypeMap[p.stay_type] || p.stay_type } : {},
+    text_mknfnmsb:       p.university  || '',
+    text9__1:            p.nationality || '',
+
+    // ── Message ────────────────────────────────────────────────
+    long_text7:          p.message     || '',
+
+    // ── Tracking ───────────────────────────────────────────────
+    text_mm1c3b5w:       p.utm_campaign  || '',
+    text43__1:           p.utm_adgroup   || '',
+    text3__1:            p.utm_term      || '',
+    text_mm1d87rp:       p.utm_matchtype || '',
+    text4__1:            p.gclid || p.fbclid || '',
+    text_mm1jhhe7:       p.landing_page  || '',
+
+    // ── Source / channel ───────────────────────────────────────
+    dropdown_mm1v31yb:   { labels: ['Enquiry Form'] },
+    ...(hasPPC && {
+      color_mkxk8y67:    { label: 'PPC' },
+      dropdown_mkxkfbff: { labels: ['Google Advert'] }
+    })
+  };
+
+  const mutation = `
+    mutation {
+      create_item(
+        board_id: ${MONDAY_BOARD},
+        item_name: ${JSON.stringify(itemName)},
+        column_values: ${JSON.stringify(JSON.stringify(columnValues))}
+      ) {
+        id
+      }
+    }
+  `;
+
+  const response = await fetch(MONDAY_API, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': process.env.MONDAY_API_KEY
+    },
+    body: JSON.stringify({ query: mutation })
+  });
+
+  const data = await response.json();
+  if (data.errors) {
+    console.error('Monday API errors:', data.errors);
+    throw new Error('Monday API error: ' + JSON.stringify(data.errors));
+  }
+  return data?.data?.create_item?.id;
 }
 
 // ──────────────────────────────────────────────────────────────
