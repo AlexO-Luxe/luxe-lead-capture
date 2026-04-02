@@ -4,8 +4,7 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = reservations@studentluxe.co.uk
-//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -16,7 +15,7 @@ const RESEND_API  = 'https://api.resend.com/emails';
 const MONDAY_API  = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
