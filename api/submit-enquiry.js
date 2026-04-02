@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -25,15 +26,23 @@ module.exports = async function handler(req, res) {
 
   const p = req.body;
 
-  // Run all three independently so one failure doesn't block others
+  // Push to Monday first so we get the pulse ID for the team email link
+  let mondayId = null;
+  try {
+    mondayId = await pushToMonday(p);
+    console.log('Monday OK — pulse ID:', mondayId);
+  } catch(err) {
+    console.error('Monday failed:', err.message || err);
+  }
+
+  // Fire both emails in parallel, passing the pulse ID to the team email
   const results = await Promise.allSettled([
     sendGuestConfirmation(p),
-    sendTeamNotification(p),
-    pushToMonday(p)
+    sendTeamNotification(p, mondayId)
   ]);
 
   results.forEach((r, i) => {
-    const label = ['Guest email', 'Team email', 'Monday'][i];
+    const label = ['Guest email', 'Team email'][i];
     if(r.status === 'rejected') console.error(`${label} failed:`, r.reason?.message || r.reason);
     else console.log(`${label} OK`);
   });
@@ -153,37 +162,37 @@ async function sendGuestConfirmation(p) {
 // ──────────────────────────────────────────────────────────────
 //  EMAIL 2 — Team notification
 // ──────────────────────────────────────────────────────────────
-async function sendTeamNotification(p) {
+async function sendTeamNotification(p, mondayId) {
   const isTypeA   = p.enquiry_type === 'A';
   const badgeColor = isTypeA ? '#0F6E56' : '#B8966E';
   const badgeBg   = isTypeA ? 'rgba(29,158,117,0.15)' : 'rgba(184,150,110,0.15)';
-  const badgeLabel = isTypeA ? 'Option A — Book specific apartment' : 'Option B — Send options';
+  const badgeLabel = isTypeA ? 'Check availability' : 'Send guest options';
   const guestName = p.full_name || 'New enquiry';
   const nightCount = nights(p);
+
+  // Format submitted time as "2 April 2026 — 2:45pm"
+  const submittedFormatted = p.submitted_at
+    ? new Date(p.submitted_at).toLocaleString('en-GB', {
+        day:'numeric', month:'long', year:'numeric',
+        hour:'numeric', minute:'2-digit', hour12:true,
+        timeZone:'Europe/London'
+      }).replace(', ', ' — ')
+    : new Date().toLocaleString('en-GB', {
+        day:'numeric', month:'long', year:'numeric',
+        hour:'numeric', minute:'2-digit', hour12:true,
+        timeZone:'Europe/London'
+      }).replace(', ', ' — ');
+
+  // Monday CRM link — direct to pulse if we have the ID, otherwise leads board
+  const crmUrl = mondayId
+    ? `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/pulses/${mondayId}`
+    : `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/views/205648977`;
 
   const field = (label, value) => value ? `
     <td style="padding:0 20px 14px 0;vertical-align:top;width:50%;">
       <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.1em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
       <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(String(value))}</p>
     </td>` : '';
-
-  const trackingRows = [
-    ['utm_source',   p.utm_source],
-    ['utm_medium',   p.utm_medium],
-    ['utm_campaign', p.utm_campaign],
-    ['utm_term',     p.utm_term],
-    ['gclid',        p.gclid],
-    ['fbclid',       p.fbclid],
-    ['landing_page', p.landing_page],
-    ['submit_page',  p.submit_page],
-    ['submitted_at', p.submitted_at ? new Date(p.submitted_at).toUTCString() : ''],
-  ].filter(([,v]) => v).map(([k,v]) =>
-    `<tr><td style="padding:3px 12px 3px 0;font-size:11px;color:#9b9b9b;white-space:nowrap;">${k}</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;">${escHtml(v)}</td></tr>`
-  ).join('');
-
-  // WhatsApp link
-  const phoneRaw = (p.phone || '').replace(/\D/g, '');
-  const waLink = phoneRaw ? `https://wa.me/${phoneRaw}?text=${encodeURIComponent(`Hi ${(p.full_name||'').split(' ')[0]}, thanks for your enquiry with Student Luxe. We'd love to help you find the perfect apartment — do you have a moment to chat?`)}` : null;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -198,7 +207,7 @@ async function sendTeamNotification(p) {
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="vertical-align:middle;">
         <p style="margin:0;font-size:14px;font-weight:500;color:#f0ece2;">${escHtml(guestName)}</p>
-        <p style="margin:2px 0 0;font-size:11px;color:rgba(240,236,226,0.45);">New enquiry · ${new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})}</p>
+        <p style="margin:3px 0 0;font-size:11px;color:rgba(240,236,226,0.5);">${submittedFormatted}</p>
       </td>
       <td style="text-align:right;vertical-align:middle;">
         <span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${badgeBg};color:${badgeColor};border:0.5px solid ${badgeColor};">${badgeLabel}</span>
@@ -257,16 +266,14 @@ async function sendTeamNotification(p) {
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
       <tr><td colspan="2" style="padding:8px 0 0;border-top:0.5px solid rgba(184,150,110,0.2);"></td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;vertical-align:top;">Journey</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;line-height:1.7;">${escHtml(p.visited_paths||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Submitted at</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${p.submitted_at ? new Date(p.submitted_at).toLocaleString('en-GB', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'}) + ' GMT' : '—'}</td></tr>
     </table>
   </td></tr>
 
   <!-- CTA BUTTONS -->
   <tr><td style="background:#f7f2eb;padding:16px 28px;">
-    <table cellpadding="0" cellspacing="0"><tr style="gap:8px;">
-      ${waLink ? `<td style="padding-right:8px;"><a href="${waLink}" style="display:inline-block;padding:10px 20px;background:#25D366;border-radius:8px;font-size:12px;font-weight:500;color:#ffffff;text-decoration:none;">Reply on WhatsApp</a></td>` : ''}
+    <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:8px;"><a href="mailto:${p.email}" style="display:inline-block;padding:10px 20px;background:#B8966E;border-radius:8px;font-size:12px;font-weight:500;color:#ffffff;text-decoration:none;">Reply by email</a></td>
-      <td><a href="mailto:${p.email}?subject=Re: Your Student Luxe enquiry" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View in CRM</a></td>
+      <td><a href="${crmUrl}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Leads Board</a></td>
     </tr></table>
   </td></tr>
 
