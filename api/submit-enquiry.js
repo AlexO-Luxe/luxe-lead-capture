@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -240,10 +241,21 @@ async function sendTeamNotification(p) {
   </td></tr>` : ''}
 
   <!-- TRACKING -->
-  ${trackingRows ? `<tr><td style="background:#ffffff;padding:22px 28px;border-bottom:0.5px solid #ede9e3;">
+  <tr><td style="background:#ffffff;padding:22px 28px;border-bottom:0.5px solid #ede9e3;">
     <p style="margin:0 0 10px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
-    <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 16px;width:100%;font-family:monospace;">${trackingRows}</table>
-  </td></tr>` : ''}
+    <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:12px 16px;width:100%;">
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_campaign||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Ad group</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_adgroup||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Match type</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_matchtype||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">gclid</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.gclid||'—')}</td></tr>
+      <tr><td colspan="2" style="padding:8px 0 0;border-top:0.5px solid rgba(184,150,110,0.2);"></td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Landing page</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.landing_page||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Submit page</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.submit_page||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Submitted at</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${p.submitted_at ? new Date(p.submitted_at).toLocaleString('en-GB', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'}) + ' GMT' : '—'}</td></tr>
+    </table>
+  </td></tr>
 
   <!-- CTA BUTTONS -->
   <tr><td style="background:#f7f2eb;padding:16px 28px;">
