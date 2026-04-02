@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -132,10 +133,10 @@ async function sendGuestConfirmation(p) {
         <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid #ede9e3;padding-top:10px;margin-top:4px;">
           <tr>
             <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>All-inclusive
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Fully-furnished
             </td>
             <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Fully furnished
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>All bills included
             </td>
           </tr>
           <tr>
@@ -143,32 +144,31 @@ async function sendGuestConfirmation(p) {
               <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Hotel-style amenities
             </td>
             <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Bills included
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Weekly housekeeping
             </td>
           </tr>
           <tr>
             <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Weekly housekeeping
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Dedicated support
             </td>
             <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Dedicated support
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Flexible booking policy
             </td>
           </tr>
         </table>
       </td></tr>
     </table>
-
-    <p style="margin:0;font-size:12px;color:#9b9b9b;line-height:1.6;">If you didn't submit this enquiry, please disregard this email. Your details are safe and will never be shared with third parties.</p>
   </td></tr>
 
   <!-- FOOTER -->
   <tr><td style="background:#f7f2eb;padding:18px 40px;border-top:0.5px solid rgba(184,150,110,0.2);">
-    <p style="margin:0;font-size:11px;color:#9b9b9b;line-height:1.9;">
+    <p style="margin:0 0 10px;font-size:11px;color:#9b9b9b;line-height:1.9;">
       Student Luxe Apartments<br>
       Dog &amp; Duck Yard, Princeton St, London, WC1R 4BH<br>
       +44 (0)203 007 0017 &nbsp;·&nbsp; Mon–Fri, 10am–6pm GMT<br>
       © 2026 Student Luxe Apartments. All rights reserved.
     </p>
+    <p style="margin:0;font-size:10px;color:#b9b9b9;line-height:1.6;">If you didn't submit this enquiry, please disregard this email. Your details are safe and will never be shared with third parties.</p>
   </td></tr>
 
 </table>
