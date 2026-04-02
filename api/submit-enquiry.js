@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -296,7 +297,6 @@ async function pushToMonday(p) {
   const firstname  = nameParts[0] || '';
   const lastname   = nameParts.slice(1).join(' ') || '';
   const itemName   = p.full_name || 'New Enquiry';
-  const hasPPC     = !!(p.gclid || p.fbclid);
 
   // Format areas — Monday dropdown expects array of label strings
   const areaLabels = p.areas
