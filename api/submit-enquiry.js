@@ -395,20 +395,32 @@ async function pushToMonday(p) {
     text60:              lastname,
     email:               p.email ? { email: p.email, text: p.email } : {},
     phone_1: p.phone ? (function(){
-      // Form sends "+XX XXXXXXXXX" — strip dial code, keep number only
       const raw = p.phone.replace(/[\s\-().]/g, '');
-      // If starts with +, pass as-is — Monday handles international format
-      return { phone: raw, countryShortName: 'GB' };
+      // Detect country from dial code prefix
+      const dialMap = {
+        '+44':'GB', '+1':'US', '+33':'FR', '+49':'DE', '+39':'IT',
+        '+34':'ES', '+351':'PT', '+31':'NL', '+32':'BE', '+41':'CH',
+        '+43':'AT', '+46':'SE', '+47':'NO', '+45':'DK', '+358':'FI',
+        '+48':'PL', '+420':'CZ', '+36':'HU', '+40':'RO', '+380':'UA',
+        '+7':'RU',  '+86':'CN', '+81':'JP', '+82':'KR', '+91':'IN',
+        '+61':'AU', '+64':'NZ', '+27':'ZA', '+55':'BR', '+52':'MX',
+        '+971':'AE','+966':'SA','+974':'QA','+965':'KW','+962':'JO',
+        '+852':'HK','+65':'SG', '+60':'MY', '+66':'TH', '+62':'ID'
+      };
+      let countryShortName = 'GB';
+      for (const [prefix, code] of Object.entries(dialMap)) {
+        if (raw.startsWith(prefix)) { countryShortName = code; break; }
+      }
+      return { phone: raw, countryShortName };
     })() : {},
 
     // ── Stay details ───────────────────────────────────────────
     date47:              p.check_in  ? { date: p.check_in  } : {},
     date_1:              p.check_out ? { date: p.check_out } : {},
-    budget_per_week:     formatBudget(p.budget) !== p.budget ? formatBudget(p.budget) : (p.budget || ''),
+    budget_per_week:     p.budget ? formatBudget(p.budget) : '',
     text8:               formatCity(p.city)     || '',
     dropdown6:           p.apartment_ref        || '',
     apt_type_mkmn4bgg:   formatAptType(p.apartment_type) || '',
-    dropdown19:          p.areas || '',
     dropdown19:          p.areas || '',
 
     // ── Contact preference ─────────────────────────────────────
@@ -474,6 +486,10 @@ async function pushToMonday(p) {
   });
 
   const data = await response.json();
+  if (!response.ok) {
+    console.error('Monday HTTP error:', response.status, JSON.stringify(data));
+    throw new Error('Monday HTTP ' + response.status);
+  }
   if (data.errors) {
     console.error('Monday API errors:', JSON.stringify(data.errors, null, 2));
     console.error('Column values sent:', JSON.stringify(columnValues, null, 2));
