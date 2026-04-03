@@ -381,14 +381,15 @@ async function pushToMonday(p) {
     try {
       const host = new URL(referrer).hostname.replace('www.', '').replace('search.', '');
       const domainMap = {
-        'google.com': 'Google', 'google.co.uk': 'Google',
+        'google.com': 'Google Advert', 'google.co.uk': 'Google Advert',
         'bing.com': 'Bing', 'yahoo.com': 'Yahoo', 'duckduckgo.com': 'DuckDuckGo',
-        'instagram.com': 'Instagram', 'facebook.com': 'Facebook', 'meta.com': 'Facebook',
-        'linkedin.com': 'LinkedIn', 'twitter.com': 'X (Twitter)', 'x.com': 'X (Twitter)',
-        'tiktok.com': 'TikTok', 'youtube.com': 'YouTube'
+        'instagram.com': 'Instagram', 'facebook.com': 'Meta Advert', 'meta.com': 'Meta Advert',
+        'linkedin.com': 'From a Friend', 'twitter.com': 'Unknown', 'x.com': 'Unknown',
+        'tiktok.com': 'TikTok', 'youtube.com': 'Unknown',
+        'studentluxe.co.uk': 'Unknown'
       };
-      return domainMap[host] || host;
-    } catch(e) { return referrer; }
+      return domainMap[host] || 'Unknown';
+    } catch(e) { return 'Unknown'; }
   }
 
   let leadSource = '';
@@ -477,7 +478,7 @@ async function pushToMonday(p) {
 
     // ── Lead source ────────────────────────────────────────────
     ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
-    ...(leadChannel && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
+    ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
   };
 
   const mutation = `
