@@ -27,17 +27,19 @@ module.exports = async function handler(req, res) {
 
   // Push to Monday first so we get the pulse ID for the team email link
   let mondayId = null;
+  let mondayError = null;
   try {
     mondayId = await pushToMonday(p);
     console.log('Monday OK — pulse ID:', mondayId);
   } catch(err) {
-    console.error('Monday failed:', err.message || err);
+    mondayError = err.message || 'Unknown error';
+    console.error('Monday failed:', mondayError);
   }
 
-  // Fire both emails in parallel, passing the pulse ID to the team email
+  // Fire both emails in parallel, passing the pulse ID and any error to the team email
   const results = await Promise.allSettled([
     sendGuestConfirmation(p),
-    sendTeamNotification(p, mondayId)
+    sendTeamNotification(p, mondayId, mondayError)
   ]);
 
   results.forEach((r, i) => {
@@ -194,7 +196,7 @@ async function sendGuestConfirmation(p) {
 // ──────────────────────────────────────────────────────────────
 //  EMAIL 2 — Team notification
 // ──────────────────────────────────────────────────────────────
-async function sendTeamNotification(p, mondayId) {
+async function sendTeamNotification(p, mondayId, mondayError) {
   const isTypeA   = p.enquiry_type === 'A';
   const badgeColor = isTypeA ? '#0F6E56' : '#B8966E';
   const badgeBg   = isTypeA ? 'rgba(29,158,117,0.15)' : 'rgba(184,150,110,0.15)';
@@ -219,6 +221,17 @@ async function sendTeamNotification(p, mondayId) {
   const crmUrl = mondayId
     ? `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/pulses/${mondayId}`
     : `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/views/205648977`;
+
+  // Monday error banner — shown when push failed
+  const mondayErrorBanner = mondayError ? `
+  <tr><td style="padding:0 28px 20px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff3cd;border:1px solid #f0ad4e;border-radius:8px;">
+      <tr><td style="padding:12px 16px;">
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#856404;">⚠️ Monday CRM push failed — add this lead manually</p>
+        <p style="margin:0;font-size:11px;color:#856404;line-height:1.5;">This enquiry was <strong>not</strong> saved to the Leads board automatically. Please add it manually. Error: <code style="font-size:10px;background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;">${escHtml(mondayError)}</code></p>
+      </td></tr>
+    </table>
+  </td></tr>` : '';
 
   const field = (label, value) => value ? `
     <td style="padding:0 20px 14px 0;vertical-align:top;width:50%;">
@@ -246,6 +259,9 @@ async function sendTeamNotification(p, mondayId) {
       </td>
     </tr></table>
   </td></tr>
+
+  <!-- MONDAY ERROR BANNER -->
+  ${mondayErrorBanner}
 
   <!-- CONTACT -->
   <tr><td style="background:#ffffff;padding:22px 28px;border-bottom:0.5px solid #ede9e3;">
