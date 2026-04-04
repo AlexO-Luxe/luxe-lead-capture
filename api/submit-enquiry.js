@@ -198,9 +198,6 @@ async function sendGuestConfirmation(p) {
 // ──────────────────────────────────────────────────────────────
 async function sendTeamNotification(p, mondayId, mondayError) {
   const isTypeA   = p.enquiry_type === 'A';
-  const badgeColor = isTypeA ? '#0F6E56' : '#B8966E';
-  const badgeBg   = isTypeA ? 'rgba(29,158,117,0.15)' : 'rgba(184,150,110,0.15)';
-  const badgeLabel = isTypeA ? 'Check availability' : 'Send guest options';
   const guestName = p.full_name || 'New enquiry';
   const nightCount = nights(p);
 
@@ -253,15 +250,24 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       <td style="vertical-align:middle;">
         <p style="margin:0;font-size:14px;font-weight:500;color:#f0ece2;">${escHtml(guestName)}</p>
         <p style="margin:3px 0 0;font-size:11px;color:rgba(240,236,226,0.5);">${submittedFormatted}</p>
+        <p style="margin:8px 0 0;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.2)' : 'rgba(184,150,110,0.2)'};color:${isTypeA ? '#5dcaa5' : '#D4B896'};border:0.5px solid ${isTypeA ? '#5dcaa5' : '#D4B896'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
       </td>
       <td style="text-align:right;vertical-align:middle;">
-        <span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${badgeBg};color:${badgeColor};border:0.5px solid ${badgeColor};">${badgeLabel}</span>
+        <img src="https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?format=300w" alt="Student Luxe" style="height:28px;width:auto;display:block;margin-left:auto;">
       </td>
     </tr></table>
   </td></tr>
 
   <!-- MONDAY ERROR BANNER -->
   ${mondayErrorBanner}
+
+  <!-- INTRO TEXT -->
+  <tr><td style="background:#ffffff;padding:22px 28px 0;">
+    <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.8;">${isTypeA
+      ? `Hi team, we have received a new enquiry. The guest would like us to check the availability at <strong>${escHtml(p.apartment_ref || 'the apartment')}</strong> for their dates.`
+      : `Hi team, we have received a new enquiry. The guest would like to be sent a <strong>variety of options</strong>, and has given us the below information to kick things off.`
+    }</p>
+  </td></tr>
 
   <!-- CONTACT -->
   <tr><td style="background:#ffffff;padding:22px 28px;border-bottom:0.5px solid #ede9e3;">
@@ -271,7 +277,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       ${field('Email', p.email)}
     </tr><tr>
       ${field('Phone', p.phone)}
-      ${field('Respond via', p.response_methods)}
+      ${field('Please respond via', p.response_methods)}
     </tr></table>
   </td></tr>
 
