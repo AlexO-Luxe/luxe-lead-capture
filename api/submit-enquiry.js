@@ -4,7 +4,8 @@
 //
 //  Environment variables required (set in Vercel dashboard):
 //    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
-//    TEAM_EMAIL          = alex@studentluxe.co.uk
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
 //    FROM_NAME           = Student Luxe Apartments
 //    SITE_URL            = https://www.studentluxe.co.uk
@@ -245,51 +246,45 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
 
   <!-- HEADER -->
-  <tr><td style="background:#1a2640;padding:20px 28px;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="vertical-align:middle;">
-        <p style="margin:0;font-size:14px;font-weight:500;color:#f0ece2;">${escHtml(guestName)}</p>
-        <p style="margin:3px 0 0;font-size:11px;color:rgba(240,236,226,0.5);">${submittedFormatted}</p>
-        <p style="margin:8px 0 0;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.2)' : 'rgba(184,150,110,0.2)'};color:${isTypeA ? '#5dcaa5' : '#D4B896'};border:0.5px solid ${isTypeA ? '#5dcaa5' : '#D4B896'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
-      </td>
-      <td style="text-align:right;vertical-align:middle;">
-        <img src="https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?format=300w" alt="Student Luxe" style="height:28px;width:auto;display:block;margin-left:auto;">
-      </td>
-    </tr></table>
+  <tr><td style="background:#B8966E;padding:22px 32px;">
+    <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:22px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">${escHtml(guestName)}</p>
+    <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);">${submittedFormatted} &nbsp;·&nbsp; <span style="background:rgba(255,255,255,0.2);padding:2px 9px;border-radius:20px;font-size:10px;letter-spacing:0.06em;">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
   </td></tr>
 
   <!-- MONDAY ERROR BANNER -->
   ${mondayErrorBanner}
 
-  <!-- INTRO TEXT -->
-  <tr><td style="background:#ffffff;padding:22px 28px 0;">
-    <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.8;">${isTypeA
-      ? `Hi team, we have received a new enquiry. The guest would like us to check the availability at <strong>${escHtml(p.apartment_ref || 'the apartment')}</strong> for their dates.`
-      : `Hi team, we have received a new enquiry. The guest would like to be sent a <strong>variety of options</strong>, and has given us the below information to kick things off.`
+  <!-- SUMMARY LINE -->
+  <tr><td style="background:#ffffff;padding:20px 32px 0;">
+    <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.75;">${isTypeA
+      ? `${formatAptType(p.apartment_type) || 'Apartment'}, ${escHtml(p.apartment_ref || '')}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}`
+      : `${formatAptType(p.apartment_type) || 'Apartment'}, ${formatCity(p.city) || ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget) + '/wk' : ''}`
     }</p>
   </td></tr>
 
+  <!-- DIVIDER -->
+  <tr><td style="background:#ffffff;padding:0 32px;"><hr style="border:none;border-top:0.5px solid #ede9e3;margin:18px 0;"></td></tr>
+
   <!-- CONTACT -->
-  <tr><td style="background:#ffffff;padding:22px 28px;border-bottom:0.5px solid #ede9e3;">
-    <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Contact</p>
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      ${field('Name', p.full_name)}
-      ${field('Email', p.email)}
-    </tr><tr>
-      ${field('Phone', p.phone)}
-      ${field('Please respond via', p.response_methods)}
-    </tr></table>
+  <tr><td style="background:#ffffff;padding:0 32px 18px;">
+    <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Contact</p>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        ${field('Name', p.full_name)}
+        ${field('Email', p.email)}
+      </tr><tr>
+        ${field('Phone', p.phone)}
+        ${field('Respond via', p.response_methods)}
+      </tr>
+    </table>
   </td></tr>
 
   <!-- STAY DETAILS -->
-  <tr><td style="background:#ffffff;padding:22px 28px;border-bottom:0.5px solid #ede9e3;">
-    <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Stay details</p>
+  <tr><td style="background:#ffffff;padding:0 32px 18px;">
+    <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Stay details</p>
     <table width="100%" cellpadding="0" cellspacing="0">
-      ${isTypeA ? `<tr>${field('Apartment', p.apartment_ref)}${field('Apartment type', formatAptType(p.apartment_type))}</tr>` : ''}
+      ${isTypeA ? `<tr>${field('Apartment', p.apartment_ref)}${field('Apartment type', formatAptType(p.apartment_type))}</tr>` : `<tr>${field('City', formatCity(p.city))}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`}
       <tr>
-        ${field('City', formatCity(p.city))}
-        ${field('Apartment type', formatAptType(p.apartment_type))}
-      </tr><tr>
         ${field('Check-in', formatDate(p.check_in))}
         ${field('Check-out', formatDate(p.check_out))}
       </tr><tr>
@@ -306,25 +301,30 @@ async function sendTeamNotification(p, mondayId, mondayError) {
   </td></tr>
 
   <!-- MESSAGE -->
-  ${p.message ? `<tr><td style="background:#ffffff;padding:22px 28px;border-bottom:0.5px solid #ede9e3;">
-    <p style="margin:0 0 10px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Message</p>
-    <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">"${escHtml(p.message)}"</p>
+  ${p.message ? `
+  <tr><td style="background:#ffffff;padding:0 32px 18px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:12px 16px;">
+        <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Message from guest</p>
+        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">"${escHtml(p.message)}"</p>
+      </td></tr>
+    </table>
   </td></tr>` : ''}
 
   <!-- TRACKING -->
-  <tr><td style="background:#ffffff;padding:22px 28px;border-bottom:0.5px solid #ede9e3;">
-    <p style="margin:0 0 10px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
-    <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:12px 16px;width:100%;">
+  <tr><td style="background:#ffffff;padding:0 32px 24px;">
+    <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
+    <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 16px;width:100%;">
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_campaign||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
-      <tr><td colspan="2" style="padding:8px 0 0;border-top:0.5px solid rgba(184,150,110,0.2);"></td></tr>
+      <tr><td colspan="2" style="padding:6px 0 0;border-top:0.5px solid rgba(184,150,110,0.2);"></td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;vertical-align:top;">Journey</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;line-height:1.7;">${escHtml(p.visited_paths||'—')}</td></tr>
     </table>
   </td></tr>
 
   <!-- CTA BUTTONS -->
-  <tr><td style="background:#f7f2eb;padding:16px 28px;">
+  <tr><td style="background:#f7f2eb;padding:16px 32px;">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:8px;"><a href="mailto:${p.email}" style="display:inline-block;padding:10px 20px;background:#B8966E;border-radius:8px;font-size:12px;font-weight:500;color:#ffffff;text-decoration:none;">Reply by email</a></td>
       <td><a href="${crmUrl}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Leads Board</a></td>
