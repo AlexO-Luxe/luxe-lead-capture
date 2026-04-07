@@ -247,18 +247,26 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 
   <!-- HEADER -->
   <tr><td style="background:#B8966E;padding:22px 32px;">
-    <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:22px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">${escHtml(guestName)}</p>
-    <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);">${submittedFormatted} &nbsp;·&nbsp; <span style="background:rgba(255,255,255,0.2);padding:2px 9px;border-radius:20px;font-size:10px;letter-spacing:0.06em;">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="vertical-align:middle;">
+        <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:22px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">${escHtml(guestName)}</p>
+        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);">${submittedFormatted}</p>
+      </td>
+      <td style="text-align:right;vertical-align:middle;">
+        <img src="https://eu-files.jotform.com/jufs/Obertelli%2Fform_files%2FLuxe%20Logo.69526ef911f3a8.03391932.png?md5=vyFZj340HEPJsb6mgD9JKg&expires=1775556086" alt="Student Luxe" style="height:32px;width:auto;display:block;margin-left:auto;">
+      </td>
+    </tr></table>
   </td></tr>
 
   <!-- MONDAY ERROR BANNER -->
   ${mondayErrorBanner}
 
-  <!-- SUMMARY LINE -->
+  <!-- SUMMARY LINE + PILL -->
   <tr><td style="background:#ffffff;padding:20px 32px 0;">
+    <p style="margin:0 0 10px;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.12)' : 'rgba(184,150,110,0.12)'};color:${isTypeA ? '#0F6E56' : '#8a6540'};border:0.5px solid ${isTypeA ? 'rgba(29,158,117,0.4)' : 'rgba(184,150,110,0.4)'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
     <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.75;">${isTypeA
-      ? `${formatAptType(p.apartment_type) || 'Apartment'}, ${escHtml(p.apartment_ref || '')}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}`
-      : `${formatAptType(p.apartment_type) || 'Apartment'}, ${formatCity(p.city) || ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget) + '/wk' : ''}`
+      ? `${escHtml(p.apartment_ref || '')}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}`
+      : `${formatCity(p.city) || ''}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget) + '/wk' : ''}`
     }</p>
   </td></tr>
 
