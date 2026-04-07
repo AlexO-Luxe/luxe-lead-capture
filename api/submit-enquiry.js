@@ -253,7 +253,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
         <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);">${submittedFormatted}</p>
       </td>
       <td style="text-align:right;vertical-align:middle;">
-        <img src="https://eu-files.jotform.com/jufs/Obertelli%2Fform_files%2FLuxe%20Logo.69526ef911f3a8.03391932.png?md5=vyFZj340HEPJsb6mgD9JKg&expires=1775556086" alt="Student Luxe" style="height:32px;width:auto;display:block;margin-left:auto;">
+        <img src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng" alt="Student Luxe" style="height:44px;width:auto;display:block;margin-left:auto;">
       </td>
     </tr></table>
   </td></tr>
