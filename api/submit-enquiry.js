@@ -283,7 +283,8 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       </tr><tr>
         ${field('Phone', p.phone)}
         ${field('Respond via', p.response_methods)}
-      </tr>
+      </tr><tr>
+        ${field('Poss. timezone', p.timezone || '—')}
     </table>
   </td></tr>
 
@@ -326,8 +327,6 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_campaign||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
-      <tr><td colspan="2" style="padding:6px 0 0;border-top:0.5px solid rgba(184,150,110,0.2);"></td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;vertical-align:top;">Journey</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;line-height:1.7;">${escHtml(p.visited_paths||'—')}</td></tr>
     </table>
   </td></tr>
 
