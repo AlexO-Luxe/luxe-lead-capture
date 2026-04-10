@@ -17,7 +17,7 @@ const STATUS_COL   = 'color_mkyw8gdm';
 const STATUS_VAL   = 'Uni Page';
 const CITY_COL     = 'dropdown_mkzkn4y9';
 const URL_COL      = 'link_mkyw9d7e';
-const AREAS_COL    = 'board_relation_mm29kd2h';
+const AREAS_COL    = 'dropdown_mm29fvbk';
 const PHOTO1_COL   = 'link_mm29enn7';
 const PHOTO2_COL   = 'link_mm29g8jk';
 const FEATURED_COL = 'boolean_mm2941q3';
@@ -126,7 +126,7 @@ module.exports = async function handler(req, res) {
           .toLowerCase()
           .trim() || url;
 
-        // Areas — board_relation returns linked item names as text
+        // Areas — simple dropdown, text field contains comma-separated values
         const areasCol = col(AREAS_COL);
         const areas = areasCol && areasCol.text
           ? areasCol.text.split(',').map(a => a.trim()).filter(Boolean)
@@ -146,14 +146,21 @@ module.exports = async function handler(req, res) {
         const featuredCol = col(FEATURED_COL);
         const featured = featuredCol && (featuredCol.value === 'true' || featuredCol.text === 'true' || featuredCol.value === '{"checked":"true"}');
 
-        universities.push({
-          name:     item.name.trim(),
-          slug,
-          areas,
-          photo1,
-          photo2,
-          featured
-        });
+        // Clean name — only strip URL if item name was accidentally saved as a URL
+        let name = item.name.trim();
+        if (name.startsWith('http')) {
+          name = name
+            .replace(/^https?:\/\/(www\.)?studentluxe\.co\.uk/, '')
+            .replace(/\/$/, '')
+            .split('/')
+            .pop()
+            .replace(/-accommodation$/, '')
+            .replace(/-/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase())
+            .trim();
+        }
+
+        universities.push({ name, slug, areas, photo1, photo2, featured });
       }
 
     } while (cursor);
