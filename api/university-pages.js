@@ -142,9 +142,17 @@ module.exports = async function handler(req, res) {
         const photo1 = extractLink(PHOTO1_COL);
         const photo2 = extractLink(PHOTO2_COL);
 
-        // Featured
+        // Featured — boolean column value is {"checked":"true"} when ticked
         const featuredCol = col(FEATURED_COL);
-        const featured = featuredCol && (featuredCol.value === 'true' || featuredCol.text === 'true' || featuredCol.value === '{"checked":"true"}');
+        let featured = false;
+        if (featuredCol && featuredCol.value) {
+          try {
+            const parsed = JSON.parse(featuredCol.value);
+            featured = parsed.checked === 'true' || parsed.checked === true;
+          } catch {
+            featured = featuredCol.value === 'true' || featuredCol.text === 'v';
+          }
+        }
 
         // Clean name — only strip URL if item name was accidentally saved as a URL
         let name = item.name.trim();
