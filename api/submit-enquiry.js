@@ -493,6 +493,7 @@ async function pushToMonday(p) {
     // ── Lead source ────────────────────────────────────────────
     ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
     ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
+    dropdown_mm1v31yb: { labels: ['/Reservations Form'] },
   };
 
   const mutation = `
