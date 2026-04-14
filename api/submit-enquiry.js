@@ -355,6 +355,49 @@ async function sendTeamNotification(p, mondayId, mondayError) {
   });
 }
 
+// ── Currency detection by city ────────────────────────────────
+function currencyForCity(city, otherCity) {
+  const GBP = ['london','edinburgh','glasgow','manchester','cambridge','durham','bristol','birmingham','brighton','liverpool','nottingham'];
+  const EUR = ['dublin','paris','milan','amsterdam','rome','florence','helsinki','barcelona','madrid','lisbon','porto','valencia'];
+  const USD = ['new-york','boston','chicago','washington','philadelphia'];
+  const c = (city || '').toLowerCase().trim();
+  if (GBP.includes(c)) return '£';
+  if (EUR.includes(c)) return '€';
+  if (USD.includes(c)) return '$';
+
+  // Free-text other city — detect by keyword
+  if (c === 'other' && otherCity) {
+    const o = otherCity.toLowerCase();
+    const currencyKeywords = {
+      '£':   ['uk','united kingdom','england','scotland','wales','london','manchester','birmingham','edinburgh','glasgow','bristol','brighton','liverpool'],
+      '€':   ['france','paris','germany','berlin','munich','spain','madrid','barcelona','italy','rome','milan','netherlands','amsterdam','portugal','lisbon','porto','belgium','brussels','austria','vienna','greece','athens','athens','ireland','dublin','finland','helsinki','denmark','copenhagen','sweden','stockholm','norway','oslo','poland','warsaw','czech','prague','hungary','budapest','romania','bucharest','croatia','zagreb','luxembourg'],
+      '$':   ['usa','united states','america','new york','los angeles','chicago','houston','miami','san francisco','seattle','boston','washington','philadelphia','canada','toronto','vancouver','montreal','australia','sydney','melbourne','brisbane','new zealand','auckland'],
+      'CHF': ['switzerland','zurich','geneva','bern','basel','lausanne'],
+      '¥':   ['japan','tokyo','osaka','kyoto','china','beijing','shanghai'],
+      'S$':  ['singapore'],
+      'AED': ['dubai','abu dhabi','uae','united arab emirates'],
+      '฿':   ['thailand','bangkok','phuket','chiang mai'],
+      'SGD': ['singapore'],
+      'HKD': ['hong kong'],
+      'SEK': ['sweden','stockholm'],
+      'NOK': ['norway','oslo'],
+      'DKK': ['denmark','copenhagen'],
+      'PLN': ['poland','warsaw'],
+      'CZK': ['czech','prague'],
+      'HUF': ['hungary','budapest'],
+      'ZAR': ['south africa','cape town','johannesburg'],
+      'BRL': ['brazil','são paulo','rio'],
+      'MXN': ['mexico','mexico city'],
+      'INR': ['india','mumbai','delhi','bangalore'],
+      'KRW': ['korea','seoul'],
+    };
+    for (const [symbol, keywords] of Object.entries(currencyKeywords)) {
+      if (keywords.some(k => o.includes(k))) return symbol;
+    }
+  }
+  return '';
+}
+
 // ──────────────────────────────────────────────────────────────
 //  MONDAY.COM — Push lead to board 2171015719
 // ──────────────────────────────────────────────────────────────
@@ -449,7 +492,7 @@ async function pushToMonday(p) {
     date47:              p.check_in  ? { date: p.check_in  } : {},
     date_1:              p.check_out ? { date: p.check_out } : {},
     budget_per_week:     p.budget ? formatBudget(p.budget) : '',
-    text8:               formatCity(p.city)     || '',
+    text8:               p.city === 'other' ? (p.other_city || '') : (formatCity(p.city) || ''),
     dropdown6:           p.apartment_ref        || '',
     apt_type_mkmn4bgg:   formatAptType(p.apartment_type) || '',
     dropdown19:          p.areas || '',
@@ -494,6 +537,7 @@ async function pushToMonday(p) {
     ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
     ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
     dropdown_mm1v31yb: { labels: ['/Reservations Form'] },
+    ...(p.city && currencyForCity(p.city, p.other_city) && { status0__1: { label: currencyForCity(p.city, p.other_city) } }),
   };
 
   const mutation = `
