@@ -3,23 +3,17 @@
 //  Deploy to: /api/submit-enquiry.js in your Vercel project
 //
 //  Environment variables required (set in Vercel dashboard):
-//    RESEND_API_KEY              = re_KKJUoUXw_...
-//    TEAM_EMAIL                  = reservations@studentluxe.co.uk
-//    TEAM_EMAIL_2                = alex@studentluxe.co.uk
-//    FROM_EMAIL                  = reservations@studentluxe.co.uk
-//    FROM_NAME                   = Student Luxe Apartments
-//    SITE_URL                    = https://www.studentluxe.co.uk
-//    MONDAY_API_KEY              = (your Monday API key)
-//    GOOGLE_ADS_CLIENT_ID        = (from Google Cloud OAuth client)
-//    GOOGLE_ADS_CLIENT_SECRET    = (from Google Cloud OAuth client)
-//    GOOGLE_ADS_REFRESH_TOKEN    = (from OAuth playground)
-//    GOOGLE_ADS_CUSTOMER_ID      = (digits only, no dashes)
-//    GOOGLE_ADS_CONVERSION_ACTION_ID = 387289607
-//    GOOGLE_ADS_DEVELOPER_TOKEN  = ODpdI22UoI66LzVowImCpA
+//    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
+//    TEAM_EMAIL          = reservations@studentluxe.co.uk
+//    TEAM_EMAIL_2        = alex@studentluxe.co.uk
+//    FROM_EMAIL          = reservations@studentluxe.co.uk
+//    FROM_NAME           = Student Luxe Apartments
+//    SITE_URL            = https://www.studentluxe.co.uk
+//    MONDAY_API_KEY      = (your Monday API key from monday.com/developers)
 // ============================================================
 
-const RESEND_API   = 'https://api.resend.com/emails';
-const MONDAY_API   = 'https://api.monday.com/v2';
+const RESEND_API  = 'https://api.resend.com/emails';
+const MONDAY_API  = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
 module.exports = async function handler(req, res) {
@@ -33,7 +27,7 @@ module.exports = async function handler(req, res) {
   const p = req.body;
 
   // Push to Monday first so we get the pulse ID for the team email link
-  let mondayId    = null;
+  let mondayId = null;
   let mondayError = null;
   try {
     mondayId = await pushToMonday(p);
@@ -43,7 +37,7 @@ module.exports = async function handler(req, res) {
     console.error('Monday failed:', mondayError);
   }
 
-  // Fire both emails in parallel
+  // Fire both emails in parallel, passing the pulse ID and any error to the team email
   const results = await Promise.allSettled([
     sendGuestConfirmation(p),
     sendTeamNotification(p, mondayId, mondayError)
@@ -55,124 +49,7 @@ module.exports = async function handler(req, res) {
     else console.log(`${label} OK`);
   });
 
-  // ── GOOGLE ADS SERVER-SIDE CONVERSION ─────────────────────────
-  // Only fires when a gclid is present — meaning the enquiry came from a Google Ad click.
-  // Runs after Monday + emails so a failure here never affects the lead capture.
-  if (p.gclid) {
-    try {
-      await uploadGoogleAdsConversion(p);
-      console.log('Google Ads conversion uploaded OK');
-    } catch(err) {
-      // Log but never fail the request — lead is already in Monday
-      console.error('Google Ads conversion failed (non-fatal):', err.message);
-    }
-  }
-
   return res.status(200).json({ success: true });
-};
-
-// ──────────────────────────────────────────────────────────────
-//  GOOGLE ADS — Server-side conversion upload
-// ──────────────────────────────────────────────────────────────
-async function uploadGoogleAdsConversion(p) {
-
-  // Step 1 — Get a fresh access token using the stored refresh token
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    new URLSearchParams({
-      client_id:     process.env.GOOGLE_ADS_CLIENT_ID,
-      client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-      refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
-      grant_type:    'refresh_token'
-    })
-  });
-
-  const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) {
-    throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
-  }
-
-  // Step 2 — Hash email and phone for enhanced matching
-  // Google requires SHA-256, lowercase, trimmed
-  async function sha256(str) {
-    const encoder    = new TextEncoder();
-    const data       = encoder.encode(str.toLowerCase().trim());
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray  = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-
-  const hashedEmail = p.email ? await sha256(p.email) : null;
-  const cleanPhone  = p.phone ? p.phone.replace(/[\s\-().]/g, '') : null;
-  const hashedPhone = cleanPhone ? await sha256(cleanPhone) : null;
-
-  // Step 3 — Format conversion timestamp
-  // Google Ads API requires: 'yyyy-mm-dd hh:mm:ss+00:00'
-  const rawTime        = p.submitted_at ? new Date(p.submitted_at) : new Date();
-  const conversionTime = rawTime.toISOString()
-    .replace('T', ' ')
-    .replace(/\.\d{3}Z$/, '+00:00');
-
-  // Strip dashes in case ID was stored as XXX-XXX-XXXX
-  const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
-  console.log('Google Ads customer ID:', customerId);
-  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`);
-  const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
-
-  // Step 4 — Build payload
-  const payload = {
-    conversions: [
-      {
-        gclid:                p.gclid,
-        conversion_action:    conversionAction,
-        conversion_date_time: conversionTime,
-        conversion_value:     1.0,
-        currency_code:        'GBP',
-        // Enhanced matching — hashed user identifiers
-        user_identifiers: [
-          ...(hashedEmail ? [{ hashed_email:        hashedEmail }] : []),
-          ...(hashedPhone ? [{ hashed_phone_number: hashedPhone }] : [])
-        ]
-      }
-    ],
-    partial_failure: true
-  };
-
-  // Step 5 — POST to Google Ads Conversions API
-  const gadsRes = await fetch(
-    `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`,
-    {
-      method:  'POST',
-      headers: {
-        'Authorization':   `Bearer ${tokenData.access_token}`,
-        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-        'Content-Type':    'application/json'
-      },
-      body: JSON.stringify(payload)
-    }
-  );
-
-  // Log raw response text first so we can see exactly what Google returned
-  const rawText = await gadsRes.text();
-  console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 500));
-
-  // Only parse as JSON if it looks like JSON
-  if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
-    throw new Error('Google Ads returned non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
-  }
-
-  const gadsData = JSON.parse(rawText);
-
-  if (gadsData.partialFailureError) {
-    throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
-  }
-  if (gadsData.error) {
-    throw new Error('API error: ' + JSON.stringify(gadsData.error));
-  }
-
-  console.log('Google Ads conversion uploaded successfully');
-  return gadsData;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -183,6 +60,7 @@ async function sendGuestConfirmation(p) {
   const siteUrl   = process.env.SITE_URL || 'https://www.studentluxe.co.uk';
   const isTypeA   = p.enquiry_type === 'A';
 
+  // Build stay summary rows
   const rows = [
     p.city           && ['City',           formatCity(p.city)],
     p.apartment_ref  && ['Apartment',      p.apartment_ref],
@@ -207,10 +85,14 @@ async function sendGuestConfirmation(p) {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ec;padding:32px 16px;">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
+
+  <!-- HEADER -->
   <tr><td style="background:#0d1a2e;padding:36px 40px 32px;">
     <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:28px;font-weight:400;color:#f0ece2;line-height:1.15;letter-spacing:-0.03em;">We've received your enquiry</h1>
     <p style="margin:0;font-size:13px;color:rgba(240,236,226,0.5);font-weight:300;">Our Reservations team will reach out shortly.</p>
   </td></tr>
+
+  <!-- BODY -->
   <tr><td style="background:#ffffff;padding:32px 40px;">
     <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Dear ${escHtml(firstName)},</p>
     ${isTypeA ? `
@@ -221,43 +103,66 @@ async function sendGuestConfirmation(p) {
     <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your ${escHtml(formatCity(p.city))} apartment enquiry. A member of our Reservations team will be in touch within 24 hours to discuss this further. We'll send over a selection of apartments based on your initial details, and then take time to understand your needs in more depth.</p>
     <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
     `}
+
+    <!-- Summary table -->
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;padding:4px 20px;margin:0 0 24px;">
       <tbody>${summaryRows}</tbody>
     </table>
+
     ${p.message ? `
+    <!-- Guest message -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
       <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:14px 18px;">
         <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Your message</p>
         <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">${escHtml(p.message)}</p>
       </td></tr>
     </table>` : ''}
+
     <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">In the meantime, you're welcome to browse our full portfolio of apartments.</p>
+
+    <!-- CTA button -->
     <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
       <tr><td style="background:#B8966E;border-radius:8px;">
         <a href="${siteUrl}" style="display:inline-block;padding:13px 32px;font-size:12px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:#ffffff;text-decoration:none;">Browse apartments</a>
       </td></tr>
     </table>
+
+    <!-- About blurb -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
       <tr><td style="border-top:0.5px solid #ede9e3;padding-top:20px;">
         <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:14px;font-weight:400;letter-spacing:-0.01em;color:#1a1a1a;">About Student Luxe</p>
-        <p style="margin:0 0 12px;font-size:12px;color:#6b6b6b;line-height:1.75;">We combine premium apartments with exceptional service to make student and professional living effortless.</p>
+        <p style="margin:0 0 12px;font-size:12px;color:#6b6b6b;line-height:1.75;">We combine premium apartments with exceptional service to make student and professional living effortless. Our expert team will help you find &amp; book the perfect space — offering local insights, personalised recommendations, and support wherever it's needed.</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid #ede9e3;padding-top:10px;margin-top:4px;">
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Fully-furnished</td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>All bills included</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Fully-furnished
+            </td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>All bills included
+            </td>
           </tr>
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Hotel-style amenities</td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Weekly housekeeping</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Hotel-style amenities
+            </td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Weekly housekeeping
+            </td>
           </tr>
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Dedicated support</td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Flexible booking policy</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Dedicated support
+            </td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
+              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Flexible booking policy
+            </td>
           </tr>
         </table>
       </td></tr>
     </table>
   </td></tr>
+
+  <!-- FOOTER -->
   <tr><td style="background:#f7f2eb;padding:18px 0;border-top:0.5px solid rgba(184,150,110,0.2);text-align:center;">
     <p style="margin:0 0 10px;font-size:11px;color:#9b9b9b;line-height:1.9;">
       Student Luxe Apartments<br>
@@ -267,11 +172,13 @@ async function sendGuestConfirmation(p) {
     </p>
     <p style="margin:0;font-size:10px;color:#b9b9b9;line-height:1.6;padding:0 20px;">If you didn't submit this enquiry, please disregard this email. Your details are safe and will never be shared with third parties.</p>
   </td></tr>
+
 </table>
 </td></tr>
 </table>
 </body></html>`;
 
+  // Guard — skip if email missing or malformed
   if(!p.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)){
     console.warn('Guest confirmation skipped — invalid email:', p.email);
     return;
@@ -291,10 +198,11 @@ async function sendGuestConfirmation(p) {
 //  EMAIL 2 — Team notification
 // ──────────────────────────────────────────────────────────────
 async function sendTeamNotification(p, mondayId, mondayError) {
-  const isTypeA    = p.enquiry_type === 'A';
-  const guestName  = p.full_name || 'New enquiry';
+  const isTypeA   = p.enquiry_type === 'A';
+  const guestName = p.full_name || 'New enquiry';
   const nightCount = nights(p);
 
+  // Format submitted time as "2 April 2026 — 2:45pm"
   const submittedFormatted = p.submitted_at
     ? new Date(p.submitted_at).toLocaleString('en-GB', {
         day:'numeric', month:'long', year:'numeric',
@@ -307,16 +215,18 @@ async function sendTeamNotification(p, mondayId, mondayError) {
         timeZone:'Europe/London'
       }).replace(', ', ' — ');
 
+  // Monday CRM link — direct to pulse if we have the ID, otherwise leads board
   const crmUrl = mondayId
     ? `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/pulses/${mondayId}`
     : `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/views/205648977`;
 
+  // Monday error banner — shown when push failed
   const mondayErrorBanner = mondayError ? `
   <tr><td style="padding:0 28px 20px;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff3cd;border:1px solid #f0ad4e;border-radius:8px;">
       <tr><td style="padding:12px 16px;">
         <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#856404;">⚠️ Monday CRM push failed — add this lead manually</p>
-        <p style="margin:0;font-size:11px;color:#856404;line-height:1.5;">Error: <code style="font-size:10px;background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;">${escHtml(mondayError)}</code></p>
+        <p style="margin:0;font-size:11px;color:#856404;line-height:1.5;">This enquiry was <strong>not</strong> saved to the Leads board automatically. Please add it manually. Error: <code style="font-size:10px;background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;">${escHtml(mondayError)}</code></p>
       </td></tr>
     </table>
   </td></tr>` : '';
@@ -334,6 +244,8 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ec;padding:32px 16px;">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
+
+  <!-- HEADER -->
   <tr><td style="background:#B8966E;padding:22px 32px;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="vertical-align:middle;">
@@ -345,7 +257,11 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       </td>
     </tr></table>
   </td></tr>
+
+  <!-- MONDAY ERROR BANNER -->
   ${mondayErrorBanner}
+
+  <!-- SUMMARY LINE + PILL -->
   <tr><td style="background:#ffffff;padding:20px 32px 0;">
     <p style="margin:0 0 10px;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.12)' : 'rgba(184,150,110,0.12)'};color:${isTypeA ? '#0F6E56' : '#8a6540'};border:0.5px solid ${isTypeA ? 'rgba(29,158,117,0.4)' : 'rgba(184,150,110,0.4)'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
     <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.75;">${isTypeA
@@ -353,27 +269,47 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       : `${formatCity(p.city) || ''}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget) + '/wk' : ''}`
     }</p>
   </td></tr>
+
+  <!-- DIVIDER -->
   <tr><td style="background:#ffffff;padding:0 32px;"><hr style="border:none;border-top:0.5px solid #ede9e3;margin:18px 0;"></td></tr>
+
+  <!-- CONTACT -->
   <tr><td style="background:#ffffff;padding:0 32px 18px;">
     <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Contact</p>
     <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>${field('Name', p.full_name)}${field('Email', p.email)}</tr>
-      <tr>${field('Phone', p.phone)}${field('Respond via', p.response_methods)}</tr>
-      <tr>${field('Timezone', p.timezone || '—')}</tr>
+      <tr>
+        ${field('Name', p.full_name)}
+        ${field('Email', p.email)}
+      </tr><tr>
+        ${field('Phone', p.phone)}
+        ${field('Respond via', p.response_methods)}
+      </tr><tr>
+        ${field('Poss. timezone', p.timezone || '—')}
     </table>
   </td></tr>
+
+  <!-- STAY DETAILS -->
   <tr><td style="background:#ffffff;padding:0 32px 18px;">
     <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Stay details</p>
     <table width="100%" cellpadding="0" cellspacing="0">
-      ${isTypeA
-        ? `<tr>${field('Apartment', p.apartment_ref)}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`
-        : `<tr>${field('City', formatCity(p.city))}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`}
-      <tr>${field('Check-in', formatDate(p.check_in))}${field('Check-out', formatDate(p.check_out))}</tr>
-      <tr>${field('Nights', nightCount)}${field('Budget / week', p.enquiry_type !== 'A' ? formatBudget(p.budget) : '')}</tr>
-      <tr>${field('Areas', p.areas)}${field('Type of stay', formatStayType(p.stay_type, p.university))}</tr>
-      <tr>${field('Country of residence', p.nationality)}${field('Lived in city before', p.lived_before)}</tr>
+      ${isTypeA ? `<tr>${field('Apartment', p.apartment_ref)}${field('Apartment type', formatAptType(p.apartment_type))}</tr>` : `<tr>${field('City', formatCity(p.city))}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`}
+      <tr>
+        ${field('Check-in', formatDate(p.check_in))}
+        ${field('Check-out', formatDate(p.check_out))}
+      </tr><tr>
+        ${field('Nights', nightCount)}
+        ${field('Budget / week', p.enquiry_type !== 'A' ? formatBudget(p.budget) : '')}
+      </tr><tr>
+        ${field('Areas', p.areas)}
+        ${field('Type of stay', formatStayType(p.stay_type, p.university))}
+      </tr><tr>
+        ${field('Country of residence', p.nationality)}
+        ${field('Lived in city before', p.lived_before)}
+      </tr>
     </table>
   </td></tr>
+
+  <!-- MESSAGE -->
   ${p.message ? `
   <tr><td style="background:#ffffff;padding:0 32px 18px;">
     <table width="100%" cellpadding="0" cellspacing="0">
@@ -383,15 +319,18 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       </td></tr>
     </table>
   </td></tr>` : ''}
+
+  <!-- TRACKING -->
   <tr><td style="background:#ffffff;padding:0 32px 24px;">
     <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
     <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 16px;width:100%;">
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_campaign||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">GCLID</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.gclid||'—')}</td></tr>
     </table>
   </td></tr>
+
+  <!-- CTA BUTTONS -->
   <tr><td style="background:#f7f2eb;padding:16px 32px;">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:8px;"><a href="mailto:${p.email}" style="display:inline-block;padding:10px 20px;background:#B8966E;border-radius:8px;font-size:12px;font-weight:500;color:#ffffff;text-decoration:none;">Reply by email</a></td>
@@ -399,6 +338,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       ${isTypeA && p.apartment_ref ? `<td><a href="https://studentluxe.monday.com/boards/2388987554/views/87174774?term=${encodeURIComponent(p.apartment_ref)}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Property Board</a></td>` : ''}
     </tr></table>
   </td></tr>
+
 </table>
 </td></tr>
 </table>
@@ -415,9 +355,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
   });
 }
 
-// ──────────────────────────────────────────────────────────────
-//  Currency detection by city
-// ──────────────────────────────────────────────────────────────
+// ── Currency detection by city ────────────────────────────────
 function currencyForCity(city, otherCity) {
   const GBP = ['london','edinburgh','glasgow','manchester','cambridge','durham','bristol','birmingham','brighton','liverpool','nottingham'];
   const EUR = ['dublin','paris','milan','amsterdam','rome','florence','helsinki','barcelona','madrid','lisbon','porto','valencia'];
@@ -426,12 +364,60 @@ function currencyForCity(city, otherCity) {
   if (GBP.includes(c)) return '£';
   if (EUR.includes(c)) return '€';
   if (USD.includes(c)) return '$';
+
+  // Free-text other city — detect by keyword
   if (c === 'other' && otherCity) {
     const o = otherCity.toLowerCase();
     const currencyKeywords = {
-      '£':['uk','united kingdom','england','scotland','wales','london','manchester','birmingham','edinburgh'],
-      '€':['france','paris','germany','berlin','spain','madrid','barcelona','italy','rome','milan','netherlands','amsterdam','portugal','lisbon'],
-      '$':['usa','united states','america','new york','los angeles','chicago','boston','washington'],
+      '£':   ['uk','united kingdom','england','scotland','wales','london','manchester','birmingham','edinburgh','glasgow','bristol','brighton','liverpool','leeds','sheffield','newcastle','nottingham','cardiff','belfast'],
+      '€':   ['france','paris','germany','berlin','munich','hamburg','frankfurt','spain','madrid','barcelona','seville','italy','rome','milan','naples','turin','netherlands','amsterdam','rotterdam','portugal','lisbon','porto','belgium','brussels','antwerp','austria','vienna','graz','greece','athens','thessaloniki','ireland','dublin','cork','finland','helsinki','denmark','copenhagen','sweden','stockholm','gothenburg','norway','oslo','bergen','poland','warsaw','krakow','czech','prague','hungary','budapest','romania','bucharest','croatia','zagreb','luxembourg','malta','slovakia','bratislava','slovenia','estonia','tallinn','latvia','riga','lithuania','vilnius'],
+      '$':   ['usa','united states','america','new york','los angeles','chicago','houston','miami','san francisco','seattle','boston','washington','philadelphia','phoenix','dallas','denver','atlanta','las vegas','san diego','austin'],
+      'CAD': ['canada','toronto','vancouver','montreal','calgary','ottawa'],
+      'AUD': ['australia','sydney','melbourne','brisbane','perth','adelaide'],
+      'NZD': ['new zealand','auckland','wellington','christchurch'],
+      'CHF': ['switzerland','zurich','geneva','bern','basel','lausanne'],
+      '¥':   ['japan','tokyo','osaka','kyoto','nagoya','sapporo','fukuoka','yokohama'],
+      'CNY': ['china','beijing','shanghai','guangzhou','shenzhen','chengdu','wuhan','chongqing','tianjin','nanjing'],
+      'HKD': ['hong kong'],
+      'S$':  ['singapore'],
+      'AED': ['dubai','abu dhabi','uae','united arab emirates','sharjah'],
+      '฿':   ['thailand','bangkok','phuket','chiang mai','pattaya'],
+      'INR': ['india','mumbai','delhi','bangalore','hyderabad','chennai','kolkata','pune','ahmedabad'],
+      'KRW': ['korea','south korea','seoul','busan','incheon'],
+      'BRL': ['brazil','são paulo','sao paulo','rio de janeiro','rio','brasilia','salvador','fortaleza'],
+      'MXN': ['mexico','mexico city','guadalajara','monterrey','cancun'],
+      'ZAR': ['south africa','cape town','johannesburg','durban','pretoria'],
+      'MYR': ['malaysia','kuala lumpur','penang','johor'],
+      'IDR': ['indonesia','jakarta','bali','surabaya','bandung'],
+      'PHP': ['philippines','manila','cebu','davao'],
+      'TWD': ['taiwan','taipei','kaohsiung','taichung'],
+      'TRY': ['turkey','istanbul','ankara','izmir','antalya'],
+      'SAR': ['saudi arabia','riyadh','jeddah','mecca','medina'],
+      'QAR': ['qatar','doha'],
+      'KWD': ['kuwait','kuwait city'],
+      'BHD': ['bahrain','manama'],
+      'EGP': ['egypt','cairo','alexandria','giza'],
+      'NGN': ['nigeria','lagos','abuja','kano'],
+      'KES': ['kenya','nairobi','mombasa'],
+      'GHS': ['ghana','accra','kumasi'],
+      'ARS': ['argentina','buenos aires','cordoba','rosario'],
+      'CLP': ['chile','santiago','valparaiso'],
+      'COP': ['colombia','bogota','medellin','cali'],
+      'PEN': ['peru','lima','cusco'],
+      'PKR': ['pakistan','karachi','lahore','islamabad'],
+      'BDT': ['bangladesh','dhaka','chittagong'],
+      'VND': ['vietnam','ho chi minh','hanoi','da nang'],
+      'UAH': ['ukraine','kyiv','kiev','kharkiv','odessa'],
+      'RUB': ['russia','moscow','saint petersburg','novosibirsk'],
+      'ILS': ['israel','tel aviv','jerusalem','haifa'],
+      'SEK': ['sweden','stockholm','gothenburg','malmo'],
+      'NOK': ['norway','oslo','bergen','trondheim'],
+      'DKK': ['denmark','copenhagen','aarhus'],
+      'PLN': ['poland','warsaw','krakow','wroclaw'],
+      'CZK': ['czech','prague','brno'],
+      'HUF': ['hungary','budapest'],
+      'RON': ['romania','bucharest','cluj'],
+      'ISK': ['iceland','reykjavik'],
     };
     for (const [symbol, keywords] of Object.entries(currencyKeywords)) {
       if (keywords.some(k => o.includes(k))) return symbol;
@@ -441,52 +427,87 @@ function currencyForCity(city, otherCity) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  MONDAY.COM — Push lead to board
+//  MONDAY.COM — Push lead to board 2171015719
 // ──────────────────────────────────────────────────────────────
 async function pushToMonday(p) {
-  const nameParts = (p.full_name || '').trim().split(' ');
-  const firstname = nameParts[0] || '';
-  const lastname  = nameParts.slice(1).join(' ') || '';
-  const itemName  = p.full_name || 'New Enquiry';
+  const nameParts  = (p.full_name || '').trim().split(' ');
+  const firstname  = nameParts[0] || '';
+  const lastname   = nameParts.slice(1).join(' ') || '';
+  const itemName   = p.full_name || 'New Enquiry';
 
+  // Format areas — Monday dropdown expects array of label strings
+  const areaLabels = p.areas
+    ? p.areas.split(',').map(a => a.trim()).filter(Boolean)
+    : [];
+
+  // Apartment type label for dropdown
+  const aptTypeLabels = p.apartment_type
+    ? [formatAptType(p.apartment_type)]
+    : [];
+
+  // Stay type label for status column
+  const stayTypeMap = {
+    'student':          'Student',
+    'young-professional':'Young Professional',
+    'corporate':        'Corporate',
+    'parent':           'Parent / Guardian',
+    'other-stay':       'Other'
+  };
+
+  // ── Lead source detection ────────────────────────────────────
+  const hasGclid    = !!p.gclid;
+  const hasFbclid   = !!p.fbclid;
+  const hasPPC      = hasGclid || hasFbclid;
+  const hasVisited  = !!(p.visited_paths || p.landing_page);
+
+  // Extract clean domain from referrer e.g. "https://search.yahoo.com/search" → "Yahoo"
   function extractChannel(referrer) {
     if(!referrer) return '';
     try {
       const host = new URL(referrer).hostname.replace('www.', '').replace('search.', '');
       const domainMap = {
-        'google.com':'Google Advert','google.co.uk':'Google Advert',
-        'bing.com':'Bing','yahoo.com':'Yahoo','duckduckgo.com':'DuckDuckGo',
-        'instagram.com':'Instagram','facebook.com':'Meta Advert','meta.com':'Meta Advert',
-        'linkedin.com':'From a Friend','tiktok.com':'TikTok',
-        'studentluxe.co.uk':'Unknown'
+        'google.com': 'Google Advert', 'google.co.uk': 'Google Advert',
+        'bing.com': 'Bing', 'yahoo.com': 'Yahoo', 'duckduckgo.com': 'DuckDuckGo',
+        'instagram.com': 'Instagram', 'facebook.com': 'Meta Advert', 'meta.com': 'Meta Advert',
+        'linkedin.com': 'From a Friend', 'twitter.com': 'Unknown', 'x.com': 'Unknown',
+        'tiktok.com': 'TikTok', 'youtube.com': 'Unknown',
+        'studentluxe.co.uk': 'Unknown'
       };
       return domainMap[host] || 'Unknown';
     } catch(e) { return 'Unknown'; }
   }
 
-  const hasGclid   = !!p.gclid;
-  const hasFbclid  = !!p.fbclid;
-  const hasVisited = !!(p.visited_paths || p.landing_page);
-
-  let leadSource  = '';
+  let leadSource = '';
   let leadChannel = '';
-  if(hasGclid)       { leadSource = 'PPC';     leadChannel = 'Google Advert'; }
-  else if(hasFbclid) { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
-  else if(hasVisited){ leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
+
+  if(hasGclid){
+    leadSource  = 'PPC';
+    leadChannel = 'Google Advert';
+  } else if(hasFbclid){
+    leadSource  = 'Socials';
+    leadChannel = extractChannel(p.referrer) || 'Instagram';
+  } else if(hasVisited){
+    leadSource  = 'SEO';
+    leadChannel = extractChannel(p.referrer);
+  }
 
   const columnValues = {
-    text37:           firstname,
-    text60:           lastname,
-    email:            p.email ? { email: p.email, text: p.email } : {},
+    // ── Personal ──────────────────────────────────────────────
+    text37:              firstname,
+    text60:              lastname,
+    email:               p.email ? { email: p.email, text: p.email } : {},
     phone_1: p.phone ? (function(){
       const raw = p.phone.replace(/[\s\-().]/g, '');
+      // Detect country from dial code prefix
       const dialMap = {
-        '+44':'GB','+1':'US','+33':'FR','+49':'DE','+39':'IT','+34':'ES','+351':'PT',
-        '+31':'NL','+32':'BE','+41':'CH','+43':'AT','+46':'SE','+47':'NO','+45':'DK',
-        '+358':'FI','+48':'PL','+420':'CZ','+36':'HU','+40':'RO','+380':'UA','+7':'RU',
-        '+86':'CN','+81':'JP','+82':'KR','+91':'IN','+61':'AU','+64':'NZ','+27':'ZA',
-        '+55':'BR','+52':'MX','+971':'AE','+966':'SA','+974':'QA','+852':'HK','+65':'SG',
-        '+60':'MY','+66':'TH','+62':'ID'
+        '+44':'GB', '+1':'US', '+33':'FR', '+49':'DE', '+39':'IT',
+        '+34':'ES', '+351':'PT', '+31':'NL', '+32':'BE', '+41':'CH',
+        '+43':'AT', '+46':'SE', '+47':'NO', '+45':'DK', '+358':'FI',
+        '+48':'PL', '+420':'CZ', '+36':'HU', '+40':'RO', '+380':'UA',
+        '+7':'RU',  '+86':'CN', '+81':'JP', '+82':'KR', '+91':'IN',
+        '+61':'AU', '+64':'NZ', '+27':'ZA', '+55':'BR', '+52':'MX',
+        '+971':'AE','+966':'SA','+974':'QA','+965':'KW','+962':'JO',
+        '+852':'HK','+65':'SG', '+60':'MY', '+66':'TH', '+62':'ID'
       };
       let countryShortName = 'GB';
       for (const [prefix, code] of Object.entries(dialMap)) {
@@ -494,22 +515,28 @@ async function pushToMonday(p) {
       }
       return { phone: raw, countryShortName };
     })() : {},
+
+    // ── Stay details ───────────────────────────────────────────
     date47:              p.check_in  ? { date: p.check_in  } : {},
     date_1:              p.check_out ? { date: p.check_out } : {},
     budget_per_week:     p.budget ? formatBudget(p.budget) : '',
     text8:               p.city === 'other' ? (p.other_city || '') : (formatCity(p.city) || ''),
-    dropdown6:           p.apartment_ref     || '',
+    dropdown6:           p.apartment_ref        || '',
     apt_type_mkmn4bgg:   formatAptType(p.apartment_type) || '',
     dropdown19:          p.areas || '',
+
+    // ── Contact preference ─────────────────────────────────────
     dropdown40: p.response_methods ? {
       labels: p.response_methods.split(',').map(s => {
         const v = s.trim().toLowerCase();
-        if(v === 'phone')    return 'Phone Call (preferred option)';
-        if(v === 'whatsapp') return 'WhatsApp (preferred option)';
-        if(v === 'email')    return 'Email';
+        if(v === 'phone')     return 'Phone Call (preferred option)';
+        if(v === 'whatsapp')  return 'WhatsApp (preferred option)';
+        if(v === 'email')     return 'Email';
         return s.trim();
       })
     } : {},
+
+    // ── Guest details ──────────────────────────────────────────
     color_mktcnwyb: p.stay_type ? { label: {
       'student':             'Student',
       'parent':              'Parent or guardian (on behalf of student)',
@@ -519,17 +546,22 @@ async function pushToMonday(p) {
       'tourism':             'Tourism',
       'agent':               'Agent (on behalf of client)'
     }[p.stay_type] || p.stay_type } : {},
-    text_mknfnmsb:    p.university  || '',
-    text9__1:         p.nationality || '',
-    long_text7:       p.message     || '',
-    text_mm1c3b5w:    p.utm_campaign  || '',
-    text43__1:        p.utm_adgroup   || '',
-    text3__1:         p.utm_term      || '',
-    text_mm1d87rp:    p.utm_matchtype || '',
-    text4__1:         p.gclid || p.fbclid || '',
-    text_mm1jhhe7:    p.landing_page  || '',
-    long_text__1:     p.visited_paths || '',
-    ...(leadSource  && { color_mkxk8y67: { label: leadSource } }),
+    text_mknfnmsb:       p.university  || '',
+    text9__1:            p.nationality || '',
+
+    // ── Message ────────────────────────────────────────────────
+    long_text7:          p.message || '',
+
+    // ── Tracking ───────────────────────────────────────────────
+    text_mm1c3b5w:       p.utm_campaign  || '',
+    text43__1:           p.utm_adgroup   || '',
+    text3__1:            p.utm_term      || '',
+    text_mm1d87rp:       p.utm_matchtype || '',
+    text4__1:            p.gclid || p.fbclid || '',
+    text_mm1jhhe7:       p.landing_page  || '',
+
+    // ── Lead source ────────────────────────────────────────────
+    ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
     ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
     dropdown_mm1v31yb: { labels: ['/Reservations Form'] },
     ...(p.city && currencyForCity(p.city, p.other_city) && { status0__1: { label: currencyForCity(p.city, p.other_city) } }),
@@ -557,16 +589,20 @@ async function pushToMonday(p) {
   });
 
   const data = await response.json();
-  if (!response.ok) throw new Error('Monday HTTP ' + response.status);
+  if (!response.ok) {
+    console.error('Monday HTTP error:', response.status, JSON.stringify(data));
+    throw new Error('Monday HTTP ' + response.status);
+  }
   if (data.errors) {
     console.error('Monday API errors:', JSON.stringify(data.errors, null, 2));
+    console.error('Column values sent:', JSON.stringify(columnValues, null, 2));
     throw new Error('Monday API error: ' + JSON.stringify(data.errors));
   }
   return data?.data?.create_item?.id;
 }
 
 // ──────────────────────────────────────────────────────────────
-//  RESEND
+//  RESEND API CALL
 // ──────────────────────────────────────────────────────────────
 async function resendSend(payload) {
   const res = await fetch(RESEND_API, {
@@ -589,14 +625,17 @@ async function resendSend(payload) {
 // ──────────────────────────────────────────────────────────────
 function escHtml(str) {
   return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function formatDate(d) {
   if (!d) return '';
-  try { return new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
-  catch { return d; }
+  try {
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch { return d; }
 }
 
 function nights(p) {
