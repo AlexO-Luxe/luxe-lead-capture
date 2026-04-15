@@ -138,7 +138,7 @@ async function uploadGoogleAdsConversion(p) {
 
   // Step 5 — POST to Google Ads Conversions API
   const gadsRes = await fetch(
-    `https://googleads.googleapis.com/v16/customers/${customerId}:uploadClickConversions`,
+    `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`,
     {
       method:  'POST',
       headers: {
@@ -150,7 +150,16 @@ async function uploadGoogleAdsConversion(p) {
     }
   );
 
-  const gadsData = await gadsRes.json();
+  // Log raw response text first so we can see exactly what Google returned
+  const rawText = await gadsRes.text();
+  console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 500));
+
+  // Only parse as JSON if it looks like JSON
+  if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
+    throw new Error('Google Ads returned non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
+  }
+
+  const gadsData = JSON.parse(rawText);
 
   if (gadsData.partialFailureError) {
     throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
@@ -159,7 +168,7 @@ async function uploadGoogleAdsConversion(p) {
     throw new Error('API error: ' + JSON.stringify(gadsData.error));
   }
 
-  console.log('Google Ads response:', JSON.stringify(gadsData));
+  console.log('Google Ads conversion uploaded successfully');
   return gadsData;
 }
 
