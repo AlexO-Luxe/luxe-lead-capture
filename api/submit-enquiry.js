@@ -559,6 +559,7 @@ async function pushToMonday(p) {
     text_mm1d87rp:       p.utm_matchtype || '',
     text4__1:            p.gclid || p.fbclid || '',
     text_mm1jhhe7:       p.landing_page  || '',
+    long_text__1:        p.visited_paths || '',
 
     // ── Lead source ────────────────────────────────────────────
     ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
