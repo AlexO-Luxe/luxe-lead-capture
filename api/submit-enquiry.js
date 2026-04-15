@@ -114,7 +114,10 @@ async function uploadGoogleAdsConversion(p) {
     .replace('T', ' ')
     .replace(/\.\d{3}Z$/, '+00:00');
 
-  const customerId       = process.env.GOOGLE_ADS_CUSTOMER_ID;
+  // Strip dashes in case ID was stored as XXX-XXX-XXXX
+  const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
+  console.log('Google Ads customer ID:', customerId);
+  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`);
   const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
 
   // Step 4 — Build payload
