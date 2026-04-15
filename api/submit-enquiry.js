@@ -325,7 +325,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
     <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
     <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 16px;width:100%;">
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_campaign||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(resolveCampaign(p.utm_campaign)||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
     </table>
   </td></tr>
@@ -429,6 +429,63 @@ function currencyForCity(city, otherCity) {
 // ──────────────────────────────────────────────────────────────
 //  MONDAY.COM — Push lead to board 2171015719
 // ──────────────────────────────────────────────────────────────
+// ── Google Ads campaign ID → name map ────────────────────────
+const CAMPAIGN_MAP = {
+  '23593406109': 'jf17_search_generic_os_tablet_phrase_in_row_destination_london',
+  '23676288424': 'jf14_search_generic_os_tablet_broad_in_us_destination_london - £150 tCPA Test',
+  '23671659281': 'jf3_search_generic_os_desktop_broad_in_us_destination_london - £150 tCPA Test',
+  '23598174873': 'jf19_search_brand_global_exact',
+  '21918787893': 'rentals-short-stay-os',
+  '23512016561': 'cambridge-os',
+  '20356089756': 'london-student-os',
+  '23603515408': 'jf10_search_generic_os_mobile_exact_in_us_destination_london',
+  '23593407051': 'jf9_search_generic_os_mobile_exact_in_row_destination_london',
+  '22561087901': 'core-luxe-perf-max',
+  '23392672745': 'new-york-os',
+  '21429830124': 'lse-summer-uni-campus',
+  '23676301570': 'jf9_search_generic_os_mobile_exact_in_row_destination_london - £150 tCPA Test',
+  '21973944922': 'core-luxe-os',
+  '23671673024': 'jf4_search_generic_os_desktop_exact_in_row_destination_london - £150 tCPA Test',
+  '23593406838': 'jf12_search_generic_os_mobile_phrase_in_us_destination_london',
+  '23666278518': 'jf13_search_generic_os_tablet_broad_in_row_destination_london - £150 tCPA Test',
+  '21902352633': 'lse-summer-all-us',
+  '21499603565': 'paris-os',
+  '23676319627': 'jf15_search_generic_os_tablet_exact_in_row_destination_london - £150 tCPA Test',
+  '23593627429': 'jf16_search_generic_os_tablet_exact_in_us_destination_london',
+  '23452513132': 'lse-summer-perf-max',
+  '23642461894': 'PARIS - from OS _Experiment',
+  '23666244384': 'jf8_search_generic_os_mobile_broad_in_us_destination_london - £150 tCPA Test',
+  '23666254497': 'jf5_search_generic_os_desktop_exact_in_us_destination_london - £150 tCPA Test',
+  '22082273952': 'rentals-os',
+  '22120262100': 'hnwi-pb-zip-os',
+  '23588980553': 'jf3_search_generic_os_desktop_broad_in_us_destination_london',
+  '23671661003': 'jf6_search_generic_os_desktop_phrase_in_us_destination_london - £150 tCPA Test',
+  '23593627561': 'jf18_search_generic_os_tablet_phrase_in_us_destination_london',
+  '23676326599': 'jf17_search_generic_os_tablet_phrase_in_row_destination_london - £150 tCPA Test',
+  '23588981654': 'jf14_search_generic_os_tablet_broad_in_us_destination_london',
+  '23671688303': 'jf18_search_generic_os_tablet_phrase_in_us_destination_london - £150 tCPA Test',
+  '23666271564': 'jf10_search_generic_os_mobile_exact_in_us_destination_london - £150 tCPA Test',
+  '23593406301': 'jf7_search_generic_os_mobile_broad_in_row_destination_london',
+  '23598893477': 'jf2_search_generic_os_desktop_broad_in_row_destination_london',
+  '23676311422': 'jf2_search_generic_os_desktop_broad_in_row_destination_london - £150 tCPA Test',
+  '23666273505': 'jf12_search_generic_os_mobile_phrase_in_us_destination_london - £150 tCPA Test',
+  '23666255946': 'jf11_search_generic_os_mobile_phrase_in_row_destination_london - £150 tCPA Test',
+  '23603514478': 'jf13_search_generic_os_tablet_broad_in_row_destination_london',
+  '23598893927': 'jf11_search_generic_os_mobile_phrase_in_row_destination_london',
+  '23598893684': 'jf1_search_generic_os_desktop_phrase_in_row_destination_london',
+  '23642456119': 'LSE SUMMER - All US _Experiment',
+  '23593406142': 'jf15_search_generic_os_tablet_exact_in_row_destination_london',
+  '23671689740': 'jf16_search_generic_os_tablet_exact_in_us_destination_london - £150 tCPA Test',
+  '23593406559': 'jf8_search_generic_os_mobile_broad_in_us_destination_london',
+};
+
+function resolveCampaign(val) {
+  if (!val) return '';
+  const trimmed = val.trim();
+  // If it looks like a numeric ID, resolve it — otherwise return as-is
+  return /^\d+$/.test(trimmed) ? (CAMPAIGN_MAP[trimmed] || trimmed) : trimmed;
+}
+
 async function pushToMonday(p) {
   const nameParts  = (p.full_name || '').trim().split(' ');
   const firstname  = nameParts[0] || '';
@@ -553,7 +610,7 @@ async function pushToMonday(p) {
     long_text7:          p.message || '',
 
     // ── Tracking ───────────────────────────────────────────────
-    text_mm1c3b5w:       p.utm_campaign  || '',
+    text_mm1c3b5w:       resolveCampaign(p.utm_campaign),
     text43__1:           p.utm_adgroup   || '',
     text3__1:            p.utm_term      || '',
     text_mm1d87rp:       p.utm_matchtype || '',
