@@ -186,7 +186,7 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
 
   // Step 3 — Upload to Google Ads Conversions API
   const gadsRes = await fetch(
-    `https://googleads.googleapis.com/v19/customers/${customerId}:uploadClickConversions`,
+    `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`,
     {
       method:  'POST',
       headers: {
