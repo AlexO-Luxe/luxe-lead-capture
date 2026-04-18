@@ -128,9 +128,9 @@ module.exports = async function handler(req, res) {
     console.log('High Potential conversion uploaded successfully for item:', itemId);
     return res.status(200).json({ success: true, itemId, gclid });
 
+
   } catch (err) {
     console.error('submit-high-potential error:', err.message);
-    // Return 200 so Monday doesn't retry endlessly
     return res.status(200).json({ error: err.message });
   }
 };
@@ -158,46 +158,42 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
   }
 
   // Step 2 — Format timestamp
-  // Google requires: 'yyyy-mm-dd hh:mm:ss+00:00'
   const rawTime        = timestamp ? new Date(timestamp) : new Date();
   const conversionTime = rawTime.toISOString()
     .replace('T', ' ')
     .replace(/\.\d{3}Z$/, '+00:00');
 
+  // Use standalone customer ID in URL and conversion action resource name
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
+  const mccId            = '6046238343';
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
+  const endpoint         = `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`;
 
-  console.log('Uploading conversion:', { gclid, conversionTime, value, conversionAction });
-  console.log('Access token present:', !!tokenData.access_token);
-  console.log('Developer token present:', !!process.env.GOOGLE_ADS_DEVELOPER_TOKEN);
-  console.log('Developer token value:', process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.substring(0, 8) + '...');
+  console.log('Upload details:', { endpoint, conversionAction, gclid, conversionTime, value });
 
   // Step 3 — Upload to Google Ads Conversions API
-  const gadsRes = await fetch(
-    `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`,
-    {
-      method:  'POST',
-      headers: {
-        'Authorization':   `Bearer ${tokenData.access_token}`,
-        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-        'login-customer-id': '6046238343',
-        'Content-Type':    'application/json'
-      },
-      body: JSON.stringify({
-        conversions: [{
-          gclid,
-          conversion_action:    conversionAction,
-          conversion_date_time: conversionTime,
-          conversion_value:     value,
-          currency_code:        currency
-        }],
-        partial_failure: true
-      })
-    }
-  );
+  const gadsRes = await fetch(endpoint, {
+    method:  'POST',
+    headers: {
+      'Authorization':    `Bearer ${tokenData.access_token}`,
+      'developer-token':  process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+      'login-customer-id': mccId,
+      'Content-Type':     'application/json'
+    },
+    body: JSON.stringify({
+      conversions: [{
+        gclid,
+        conversion_action:    conversionAction,
+        conversion_date_time: conversionTime,
+        conversion_value:     value,
+        currency_code:        currency
+      }],
+      partial_failure: true
+    })
+  });
 
   const rawText = await gadsRes.text();
-  console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 500));
+  console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 800));
 
   if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
     throw new Error('Google Ads returned non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
@@ -212,5 +208,6 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
     throw new Error('API error: ' + JSON.stringify(gadsData.error));
   }
 
+  console.log('Google Ads conversion uploaded successfully');
   return gadsData;
 }
