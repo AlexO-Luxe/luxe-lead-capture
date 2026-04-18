@@ -50,7 +50,7 @@ module.exports = async function handler(req, res) {
     if (tokenData.access_token) {
       const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
       const apiRes = await fetch(
-        `https://googleads.googleapis.com/v19/customers/${customerId}:uploadClickConversions`,
+        `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`,
         {
           method: 'POST',
           headers: {
