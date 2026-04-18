@@ -17,13 +17,13 @@ module.exports = async function handler(req, res) {
     results.googleapis_discovery = { error: e.message };
   }
 
-  // Test 2 — Can we reach googleads.googleapis.com?
+  // Test 2 — Can we reach googleads.googleapis.com with a valid path?
   try {
-    const r = await fetch('https://googleads.googleapis.com/');
+    const r = await fetch('https://googleads.googleapis.com/$discovery/rest?version=v19');
     const text = await r.text();
-    results.googleads_root = { status: r.status, body_preview: text.substring(0, 100) };
+    results.googleads_discovery = { status: r.status, is_json: text.trim().startsWith('{'), body_preview: text.substring(0, 200) };
   } catch(e) {
-    results.googleads_root = { error: e.message };
+    results.googleads_discovery = { error: e.message };
   }
 
   // Test 3 — Get an access token
