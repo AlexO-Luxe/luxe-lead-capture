@@ -167,7 +167,7 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   const mccId            = '6046238343';
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
-  const endpoint         = `https://googleads.googleapis.com/v19/customers/${customerId}:uploadClickConversions`;
+  const endpoint         = `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`;
 
   console.log('Upload details:', { endpoint, conversionAction, gclid, conversionTime, value });
 
