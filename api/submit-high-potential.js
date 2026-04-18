@@ -49,7 +49,7 @@ module.exports = async function handler(req, res) {
 
     // ── VERIFY TRIGGER CONDITIONS ─────────────────────────────
     // Only fire when value changes TO 'High Potential'
-    const newValue = event.value?.label?.text || event.value?.label || '';
+    const newValue = (event.value?.label?.text || (typeof event.value?.label === 'string' ? event.value.label : '') || '').toString();
     if (!newValue.toLowerCase().includes('high potential')) {
       console.log('Not High Potential status, skipping. Value was:', newValue);
       return res.status(200).json({ skipped: true, reason: 'not high potential' });
@@ -177,6 +177,7 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
       headers: {
         'Authorization':   `Bearer ${tokenData.access_token}`,
         'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+        'login-customer-id': '6046238343',
         'Content-Type':    'application/json'
       },
       body: JSON.stringify({
