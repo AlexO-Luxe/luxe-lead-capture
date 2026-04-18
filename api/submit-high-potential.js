@@ -168,6 +168,9 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
 
   console.log('Uploading conversion:', { gclid, conversionTime, value, conversionAction });
+  console.log('Access token present:', !!tokenData.access_token);
+  console.log('Developer token present:', !!process.env.GOOGLE_ADS_DEVELOPER_TOKEN);
+  console.log('Developer token value:', process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.substring(0, 8) + '...');
 
   // Step 3 — Upload to Google Ads Conversions API
   const gadsRes = await fetch(
