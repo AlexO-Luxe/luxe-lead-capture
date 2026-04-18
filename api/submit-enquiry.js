@@ -117,7 +117,7 @@ async function uploadGoogleAdsConversion(p) {
   // Strip dashes in case ID was stored as XXX-XXX-XXXX
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   console.log('Google Ads customer ID:', customerId);
-  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`);
+  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v19/customers/${customerId}:uploadClickConversions`);
   const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
 
   // Step 4 — Build payload
@@ -125,23 +125,23 @@ async function uploadGoogleAdsConversion(p) {
     conversions: [
       {
         gclid:                p.gclid,
-        conversion_action:    conversionAction,
-        conversion_date_time: conversionTime,
-        conversion_value:     1.0,
-        currency_code:        'GBP',
+        conversionAction:    conversionAction,
+        conversionDateTime: conversionTime,
+        conversionValue:     1.0,
+        currencyCode:        'GBP',
         // Enhanced matching — hashed user identifiers
-        user_identifiers: [
-          ...(hashedEmail ? [{ hashed_email:        hashedEmail }] : []),
-          ...(hashedPhone ? [{ hashed_phone_number: hashedPhone }] : [])
+        userIdentifiers: [
+          ...(hashedEmail ? [{ hashedEmail:        hashedEmail }] : []),
+          ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
         ]
       }
     ],
-    partial_failure: true
+    partialFailure: true
   };
 
   // Step 5 — POST to Google Ads Conversions API
   const gadsRes = await fetch(
-    `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`,
+    `https://googleads.googleapis.com/v19/customers/${customerId}:uploadClickConversions`,
     {
       method:  'POST',
       headers: {
