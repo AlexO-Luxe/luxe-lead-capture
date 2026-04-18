@@ -117,7 +117,7 @@ async function uploadGoogleAdsConversion(p) {
   // Strip dashes in case ID was stored as XXX-XXX-XXXX
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   console.log('Google Ads customer ID:', customerId);
-  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v19/customers/${customerId}:uploadClickConversions`);
+  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`);
   const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
 
   // Step 4 — Build payload
@@ -141,7 +141,7 @@ async function uploadGoogleAdsConversion(p) {
 
   // Step 5 — POST to Google Ads Conversions API
   const gadsRes = await fetch(
-    `https://googleads.googleapis.com/v19/customers/${customerId}:uploadClickConversions`,
+    `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`,
     {
       method:  'POST',
       headers: {
