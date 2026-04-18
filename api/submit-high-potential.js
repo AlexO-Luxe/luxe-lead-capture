@@ -167,7 +167,7 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   const mccId            = '6046238343';
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
-  const endpoint         = `https://googleads.googleapis.com/v18/customers/${customerId}:uploadClickConversions`;
+  const endpoint         = `https://googleads.googleapis.com/v19/customers/${customerId}:uploadClickConversions`;
 
   console.log('Upload details:', { endpoint, conversionAction, gclid, conversionTime, value });
 
@@ -183,12 +183,12 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
     body: JSON.stringify({
       conversions: [{
         gclid,
-        conversion_action:    conversionAction,
-        conversion_date_time: conversionTime,
-        conversion_value:     value,
-        currency_code:        currency
+        conversionAction:    conversionAction,
+        conversionDateTime: conversionTime,
+        conversionValue:     value,
+        currencyCode:        currency
       }],
-      partial_failure: true
+      partialFailure: true
     })
   });
 
