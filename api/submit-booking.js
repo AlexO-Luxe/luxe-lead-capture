@@ -50,7 +50,7 @@ module.exports = async function handler(req, res) {
     }
 
     // ── VERIFY TRIGGER: Must be 'Confirmed Booking' ───────────
-    const newValue = event.value?.label?.text || event.value?.label || '';
+    const newValue = (event.value?.label?.text || (typeof event.value?.label === 'string' ? event.value.label : '') || '').toString();
     if (!newValue.toLowerCase().includes('confirmed booking')) {
       console.log('Not Confirmed Booking status, skipping. Value was:', newValue);
       return res.status(200).json({ skipped: true, reason: 'not confirmed booking' });
@@ -109,7 +109,15 @@ module.exports = async function handler(req, res) {
     const cols = {};
     item.column_values.forEach(c => {
       console.log('Column raw:', { id: c.id, text: c.text, value: c.value, display_value: c.display_value });
-      cols[c.id] = c.display_value || c.text || '';
+      // For formula columns, try to parse value JSON which may contain the result
+      let val = c.display_value || c.text || '';
+      if ((!val || val === 'null') && c.value) {
+        try {
+          const parsed = JSON.parse(c.value);
+          val = String(parsed.result !== undefined ? parsed.result : parsed.value || '');
+        } catch(e) { val = c.value || ''; }
+      }
+      cols[c.id] = val;
     });
 
     const gclid      = cols['mirror21__1'];
@@ -133,8 +141,10 @@ module.exports = async function handler(req, res) {
     // ── PARSE FORMULA VALUE ───────────────────────────────────
     // formula2 comes back as e.g. '£4,000' or '£1,250.50'
     // Strip £, commas, spaces and parse as float
+    // formula2 can return string 'null' if formula dependencies aren't populated
+    const formula2Clean = (formula2 === 'null' || formula2 === null) ? '' : formula2;
     const cleanValue = parseFloat(
-      (formula2 || '0').replace(/[£$€,\s]/g, '')
+      (formula2Clean || '0').replace(/[£$€,\s]/g, '')
     );
 
     if (!cleanValue || cleanValue <= 0) {
