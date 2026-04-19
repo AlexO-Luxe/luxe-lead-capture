@@ -107,7 +107,10 @@ module.exports = async function handler(req, res) {
 
     // Extract column values
     const cols = {};
-    item.column_values.forEach(c => { cols[c.id] = c.display_value || c.text || ''; });
+    item.column_values.forEach(c => {
+      console.log('Column raw:', { id: c.id, text: c.text, value: c.value, display_value: c.display_value });
+      cols[c.id] = c.display_value || c.text || '';
+    });
 
     const gclid      = cols['mirror21__1'];
     const leadSource = cols['lookup_mkxtxk48'];
