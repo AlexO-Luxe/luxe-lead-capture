@@ -32,8 +32,14 @@ module.exports = async function handler(req, res) {
     console.log('WhatsApp click received:', JSON.stringify(p));
 
     // ── BUILD ITEM NAME ───────────────────────────────────────
-    const pagePath = p.page_path || p.last_page || 'Unknown page';
-    const itemName = `WhatsApp Click — ${pagePath}`;
+    const ts = p.timestamp ? new Date(p.timestamp) : new Date();
+    const timeStr = ts.toLocaleTimeString('en-GB', {
+      hour:     '2-digit',
+      minute:   '2-digit',
+      timeZone: 'Europe/London',
+      hour12:   true
+    }).replace(/^0/, '').toUpperCase();
+    const itemName = `WhatsApp Lead - ${timeStr} (GMT)`;
 
     // ── DETERMINE LEAD SOURCE ─────────────────────────────────
     // PPC if gclid present, otherwise Unknown
