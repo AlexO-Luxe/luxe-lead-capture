@@ -243,7 +243,7 @@ async function sendNotificationEmail({ bookingName, itemId, gclid, leadSource, i
             no Google Ads conversion will be sent.
           </div>
           `}
-          <p><a href="https://studentluxe.monday.com/boards/2171015589" style="color: #B8966E;">Open Booking Flow Board →</a></p>
+          <p><a href="https://studentluxe.monday.com/boards/2171015589/views/149480482" style="color: #B8966E;">Open Booking Flow Board →</a></p>
         </div>
       `
     })
