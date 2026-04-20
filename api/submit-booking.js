@@ -145,9 +145,9 @@ module.exports = async function handler(req, res) {
       if (cleanValue > 0 && isPPC && hasGclid) {
         // Revenue already there — upload immediately
         console.log('Status confirmed + revenue present, uploading conversion. Value: £' + cleanValue);
-        await uploadConversion({ gclid, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-        await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid });
-        return res.status(200).json({ success: true, itemId, gclid, value: cleanValue });
+        const result1 = await uploadConversion({ gclid, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+        await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result1?.skipped });
+        return res.status(200).json({ success: true, itemId, gclid, value: cleanValue, gadsSkipped: result1?.skipped });
       }
 
       // Revenue not yet filled — send notification
@@ -184,9 +184,9 @@ module.exports = async function handler(req, res) {
       }
 
       console.log('Revenue filled for confirmed PPC booking, uploading. Value: £' + cleanValue);
-      await uploadConversion({ gclid, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-      await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid });
-      return res.status(200).json({ success: true, itemId, gclid, value: cleanValue });
+      const result2 = await uploadConversion({ gclid, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+      await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result2?.skipped });
+      return res.status(200).json({ success: true, itemId, gclid, value: cleanValue, gadsSkipped: result2?.skipped });
     }
 
   } catch (err) {
@@ -256,7 +256,7 @@ async function sendNotificationEmail({ bookingName, itemId, gclid, leadSource, i
 // ──────────────────────────────────────────────────────────────
 //  EMAIL — Success notification (conversion uploaded)
 // ──────────────────────────────────────────────────────────────
-async function sendSuccessEmail({ bookingName, itemId, value, gclid }) {
+async function sendSuccessEmail({ bookingName, itemId, value, gclid, skipped }) {
   const emailRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -266,7 +266,7 @@ async function sendSuccessEmail({ bookingName, itemId, value, gclid }) {
     body: JSON.stringify({
       from:    'Student Luxe <noreply@studentluxe.co.uk>',
       to:      ['alex@studentluxe.co.uk'],
-      subject: `✅ Google Ads Offline Conversion Submitted — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      subject: skipped ? `📋 Confirmed Booking Logged — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Google Ads skipped — old lead)` : `✅ Google Ads Offline Conversion Submitted — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #0d1a2e;">Offline Conversion Submitted to Google Ads</h2>
@@ -293,10 +293,18 @@ async function sendSuccessEmail({ bookingName, itemId, value, gclid }) {
               <td style="padding: 10px; border: 1px solid #e5e3dd;">${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}</td>
             </tr>
           </table>
+          ${skipped ? `
+          <div style="background: #fff3cd; border: 1px solid #e6a817; padding: 15px; border-radius: 4px; margin: 20px 0;">
+            <strong>Note:</strong> This booking has been logged but the Google Ads conversion upload was skipped
+            because the original lead click is older than the conversion action's window.
+            This is expected for leads that came in before 18 April 2026.
+          </div>
+          ` : `
           <div style="background: #d4edda; border: 1px solid #28a745; padding: 15px; border-radius: 4px; margin: 20px 0;">
             This conversion will appear in Google Ads within 24–48 hours and will be used
             by Smart Bidding to optimise for similar high-value bookings.
           </div>
+          `}
           <p><a href="https://studentluxe.monday.com/boards/2171015589" style="color: #B8966E;">Open Booking Flow Board →</a></p>
         </div>
       `
@@ -372,7 +380,15 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
   const gadsData = JSON.parse(rawText);
 
   if (gadsData.partialFailureError) {
-    throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
+    const errStr = JSON.stringify(gadsData.partialFailureError);
+    // EXPIRED_EVENT means the gclid is too old for this conversion action
+    // This is expected for bookings where the lead came in before the conversion action existed
+    // Log it but don't throw — the booking is still valid
+    if (errStr.includes('EXPIRED_EVENT') || errStr.includes('TOO_RECENT_CONVERSION_ACTION')) {
+      console.log('Google Ads upload skipped (expected):', errStr.substring(0, 200));
+      return { skipped: true, reason: 'expired_event' };
+    }
+    throw new Error('Partial failure: ' + errStr);
   }
   if (gadsData.error) {
     throw new Error('API error: ' + JSON.stringify(gadsData.error));
