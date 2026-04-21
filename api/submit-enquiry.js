@@ -14,8 +14,8 @@
 //    GOOGLE_ADS_CLIENT_SECRET    = (from Google Cloud OAuth client)
 //    GOOGLE_ADS_REFRESH_TOKEN    = (from OAuth playground)
 //    GOOGLE_ADS_CUSTOMER_ID      = (digits only, no dashes)
-//    GOOGLE_ADS_CONVERSION_ACTION_ID = 387289607
-//    GOOGLE_ADS_DEVELOPER_TOKEN  = ODpdI22UoI66LzVowImCpA
+//    GOOGLE_ADS_CONVERSION_ACTION_ID = 7582737594
+//    GOOGLE_ADS_DEVELOPER_TOKEN  = (your developer token)
 // ============================================================
 
 const RESEND_API   = 'https://api.resend.com/emails';
@@ -114,7 +114,6 @@ async function uploadGoogleAdsConversion(p) {
     .replace('T', ' ')
     .replace(/\.\d{3}Z$/, '+00:00');
 
-  // Strip dashes in case ID was stored as XXX-XXX-XXXX
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   console.log('Google Ads customer ID:', customerId);
   console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`);
@@ -124,14 +123,13 @@ async function uploadGoogleAdsConversion(p) {
   const payload = {
     conversions: [
       {
-        gclid:                p.gclid,
-        conversionAction:    conversionAction,
+        gclid:              p.gclid,
+        conversionAction:   conversionAction,
         conversionDateTime: conversionTime,
-        conversionValue:     1.0,
-        currencyCode:        'GBP',
-        // Enhanced matching — hashed user identifiers
+        conversionValue:    1.0,
+        currencyCode:       'GBP',
         userIdentifiers: [
-          ...(hashedEmail ? [{ hashedEmail:        hashedEmail }] : []),
+          ...(hashedEmail ? [{ hashedEmail:       hashedEmail }] : []),
           ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
         ]
       }
@@ -145,20 +143,18 @@ async function uploadGoogleAdsConversion(p) {
     {
       method:  'POST',
       headers: {
-        'Authorization':   `Bearer ${tokenData.access_token}`,
-        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+        'Authorization':     `Bearer ${tokenData.access_token}`,
+        'developer-token':   process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
         'login-customer-id': '6046238343',
-        'Content-Type':    'application/json'
+        'Content-Type':      'application/json'
       },
       body: JSON.stringify(payload)
     }
   );
 
-  // Log raw response text first so we can see exactly what Google returned
   const rawText = await gadsRes.text();
   console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 500));
 
-  // Only parse as JSON if it looks like JSON
   if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
     throw new Error('Google Ads returned non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
   }
@@ -388,7 +384,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
     <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
     <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 16px;width:100%;">
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_campaign||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(resolveCampaign(p.utm_campaign)||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">GCLID</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.gclid||'—')}</td></tr>
     </table>
@@ -444,6 +440,64 @@ function currencyForCity(city, otherCity) {
 // ──────────────────────────────────────────────────────────────
 //  MONDAY.COM — Push lead to board
 // ──────────────────────────────────────────────────────────────
+
+// ── Google Ads campaign ID → name map ────────────────────────
+const CAMPAIGN_MAP = {
+  '23593406109': 'jf17_search_generic_os_tablet_phrase_in_row_destination_london',
+  '23676288424': 'jf14_search_generic_os_tablet_broad_in_us_destination_london - £150 tCPA Test',
+  '23671659281': 'jf3_search_generic_os_desktop_broad_in_us_destination_london - £150 tCPA Test',
+  '23598174873': 'jf19_search_brand_global_exact',
+  '21918787893': 'rentals-short-stay-os',
+  '23512016561': 'cambridge-os',
+  '20356089756': 'london-student-os',
+  '23603515408': 'jf10_search_generic_os_mobile_exact_in_us_destination_london',
+  '23593407051': 'jf9_search_generic_os_mobile_exact_in_row_destination_london',
+  '22561087901': 'core-luxe-perf-max',
+  '23392672745': 'new-york-os',
+  '21429830124': 'lse-summer-uni-campus',
+  '23676301570': 'jf9_search_generic_os_mobile_exact_in_row_destination_london - £150 tCPA Test',
+  '21973944922': 'core-luxe-os',
+  '23671673024': 'jf4_search_generic_os_desktop_exact_in_row_destination_london - £150 tCPA Test',
+  '23593406838': 'jf12_search_generic_os_mobile_phrase_in_us_destination_london',
+  '23666278518': 'jf13_search_generic_os_tablet_broad_in_row_destination_london - £150 tCPA Test',
+  '21902352633': 'lse-summer-all-us',
+  '21499603565': 'paris-os',
+  '23676319627': 'jf15_search_generic_os_tablet_exact_in_row_destination_london - £150 tCPA Test',
+  '23593627429': 'jf16_search_generic_os_tablet_exact_in_us_destination_london',
+  '23452513132': 'lse-summer-perf-max',
+  '23642461894': 'PARIS - from OS _Experiment',
+  '23666244384': 'jf8_search_generic_os_mobile_broad_in_us_destination_london - £150 tCPA Test',
+  '23666254497': 'jf5_search_generic_os_desktop_exact_in_us_destination_london - £150 tCPA Test',
+  '22082273952': 'rentals-os',
+  '22120262100': 'hnwi-pb-zip-os',
+  '23588980553': 'jf3_search_generic_os_desktop_broad_in_us_destination_london',
+  '23671661003': 'jf6_search_generic_os_desktop_phrase_in_us_destination_london - £150 tCPA Test',
+  '23593627561': 'jf18_search_generic_os_tablet_phrase_in_us_destination_london',
+  '23676326599': 'jf17_search_generic_os_tablet_phrase_in_row_destination_london - £150 tCPA Test',
+  '23588981654': 'jf14_search_generic_os_tablet_broad_in_us_destination_london',
+  '23671688303': 'jf18_search_generic_os_tablet_phrase_in_us_destination_london - £150 tCPA Test',
+  '23666271564': 'jf10_search_generic_os_mobile_exact_in_us_destination_london - £150 tCPA Test',
+  '23593406301': 'jf7_search_generic_os_mobile_broad_in_row_destination_london',
+  '23598893477': 'jf2_search_generic_os_desktop_broad_in_row_destination_london',
+  '23676311422': 'jf2_search_generic_os_desktop_broad_in_row_destination_london - £150 tCPA Test',
+  '23666273505': 'jf12_search_generic_os_mobile_phrase_in_us_destination_london - £150 tCPA Test',
+  '23666255946': 'jf11_search_generic_os_mobile_phrase_in_row_destination_london - £150 tCPA Test',
+  '23603514478': 'jf13_search_generic_os_tablet_broad_in_row_destination_london',
+  '23598893927': 'jf11_search_generic_os_mobile_phrase_in_row_destination_london',
+  '23598893684': 'jf1_search_generic_os_desktop_phrase_in_row_destination_london',
+  '23642456119': 'LSE SUMMER - All US _Experiment',
+  '23593406142': 'jf15_search_generic_os_tablet_exact_in_row_destination_london',
+  '23671689740': 'jf16_search_generic_os_tablet_exact_in_us_destination_london - £150 tCPA Test',
+  '23593406559': 'jf8_search_generic_os_mobile_broad_in_us_destination_london',
+};
+
+function resolveCampaign(val) {
+  if (!val) return '';
+  const trimmed = val.trim();
+  // If numeric ID → resolve to name, otherwise pass through as-is
+  return /^\d+$/.test(trimmed) ? (CAMPAIGN_MAP[trimmed] || trimmed) : trimmed;
+}
+
 async function pushToMonday(p) {
   const nameParts = (p.full_name || '').trim().split(' ');
   const firstname = nameParts[0] || '';
@@ -471,9 +525,9 @@ async function pushToMonday(p) {
 
   let leadSource  = '';
   let leadChannel = '';
-  if(hasGclid)       { leadSource = 'PPC';     leadChannel = 'Google Advert'; }
-  else if(hasFbclid) { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
-  else if(hasVisited){ leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
+  if(hasGclid)       { leadSource = 'PPC';    leadChannel = 'Google Advert'; }
+  else if(hasFbclid) { leadSource = 'Socials'; leadChannel = extractChannel(p.referrer) || 'Instagram'; }
+  else if(hasVisited){ leadSource = 'SEO';     leadChannel = extractChannel(p.referrer); }
 
   const columnValues = {
     text37:           firstname,
@@ -523,7 +577,7 @@ async function pushToMonday(p) {
     text_mknfnmsb:    p.university  || '',
     text9__1:         p.nationality || '',
     long_text7:       p.message     || '',
-    text_mm1c3b5w:    p.utm_campaign  || '',
+    text_mm1c3b5w:    resolveCampaign(p.utm_campaign),
     text43__1:        p.utm_adgroup   || '',
     text3__1:         p.utm_term      || '',
     text_mm1d87rp:    p.utm_matchtype || '',
