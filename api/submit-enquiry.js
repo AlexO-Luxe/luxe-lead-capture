@@ -384,7 +384,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
     <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
     <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 16px;width:100%;">
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(resolveCampaign(p.utm_campaign)||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(bestCampaign(p)||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">GCLID</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.gclid||'—')}</td></tr>
     </table>
@@ -498,6 +498,44 @@ function resolveCampaign(val) {
   return /^\d+$/.test(trimmed) ? (CAMPAIGN_MAP[trimmed] || trimmed) : trimmed;
 }
 
+// Extract utm_campaign from visited_paths string (first URL entry which contains full UTM params)
+// e.g. "Google Ads 👉 www.studentluxe.co.uk/lse-summer?utm_campaign=23452513132&... 👉 /page2"
+function extractCampaignFromPaths(visitedPaths) {
+  if (!visitedPaths) return '';
+  try {
+    // Find the first segment that contains a URL with utm_campaign
+    const segments = visitedPaths.split('👉');
+    for (const seg of segments) {
+      const match = seg.match(/utm_campaign=([^&\s]+)/);
+      if (match && match[1]) return match[1].trim();
+    }
+  } catch(e) {}
+  return '';
+}
+
+// Best campaign value: cookie → visited_paths fallback, always resolved to name
+function bestCampaign(p) {
+  const fromCookie = (p.utm_campaign || '').trim();
+  const fromPaths  = extractCampaignFromPaths(p.visited_paths);
+
+  // If cookie value resolves to a known name, use it
+  if (fromCookie) {
+    const resolved = resolveCampaign(fromCookie);
+    // If resolved differs from input (i.e. it was a numeric ID we know), it's good
+    // If it's already a name (not numeric), also good
+    // Only fall back if cookie is numeric but NOT in our map (unknown ID)
+    if (!/^\d+$/.test(fromCookie) || CAMPAIGN_MAP[fromCookie]) {
+      return resolved;
+    }
+  }
+
+  // Fall back to visited_paths campaign if cookie was missing or unresolvable
+  if (fromPaths) return resolveCampaign(fromPaths);
+
+  // Last resort — return whatever the cookie had even if unresolved
+  return resolveCampaign(fromCookie);
+}
+
 async function pushToMonday(p) {
   const nameParts = (p.full_name || '').trim().split(' ');
   const firstname = nameParts[0] || '';
@@ -577,7 +615,7 @@ async function pushToMonday(p) {
     text_mknfnmsb:    p.university  || '',
     text9__1:         p.nationality || '',
     long_text7:       p.message     || '',
-    text_mm1c3b5w:    resolveCampaign(p.utm_campaign),
+    text_mm1c3b5w:    bestCampaign(p),
     text43__1:        p.utm_adgroup   || '',
     text3__1:         p.utm_term      || '',
     text_mm1d87rp:    p.utm_matchtype || '',
