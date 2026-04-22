@@ -1,10 +1,14 @@
 // ============================================================
-//  Student Luxe — High Potential Lead Conversion Upload
+//  Student Luxe — Lead Potential Conversion Upload
 //  Deploy to: /api/submit-high-potential.js
 //
 //  Triggered by a Monday.com webhook when the
 //  'potential_to_book' column (color_mkt29g1r) changes
-//  to 'High Potential' on the Leads board.
+//  on the Leads board.
+//
+//  Handles:
+//  - 'High Potential'     → Step 3, £300, GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID
+//  - 'Moderate Potential' → Step 2, £150, GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID
 //
 //  Only fires if:
 //  - lead_source (color_mkxk8y67) = 'PPC'
@@ -18,9 +22,24 @@
 //    GOOGLE_ADS_CUSTOMER_ID
 //    GOOGLE_ADS_DEVELOPER_TOKEN
 //    GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID
+//    GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID
 // ============================================================
 
 const MONDAY_API = 'https://api.monday.com/v2';
+
+// ── Conversion config by label ────────────────────────────────
+const POTENTIAL_CONFIG = {
+  'high potential': {
+    value:    300.0,
+    actionId: () => process.env.GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID,
+    label:    'High Potential'
+  },
+  'moderate potential': {
+    value:    150.0,
+    actionId: () => process.env.GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID,
+    label:    'Moderate Potential'
+  }
+};
 
 module.exports = async function handler(req, res) {
 
@@ -32,10 +51,9 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = req.body;
-    console.log('High Potential webhook received:', JSON.stringify(body));
+    console.log('Potential webhook received:', JSON.stringify(body));
 
     // ── MONDAY WEBHOOK CHALLENGE ──────────────────────────────
-    // Monday sends a challenge on first setup — respond to verify
     if (body.challenge) {
       console.log('Monday challenge received, responding');
       return res.status(200).json({ challenge: body.challenge });
@@ -47,13 +65,21 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ skipped: true, reason: 'no event' });
     }
 
-    // ── VERIFY TRIGGER CONDITIONS ─────────────────────────────
-    // Only fire when value changes TO 'High Potential'
-    const newValue = (event.value?.label?.text || (typeof event.value?.label === 'string' ? event.value.label : '') || '').toString();
-    if (!newValue.toLowerCase().includes('high potential')) {
-      console.log('Not High Potential status, skipping. Value was:', newValue);
-      return res.status(200).json({ skipped: true, reason: 'not high potential' });
+    // ── IDENTIFY WHICH POTENTIAL LEVEL TRIGGERED ─────────────
+    const newValue = (
+      event.value?.label?.text ||
+      (typeof event.value?.label === 'string' ? event.value.label : '') ||
+      ''
+    ).toString().toLowerCase().trim();
+
+    const config = POTENTIAL_CONFIG[newValue];
+
+    if (!config) {
+      console.log('Not a tracked potential status, skipping. Value was:', newValue);
+      return res.status(200).json({ skipped: true, reason: 'not a tracked potential status', value: newValue });
     }
+
+    console.log(`Matched: ${config.label} — value £${config.value}`);
 
     const itemId = event.pulseId || event.itemId;
     if (!itemId) {
@@ -62,7 +88,6 @@ module.exports = async function handler(req, res) {
     }
 
     // ── FETCH ITEM DATA FROM MONDAY ───────────────────────────
-    // Get gclid, lead source, and creation timestamp
     const query = `
       query {
         items(ids: [${itemId}]) {
@@ -81,7 +106,7 @@ module.exports = async function handler(req, res) {
     const mondayRes = await fetch(MONDAY_API, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':  'application/json',
         'Authorization': process.env.MONDAY_API_KEY
       },
       body: JSON.stringify({ query })
@@ -95,7 +120,6 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ skipped: true, reason: 'item not found' });
     }
 
-    // Extract column values
     const cols = {};
     item.column_values.forEach(c => { cols[c.id] = c.text || ''; });
 
@@ -120,14 +144,13 @@ module.exports = async function handler(req, res) {
     await uploadConversion({
       gclid,
       timestamp,
-      value:    300.0,
+      value:    config.value,
       currency: 'GBP',
-      actionId: process.env.GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID
+      actionId: config.actionId()
     });
 
-    console.log('High Potential conversion uploaded successfully for item:', itemId);
-    return res.status(200).json({ success: true, itemId, gclid });
-
+    console.log(`${config.label} conversion uploaded successfully for item:`, itemId);
+    return res.status(200).json({ success: true, itemId, gclid, potential: config.label, value: config.value });
 
   } catch (err) {
     console.error('submit-high-potential error:', err.message);
@@ -163,7 +186,6 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
     .replace('T', ' ')
     .replace(/\.\d{3}Z$/, '+00:00');
 
-  // Use standalone customer ID in URL and conversion action resource name
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   const mccId            = '6046238343';
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
@@ -175,18 +197,18 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
   const gadsRes = await fetch(endpoint, {
     method:  'POST',
     headers: {
-      'Authorization':    `Bearer ${tokenData.access_token}`,
-      'developer-token':  process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+      'Authorization':     `Bearer ${tokenData.access_token}`,
+      'developer-token':   process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
       'login-customer-id': mccId,
-      'Content-Type':     'application/json'
+      'Content-Type':      'application/json'
     },
     body: JSON.stringify({
       conversions: [{
         gclid,
-        conversionAction:    conversionAction,
+        conversionAction:   conversionAction,
         conversionDateTime: conversionTime,
-        conversionValue:     value,
-        currencyCode:        currency
+        conversionValue:    value,
+        currencyCode:       currency
       }],
       partialFailure: true
     })
