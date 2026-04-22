@@ -86,7 +86,8 @@ async function queryAccountSummary(token, startStr, endStr) {
       metrics.impressions,
       metrics.ctr,
       metrics.conversions,
-      metrics.cost_per_conversion
+      metrics.cost_per_conversion,
+      metrics.conversions_value
     FROM customer
     WHERE segments.date BETWEEN '${startStr}' AND '${endStr}'
   `;
@@ -95,25 +96,29 @@ async function queryAccountSummary(token, startStr, endStr) {
   if (!results.length) return null;
 
   // Sum across rows (there may be multiple date segments)
-  let costMicros = 0, clicks = 0, impressions = 0, conversions = 0;
+  let costMicros = 0, clicks = 0, impressions = 0, conversions = 0, conversionsValue = 0;
   results.forEach(r => {
-    costMicros   += r.metrics?.costMicros   || 0;
-    clicks       += r.metrics?.clicks       || 0;
-    impressions  += r.metrics?.impressions  || 0;
-    conversions  += r.metrics?.conversions  || 0;
+    costMicros      += r.metrics?.costMicros      || 0;
+    clicks          += r.metrics?.clicks          || 0;
+    impressions     += r.metrics?.impressions     || 0;
+    conversions     += r.metrics?.conversions     || 0;
+    conversionsValue += r.metrics?.conversionsValue || 0;
   });
 
   const spend  = costMicros / 1_000_000;
   const ctr    = impressions > 0 ? (clicks / impressions) * 100 : 0;
   const cpe    = conversions > 0 ? spend / conversions : 0;
+  const roas   = spend > 0 ? conversionsValue / spend : 0;
 
   return {
-    spend:       Math.round(spend * 100) / 100,
+    spend:            Math.round(spend * 100) / 100,
     clicks,
     impressions,
-    ctr:         Math.round(ctr * 100) / 100,
-    conversions: Math.round(conversions * 10) / 10,
-    cpe:         Math.round(cpe * 100) / 100
+    ctr:              Math.round(ctr * 100) / 100,
+    conversions:      Math.round(conversions * 10) / 10,
+    conversionsValue: Math.round(conversionsValue * 100) / 100,
+    cpe:              Math.round(cpe * 100) / 100,
+    roas:             Math.round(roas * 100) / 100
   };
 }
 
@@ -129,7 +134,8 @@ async function queryCampaigns(token, startStr, endStr) {
       metrics.impressions,
       metrics.ctr,
       metrics.conversions,
-      metrics.cost_per_conversion
+      metrics.cost_per_conversion,
+      metrics.conversions_value
     FROM campaign
     WHERE segments.date BETWEEN '${startStr}' AND '${endStr}'
       AND metrics.impressions > 0
@@ -145,28 +151,30 @@ async function queryCampaigns(token, startStr, endStr) {
     const id   = r.campaign?.id;
     const name = r.campaign?.name || 'Unknown';
     if (!map[id]) {
-      map[id] = { id, name, costMicros: 0, clicks: 0, impressions: 0, conversions: 0 };
+      map[id] = { id, name, costMicros: 0, clicks: 0, impressions: 0, conversions: 0, conversionsValue: 0 };
     }
-    map[id].costMicros   += r.metrics?.costMicros   || 0;
-    map[id].clicks       += r.metrics?.clicks       || 0;
-    map[id].impressions  += r.metrics?.impressions  || 0;
-    map[id].conversions  += r.metrics?.conversions  || 0;
+    map[id].costMicros       += r.metrics?.costMicros       || 0;
+    map[id].clicks           += r.metrics?.clicks           || 0;
+    map[id].impressions      += r.metrics?.impressions      || 0;
+    map[id].conversions      += r.metrics?.conversions      || 0;
+    map[id].conversionsValue += r.metrics?.conversionsValue || 0;
   });
 
   return Object.values(map)
     .map(c => {
       const spend = c.costMicros / 1_000_000;
       const ctr   = c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0;
-      const cpe   = c.conversions > 0 ? spend / c.conversions : null;
+      const roas  = spend > 0 ? c.conversionsValue / spend : null;
       return {
-        id:          c.id,
-        name:        c.name,
-        spend:       Math.round(spend * 100) / 100,
-        clicks:      c.clicks,
-        impressions: c.impressions,
-        ctr:         Math.round(ctr * 100) / 100,
-        conversions: Math.round(c.conversions * 10) / 10,
-        cpe:         cpe ? Math.round(cpe * 100) / 100 : null
+        id:               c.id,
+        name:             c.name,
+        spend:            Math.round(spend * 100) / 100,
+        clicks:           c.clicks,
+        impressions:      c.impressions,
+        ctr:              Math.round(ctr * 100) / 100,
+        conversions:      Math.round(c.conversions * 10) / 10,
+        conversionsValue: Math.round(c.conversionsValue * 100) / 100,
+        roas:             roas ? Math.round(roas * 100) / 100 : null
       };
     })
     .sort((a, b) => b.spend - a.spend);
