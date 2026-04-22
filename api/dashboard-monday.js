@@ -26,7 +26,7 @@ module.exports = async function handler(req, res) {
   try {
     const [leadsItems, bookingsItems] = await Promise.all([
       fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'lookup_mkyehzea', 'mirror64', 'lookup_mkxtxk48', 'text_mm1c3b5w'], true)
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'lookup_mkyehzea', 'mirror64', 'lookup_mkxtxk48', 'text_mm1c3b5w', 'mirror21__1'], true)
     ]);
 
     const cur  = monthRange(month);
@@ -156,6 +156,7 @@ function processBookings(items, startDate, endDate) {
 
   const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
   let totalRevenue = 0;
+  let ppcCount = 0;
 
   filtered.forEach(item => {
     const cols     = colMap(item);
@@ -164,6 +165,10 @@ function processBookings(items, startDate, endDate) {
     const source   = cols['lookup_mkxtxk48'] || 'Unknown';
     const campaign = cols['text_mm1c3b5w']   || 'Unknown';
     const rev      = parseFloat(cols['numeric_mm1ge9h4']) || 0;
+    const gclid    = cols['mirror21__1'] || '';
+
+    // Count as PPC booking if gclid is present
+    if (gclid && gclid.trim()) ppcCount++;
 
     [byChannel, byCity, bySource, byCampaign].forEach((obj, i) => {
       const key = [channel, city, source, campaign][i];
@@ -177,6 +182,7 @@ function processBookings(items, startDate, endDate) {
   return {
     total:        filtered.length,
     totalRevenue: Math.round(totalRevenue),
+    ppcCount,
     byChannel:    sortByRevDesc(byChannel),
     byCity:       sortByRevDesc(byCity),
     bySource:     sortByRevDesc(bySource),
