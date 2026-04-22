@@ -144,6 +144,8 @@ function processLeads(items, startDate, endDate) {
   });
 
   const bySource = {}, byChannel = {}, byCity = {}, byCampaign = {};
+  const byCitySource = {}; // city → { PPC: N, SEO: N, Referral: N, ... }
+
   filtered.forEach(item => {
     const cols = colMap(item);
     const source   = cols['color_mkxk8y67']   || 'Unknown';
@@ -154,15 +156,19 @@ function processLeads(items, startDate, endDate) {
     byChannel[channel]   = (byChannel[channel]   || 0) + 1;
     byCity[city]         = (byCity[city]         || 0) + 1;
     byCampaign[campaign] = (byCampaign[campaign] || 0) + 1;
+    if (!byCitySource[city]) byCitySource[city] = { PPC: 0, SEO: 0, Other: 0 };
+    const bucket = source === 'PPC' ? 'PPC' : source === 'SEO' ? 'SEO' : 'Other';
+    byCitySource[city][bucket]++;
   });
 
   return {
-    total:       filtered.length,
+    total:        filtered.length,
     nonSpamTotal: nonSpam.length,
-    bySource:    sortDesc(bySource),
-    byChannel:   sortDesc(byChannel),
-    byCity:      sortDesc(byCity),
-    byCampaign:  sortDesc(byCampaign)
+    bySource:     sortDesc(bySource),
+    byChannel:    sortDesc(byChannel),
+    byCity:       sortDesc(byCity),
+    byCampaign:   sortDesc(byCampaign),
+    byCitySource
   };
 }
 
@@ -183,6 +189,7 @@ function processBookings(items, startDate, endDate) {
 
   let totalRevenue = 0, ppcCount = 0, ppcRevenue = 0;
   const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
+  const byCitySource = {}; // city → { ppcCount, seoCount, referralCount, revenue }
 
   filtered.forEach(item => {
     const cols = colMap(item);
@@ -203,8 +210,19 @@ function processBookings(items, startDate, endDate) {
       channel  = source; // fallback — channel same as source if not available
     }
 
-    const isPPC = source === 'PPC';
+    const isPPC      = source === 'PPC';
+    const isSEO      = source === 'SEO';
+    const isOther    = !isPPC && !isSEO;
     if (isPPC) { ppcCount++; ppcRevenue += rev; }
+
+    if (!byCitySource[city]) byCitySource[city] = {
+      PPC:   { count: 0, revenue: 0 },
+      SEO:   { count: 0, revenue: 0 },
+      Other: { count: 0, revenue: 0 }
+    };
+    const bucket = isPPC ? 'PPC' : isSEO ? 'SEO' : 'Other';
+    byCitySource[city][bucket].count++;
+    byCitySource[city][bucket].revenue += rev;
 
     [byChannel, byCity, bySource, byCampaign].forEach((obj, i) => {
       const key = [channel, city, source, campaign][i];
@@ -223,7 +241,8 @@ function processBookings(items, startDate, endDate) {
     byChannel:    sortByRevDesc(byChannel),
     byCity:       sortByRevDesc(byCity),
     bySource:     sortByRevDesc(bySource),
-    byCampaign:   sortByRevDesc(byCampaign)
+    byCampaign:   sortByRevDesc(byCampaign),
+    byCitySource
   };
 }
 
