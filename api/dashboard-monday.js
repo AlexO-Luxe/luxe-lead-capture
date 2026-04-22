@@ -1,7 +1,6 @@
 // ============================================================
 //  Student Luxe — Dashboard: Monday Data
-//  GET /api/dashboard-monday?month=2026-04
-//  Returns leads + bookings data for a given month
+//  GET /api/dashboard-monday?month=2026-04&prevMonth=2026-03
 // ============================================================
 
 const MONDAY_API     = 'https://api.monday.com/v2';
@@ -14,163 +13,164 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { month } = req.query; // e.g. "2026-04"
+  const { month, prevMonth } = req.query;
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return res.status(400).json({ error: 'month param required, format YYYY-MM' });
   }
 
-  const [year, mon] = month.split('-').map(Number);
-  const startDate = new Date(year, mon - 1, 1);
-  const endDate   = new Date(year, mon, 1); // exclusive
+  function monthRange(m) {
+    const [y, mo] = m.split('-').map(Number);
+    return { start: new Date(y, mo - 1, 1), end: new Date(y, mo, 1) };
+  }
 
   try {
-    const [leads, bookings] = await Promise.all([
-      fetchLeads(startDate, endDate),
-      fetchBookings(startDate, endDate)
+    const [leadsItems, bookingsItems] = await Promise.all([
+      fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w']),
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'formula2', 'lookup_mkyehzea', 'mirror64', 'color_mkxk8y67', 'text_mm1c3b5w'])
     ]);
 
-    return res.status(200).json({ month, leads, bookings });
+    const cur  = monthRange(month);
+    const prev = prevMonth && /^\d{4}-\d{2}$/.test(prevMonth) ? monthRange(prevMonth) : null;
+
+    const result = { month, current: processMonth(leadsItems, bookingsItems, cur.start, cur.end) };
+    if (prev) {
+      result.prevMonth = prevMonth;
+      result.previous  = processMonth(leadsItems, bookingsItems, prev.start, prev.end);
+    }
+
+    return res.status(200).json(result);
   } catch (err) {
     console.error('Dashboard Monday error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 };
 
-// ── Monday query helper ───────────────────────────────────────
+function processMonth(leadsItems, bookingsItems, startDate, endDate) {
+  return {
+    leads:    processLeads(leadsItems, startDate, endDate),
+    bookings: processBookings(bookingsItems, startDate, endDate)
+  };
+}
+
 async function mondayQuery(query) {
-  const res = await fetch(MONDAY_API, {
-    method:  'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': process.env.MONDAY_API_KEY
-    },
+  const r = await fetch(MONDAY_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
     body: JSON.stringify({ query })
   });
-  const data = await res.json();
+  const data = await r.json();
   if (data.errors) throw new Error('Monday API: ' + JSON.stringify(data.errors));
   return data;
 }
 
-// ── Paginate all items from a board ──────────────────────────
 async function fetchAllItems(boardId, columnIds) {
   const cols = columnIds.map(c => `"${c}"`).join(', ');
-  let allItems = [];
-  let cursor = null;
-
+  let allItems = [], cursor = null;
   do {
     const cursorArg = cursor ? `, cursor: "${cursor}"` : '';
-    const query = `
-      query {
-        boards(ids: [${boardId}]) {
-          items_page(limit: 500${cursorArg}) {
-            cursor
-            items {
-              id
-              name
-              created_at
-              column_values(ids: [${cols}]) {
-                id
-                text
-                value
-              }
-            }
-          }
+    const query = `query {
+      boards(ids: [${boardId}]) {
+        items_page(limit: 500${cursorArg}) {
+          cursor
+          items { id name created_at column_values(ids: [${cols}]) { id text value } }
         }
       }
-    `;
+    }`;
     const data = await mondayQuery(query);
     const page = data?.data?.boards?.[0]?.items_page;
     allItems = allItems.concat(page?.items || []);
     cursor = page?.cursor || null;
   } while (cursor);
-
   return allItems;
 }
 
-// ── Parse column values into a map ───────────────────────────
 function colMap(item) {
   const map = {};
   (item.column_values || []).forEach(c => { map[c.id] = c.text || ''; });
   return map;
 }
 
-// ── LEADS ────────────────────────────────────────────────────
-async function fetchLeads(startDate, endDate) {
-  const items = await fetchAllItems(LEADS_BOARD, [
-    'color_mkxk8y67',   // Lead source (PPC/SEO/Socials)
-    'dropdown_mkxkfbff' // Channel / How
-  ]);
-
-  const filtered = items.filter(item => {
-    const created = new Date(item.created_at);
-    return created >= startDate && created < endDate;
-  });
-
-  // Aggregate by source
-  const bySource  = {};
-  const byChannel = {};
-
-  filtered.forEach(item => {
-    const cols    = colMap(item);
-    const source  = cols['color_mkxk8y67']   || 'Unknown';
-    const channel = cols['dropdown_mkxkfbff'] || 'Unknown';
-
-    bySource[source]   = (bySource[source]   || 0) + 1;
-    byChannel[channel] = (byChannel[channel] || 0) + 1;
-  });
-
-  return {
-    total:     filtered.length,
-    bySource:  sortDesc(bySource),
-    byChannel: sortDesc(byChannel)
-  };
+const CITY_DISPLAY = {
+  'london':'London','new-york':'New York','new york':'New York',
+  'paris':'Paris','cambridge':'Cambridge','madrid':'Madrid',
+  'edinburgh':'Edinburgh','milan':'Milan','amsterdam':'Amsterdam',
+  'barcelona':'Barcelona','lisbon':'Lisbon','boston':'Boston',
+  'chicago':'Chicago','washington':'Washington DC','philadelphia':'Philadelphia'
+};
+function normaliseCity(raw) {
+  if (!raw) return 'Unknown';
+  const key = raw.toLowerCase().trim();
+  return CITY_DISPLAY[key] || raw;
 }
 
-// ── BOOKINGS ─────────────────────────────────────────────────
-async function fetchBookings(startDate, endDate) {
-  const items = await fetchAllItems(BOOKINGS_BOARD, [
-    'date9',            // Confirmed date
-    'formula2',         // Revenue
-    'lookup_mkyehzea'   // How (connected from leads board)
-  ]);
-
+function processLeads(items, startDate, endDate) {
   const filtered = items.filter(item => {
-    const cols        = colMap(item);
-    const confirmedAt = cols['date9'];
-    if (!confirmedAt) return false;
-    const d = new Date(confirmedAt);
+    const d = new Date(item.created_at);
     return d >= startDate && d < endDate;
   });
 
-  // Aggregate
-  const byChannel = {};
+  const bySource = {}, byChannel = {}, byCity = {}, byCampaign = {};
+  filtered.forEach(item => {
+    const cols = colMap(item);
+    const source   = cols['color_mkxk8y67']   || 'Unknown';
+    const channel  = cols['dropdown_mkxkfbff'] || 'Unknown';
+    const city     = normaliseCity(cols['text8']);
+    const campaign = cols['text_mm1c3b5w']     || 'Unknown';
+    bySource[source]     = (bySource[source]     || 0) + 1;
+    byChannel[channel]   = (byChannel[channel]   || 0) + 1;
+    byCity[city]         = (byCity[city]         || 0) + 1;
+    byCampaign[campaign] = (byCampaign[campaign] || 0) + 1;
+  });
+
+  return {
+    total: filtered.length,
+    bySource:   sortDesc(bySource),
+    byChannel:  sortDesc(byChannel),
+    byCity:     sortDesc(byCity),
+    byCampaign: sortDesc(byCampaign)
+  };
+}
+
+function processBookings(items, startDate, endDate) {
+  const filtered = items.filter(item => {
+    const cols = colMap(item);
+    const d = new Date(cols['date9']);
+    return !isNaN(d) && d >= startDate && d < endDate;
+  });
+
+  const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
   let totalRevenue = 0;
 
   filtered.forEach(item => {
-    const cols    = colMap(item);
-    const channel = cols['lookup_mkyehzea'] || 'Unknown';
-    const rev     = parseFloat(cols['formula2']) || 0;
+    const cols     = colMap(item);
+    const channel  = cols['lookup_mkyehzea'] || 'Unknown';
+    const city     = normaliseCity(cols['mirror64']);
+    const source   = cols['color_mkxk8y67']  || 'Unknown';
+    const campaign = cols['text_mm1c3b5w']   || 'Unknown';
+    const rev      = parseFloat(cols['formula2']) || 0;
 
-    byChannel[channel] = byChannel[channel] || { count: 0, revenue: 0 };
-    byChannel[channel].count++;
-    byChannel[channel].revenue += rev;
+    [byChannel, byCity, bySource, byCampaign].forEach((obj, i) => {
+      const key = [channel, city, source, campaign][i];
+      if (!obj[key]) obj[key] = { count: 0, revenue: 0 };
+      obj[key].count++;
+      obj[key].revenue += rev;
+    });
     totalRevenue += rev;
   });
 
-  // Sort by count desc
-  const byChannelSorted = Object.entries(byChannel)
-    .sort((a, b) => b[1].count - a[1].count)
-    .reduce((acc, [k, v]) => { acc[k] = v; return acc; }, {});
-
   return {
-    total:       filtered.length,
+    total:        filtered.length,
     totalRevenue: Math.round(totalRevenue),
-    byChannel:   byChannelSorted
+    byChannel:    sortByRevDesc(byChannel),
+    byCity:       sortByRevDesc(byCity),
+    bySource:     sortByRevDesc(bySource),
+    byCampaign:   sortByRevDesc(byCampaign)
   };
 }
 
 function sortDesc(obj) {
-  return Object.entries(obj)
-    .sort((a, b) => b[1] - a[1])
-    .reduce((acc, [k, v]) => { acc[k] = v; return acc; }, {});
+  return Object.entries(obj).sort((a,b)=>b[1]-a[1]).reduce((acc,[k,v])=>{acc[k]=v;return acc;},{});
+}
+function sortByRevDesc(obj) {
+  return Object.entries(obj).sort((a,b)=>b[1].revenue-a[1].revenue).reduce((acc,[k,v])=>{acc[k]=v;return acc;},{});
 }
