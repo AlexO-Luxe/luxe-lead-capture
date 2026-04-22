@@ -164,6 +164,7 @@ function processBookings(items, startDate, endDate) {
 
   let totalRevenue = 0;
   let ppcCount = 0;
+  let ppcRevenue = 0;
 
   filtered.forEach(item => {
     const cols     = colMap(item);
@@ -172,10 +173,11 @@ function processBookings(items, startDate, endDate) {
     const source   = cols['lookup_mkxtxk48'] || 'Unknown';
     const campaign = cols['text_mm1c3b5w']   || 'Unknown';
     const rev      = parseFloat(cols['numeric_mm1ge9h4']) || 0;
-    const gclid    = cols['mirror21__1'] || '';
 
-    // Count as PPC booking if gclid is present
-    if (gclid && gclid.trim()) ppcCount++;
+    // PPC booking = source contains 'ppc' (case-insensitive) or gclid present
+    const gclid = cols['mirror21__1'] || '';
+    const isPPC = source.toLowerCase().includes('ppc') || (gclid && gclid.trim());
+    if (isPPC) { ppcCount++; ppcRevenue += rev; }
 
     [byChannel, byCity, bySource, byCampaign].forEach((obj, i) => {
       const key = [channel, city, source, campaign][i];
@@ -190,6 +192,7 @@ function processBookings(items, startDate, endDate) {
     total:        filtered.length,
     totalRevenue: Math.round(totalRevenue),
     ppcCount,
+    ppcRevenue:   Math.round(ppcRevenue),
     byChannel:    sortByRevDesc(byChannel),
     byCity:       sortByRevDesc(byCity),
     bySource:     sortByRevDesc(bySource),
