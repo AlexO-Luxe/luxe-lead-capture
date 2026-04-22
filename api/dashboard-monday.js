@@ -170,6 +170,7 @@ function processBookings(items, startDate, endDate) {
   let totalRevenue = 0;
   let ppcCount = 0;
   let ppcRevenue = 0;
+  const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
 
   filtered.forEach(item => {
     const cols     = colMap(item);
