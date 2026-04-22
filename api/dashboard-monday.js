@@ -26,7 +26,7 @@ module.exports = async function handler(req, res) {
   try {
     const [leadsItems, bookingsItems] = await Promise.all([
       fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'lookup_mkyehzea', 'mirror64', 'lookup_mkxtxk48', 'text_mm1c3b5w', 'mirror21__1', 'mirror988__1'], true)
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4'], true, true)
     ]);
 
     const cur  = monthRange(month);
@@ -63,9 +63,20 @@ async function mondayQuery(query) {
   return data;
 }
 
-async function fetchAllItems(boardId, columnIds, includeGroup = false) {
+async function fetchAllItems(boardId, columnIds, includeGroup = false, includeLinked = false) {
   const cols = columnIds.map(c => `"${c}"`).join(', ');
-  const groupField = includeGroup ? 'group { title }' : '';
+  const groupField  = includeGroup  ? 'group { title }' : '';
+  const linkedField = includeLinked ? `linked_items: column_values(ids: ["link_to_leads26"]) {
+            id
+            ... on BoardRelationValue {
+              linked_items {
+                id
+                column_values(ids: ["color_mkxk8y67", "text8", "text_mm1c3b5w"]) {
+                  id text
+                }
+              }
+            }
+          }` : '';
   let allItems = [], cursor = null;
   do {
     const cursorArg = cursor ? `, cursor: "${cursor}"` : '';
@@ -73,7 +84,21 @@ async function fetchAllItems(boardId, columnIds, includeGroup = false) {
       boards(ids: [${boardId}]) {
         items_page(limit: 500${cursorArg}) {
           cursor
-          items { id name created_at ${groupField} column_values(ids: [${cols}]) { id text value } }
+          items {
+            id name created_at ${groupField}
+            column_values(ids: [${cols}]) { id text value }
+            ${includeLinked ? `relation: column_values(ids: ["link_to_leads26"]) {
+              id
+              ... on BoardRelationValue {
+                linked_items {
+                  id
+                  column_values(ids: ["color_mkxk8y67", "text8", "text_mm1c3b5w"]) {
+                    id text
+                  }
+                }
+              }
+            }` : ''}
+          }
         }
       }
     }`;
@@ -154,35 +179,31 @@ function processBookings(items, startDate, endDate) {
     return !isNaN(d) && d >= startDate && d < endDate;
   });
 
-  console.log(`Bookings: ${items.length} total, ${eligible.length} after group filter, ${filtered.length} in date range ${startDate.toISOString()} - ${endDate.toISOString()}`);
-  console.log('Date9 sample:', JSON.stringify(eligible.slice(0,5).map(item => ({ name: item.name, group: item.group?.title, date9: colMap(item)['date9'] }))));
-  // Debug: log what source values are coming back
-  const sourceValues = filtered.slice(0, 10).map(item => {
-    const cols = colMap(item);
-    return { name: item.name, source: cols['lookup_mkxtxk48'], gclid: cols['mirror21__1'] };
-  });
-  console.log('Booking source sample:', JSON.stringify(sourceValues));
-  console.log('Booking campaign sample:', JSON.stringify(filtered.slice(0,5).map(item => {
-    const cols = colMap(item);
-    return { name: item.name, campaign988: cols['mirror988__1'], campaignText: cols['text_mm1c3b5w'], rev: cols['numeric_mm1ge9h4'] };
-  })));
+  console.log(`Bookings: ${items.length} total, ${eligible.length} after group filter, ${filtered.length} in date range`);
 
-  let totalRevenue = 0;
-  let ppcCount = 0;
-  let ppcRevenue = 0;
+  let totalRevenue = 0, ppcCount = 0, ppcRevenue = 0;
   const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
 
   filtered.forEach(item => {
-    const cols     = colMap(item);
-    const channel  = cols['lookup_mkyehzea'] || 'Unknown';
-    const city     = normaliseCity(cols['mirror64']);
-    const source   = cols['lookup_mkxtxk48'] || 'Unknown';
-    const campaign = cols['mirror988__1'] || cols['text_mm1c3b5w'] || 'Unknown';
-    const rev      = parseFloat(cols['numeric_mm1ge9h4']) || 0;
+    const cols = colMap(item);
+    const rev  = parseFloat(cols['numeric_mm1ge9h4']) || 0;
 
-    // PPC booking = mirror988__1 (PPC campaign mirror) has a value
-    const ppcCampaign = cols['mirror988__1'] || '';
-    const isPPC = ppcCampaign.trim().length > 0;
+    // Pull attribution from connected lead item
+    const relationCol = (item.relation || []).find(cv => cv.id === 'link_to_leads26');
+    const linkedItems = relationCol?.linked_items || [];
+    const lead = linkedItems[0];
+
+    let source = 'Unknown', channel = 'Unknown', city = 'Unknown', campaign = 'Unknown';
+    if (lead) {
+      const lc = {};
+      (lead.column_values || []).forEach(c => { lc[c.id] = c.text || ''; });
+      source   = lc['color_mkxk8y67'] || 'Unknown';
+      city     = normaliseCity(lc['text8']);
+      campaign = lc['text_mm1c3b5w']  || 'Unknown';
+      channel  = source; // fallback — channel same as source if not available
+    }
+
+    const isPPC = source === 'PPC';
     if (isPPC) { ppcCount++; ppcRevenue += rev; }
 
     [byChannel, byCity, bySource, byCampaign].forEach((obj, i) => {
