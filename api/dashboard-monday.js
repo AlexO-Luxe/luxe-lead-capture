@@ -25,8 +25,8 @@ module.exports = async function handler(req, res) {
 
   try {
     const [leadsItems, bookingsItems] = await Promise.all([
-      fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'formula2', 'lookup_mkyehzea', 'mirror64', 'color_mkxk8y67', 'text_mm1c3b5w'])
+      fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'formula2', 'lookup_mkyehzea', 'mirror64', 'color_mkxk8y67', 'text_mm1c3b5w'], true)
     ]);
 
     const cur  = monthRange(month);
@@ -63,8 +63,9 @@ async function mondayQuery(query) {
   return data;
 }
 
-async function fetchAllItems(boardId, columnIds) {
+async function fetchAllItems(boardId, columnIds, includeGroup = false) {
   const cols = columnIds.map(c => `"${c}"`).join(', ');
+  const groupField = includeGroup ? 'group { title }' : '';
   let allItems = [], cursor = null;
   do {
     const cursorArg = cursor ? `, cursor: "${cursor}"` : '';
@@ -72,7 +73,7 @@ async function fetchAllItems(boardId, columnIds) {
       boards(ids: [${boardId}]) {
         items_page(limit: 500${cursorArg}) {
           cursor
-          items { id name created_at column_values(ids: [${cols}]) { id text value } }
+          items { id name created_at ${groupField} column_values(ids: [${cols}]) { id text value } }
         }
       }
     }`;
@@ -103,10 +104,18 @@ function normaliseCity(raw) {
   return CITY_DISPLAY[key] || raw;
 }
 
+const EXCLUDED_BOOKING_GROUPS = ['Pending Bookings', 'Cancelled Bookings', 'Lost Bookings'];
+
 function processLeads(items, startDate, endDate) {
   const filtered = items.filter(item => {
     const d = new Date(item.created_at);
     return d >= startDate && d < endDate;
+  });
+
+  // Non-spam leads for conversion rate denominator
+  const nonSpam = filtered.filter(item => {
+    const cols = colMap(item);
+    return (cols['status'] || '').trim() !== 'Spam!';
   });
 
   const bySource = {}, byChannel = {}, byCity = {}, byCampaign = {};
@@ -123,16 +132,23 @@ function processLeads(items, startDate, endDate) {
   });
 
   return {
-    total: filtered.length,
-    bySource:   sortDesc(bySource),
-    byChannel:  sortDesc(byChannel),
-    byCity:     sortDesc(byCity),
-    byCampaign: sortDesc(byCampaign)
+    total:       filtered.length,
+    nonSpamTotal: nonSpam.length,
+    bySource:    sortDesc(bySource),
+    byChannel:   sortDesc(byChannel),
+    byCity:      sortDesc(byCity),
+    byCampaign:  sortDesc(byCampaign)
   };
 }
 
 function processBookings(items, startDate, endDate) {
-  const filtered = items.filter(item => {
+  // Exclude Pending, Cancelled, Lost groups
+  const eligible = items.filter(item => {
+    const groupTitle = item.group?.title || '';
+    return !EXCLUDED_BOOKING_GROUPS.includes(groupTitle);
+  });
+
+  const filtered = eligible.filter(item => {
     const cols = colMap(item);
     const d = new Date(cols['date9']);
     return !isNaN(d) && d >= startDate && d < endDate;
