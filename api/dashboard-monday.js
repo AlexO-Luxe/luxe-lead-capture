@@ -155,6 +155,13 @@ function processBookings(items, startDate, endDate) {
   });
 
   const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
+  // Debug: log what source values are coming back
+  const sourceValues = filtered.slice(0, 10).map(item => {
+    const cols = colMap(item);
+    return { name: item.name, source: cols['lookup_mkxtxk48'], gclid: cols['mirror21__1'] };
+  });
+  console.log('Booking source sample:', JSON.stringify(sourceValues));
+
   let totalRevenue = 0;
   let ppcCount = 0;
 
