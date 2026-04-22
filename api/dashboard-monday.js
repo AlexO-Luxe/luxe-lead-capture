@@ -154,13 +154,18 @@ function processBookings(items, startDate, endDate) {
     return !isNaN(d) && d >= startDate && d < endDate;
   });
 
-  const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
+  console.log(`Bookings: ${items.length} total, ${eligible.length} after group filter, ${filtered.length} in date range ${startDate.toISOString()} - ${endDate.toISOString()}`);
+  console.log('Date9 sample:', JSON.stringify(eligible.slice(0,5).map(item => ({ name: item.name, group: item.group?.title, date9: colMap(item)['date9'] }))));
   // Debug: log what source values are coming back
   const sourceValues = filtered.slice(0, 10).map(item => {
     const cols = colMap(item);
     return { name: item.name, source: cols['lookup_mkxtxk48'], gclid: cols['mirror21__1'] };
   });
   console.log('Booking source sample:', JSON.stringify(sourceValues));
+  console.log('Booking campaign sample:', JSON.stringify(filtered.slice(0,5).map(item => {
+    const cols = colMap(item);
+    return { name: item.name, campaign988: cols['mirror988__1'], campaignText: cols['text_mm1c3b5w'], rev: cols['numeric_mm1ge9h4'] };
+  })));
 
   let totalRevenue = 0;
   let ppcCount = 0;
@@ -171,7 +176,7 @@ function processBookings(items, startDate, endDate) {
     const channel  = cols['lookup_mkyehzea'] || 'Unknown';
     const city     = normaliseCity(cols['mirror64']);
     const source   = cols['lookup_mkxtxk48'] || 'Unknown';
-    const campaign = cols['text_mm1c3b5w']   || 'Unknown';
+    const campaign = cols['mirror988__1'] || cols['text_mm1c3b5w'] || 'Unknown';
     const rev      = parseFloat(cols['numeric_mm1ge9h4']) || 0;
 
     // PPC booking = mirror988__1 (PPC campaign mirror) has a value
