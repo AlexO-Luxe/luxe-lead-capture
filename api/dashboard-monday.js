@@ -26,7 +26,7 @@ module.exports = async function handler(req, res) {
   try {
     const [leadsItems, bookingsItems] = await Promise.all([
       fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'lookup_mkyehzea', 'mirror64', 'lookup_mkxtxk48', 'text_mm1c3b5w', 'mirror21__1'], true)
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'lookup_mkyehzea', 'mirror64', 'lookup_mkxtxk48', 'text_mm1c3b5w', 'mirror21__1', 'mirror988__1'], true)
     ]);
 
     const cur  = monthRange(month);
@@ -174,9 +174,9 @@ function processBookings(items, startDate, endDate) {
     const campaign = cols['text_mm1c3b5w']   || 'Unknown';
     const rev      = parseFloat(cols['numeric_mm1ge9h4']) || 0;
 
-    // PPC booking = source contains 'ppc' (case-insensitive) or gclid present
-    const gclid = cols['mirror21__1'] || '';
-    const isPPC = source.toLowerCase().includes('ppc') || (gclid && gclid.trim());
+    // PPC booking = mirror988__1 (PPC campaign mirror) has a value
+    const ppcCampaign = cols['mirror988__1'] || '';
+    const isPPC = ppcCampaign.trim().length > 0;
     if (isPPC) { ppcCount++; ppcRevenue += rev; }
 
     [byChannel, byCity, bySource, byCampaign].forEach((obj, i) => {
