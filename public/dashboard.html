@@ -391,15 +391,12 @@ body {
         <div class="topbar-sub" id="lastRefreshed">Select month and refresh</div>
       </div>
       <div class="topbar-right">
-        <div class="month-picker">
-          <button class="month-btn" id="prevMonth">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <span class="month-display" id="monthDisplay"></span>
-          <button class="month-btn" id="nextMonth">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
+        <select id="periodSelect" style="
+          background:var(--gold-pale);border:1px solid var(--border-str);
+          border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;
+          color:var(--ink);font-family:'DM Sans',sans-serif;cursor:pointer;
+          outline:none;min-width:180px;
+        "></select>
         <button class="refresh-btn" id="refreshBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           Refresh
@@ -486,30 +483,46 @@ body {
 const API_BASE = 'https://luxe-lead-capture.vercel.app/api';
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-// ── STATE ─────────────────────────────────────────────────────
+// ── CACHE ─────────────────────────────────────────────────────
+const dataCache = {};
+
+// ── PERIOD STATE ──────────────────────────────────────────────
 const now = new Date();
-let curYear  = now.getFullYear();
-let curMonth = now.getMonth() + 1;
+const CUR_YEAR = now.getFullYear();
 
 function monthStr(y, m) { return `${y}-${String(m).padStart(2,'0')}`; }
-function prevMonthStr() {
-  let m = curMonth - 1, y = curYear;
-  if (m < 1) { m = 12; y--; }
-  return monthStr(y, m);
-}
-function updateDisplay() {
-  document.getElementById('monthDisplay').textContent = `${MONTH_NAMES[curMonth-1]} ${curYear}`;
+function prevMonthOf(mo) {
+  const [y, m] = mo.split('-').map(Number);
+  return m > 1 ? monthStr(y, m-1) : monthStr(y-1, 12);
 }
 
-document.getElementById('prevMonth').addEventListener('click', () => {
-  curMonth--; if (curMonth < 1) { curMonth = 12; curYear--; }
-  updateDisplay();
-});
-document.getElementById('nextMonth').addEventListener('click', () => {
-  curMonth++; if (curMonth > 12) { curMonth = 1; curYear++; }
-  updateDisplay();
-});
-updateDisplay();
+function buildPeriodOptions() {
+  const sel = document.getElementById('periodSelect');
+  sel.innerHTML = '';
+  const add = (label, value) => {
+    const opt = document.createElement('option');
+    opt.value = value; opt.textContent = label;
+    sel.appendChild(opt);
+  };
+  const addSep = () => {
+    const s = document.createElement('option'); s.disabled = true; s.textContent = '──────────'; sel.appendChild(s);
+  };
+  const mo = now.getMonth() + 1;
+  const ytdMonths = Array.from({length: mo}, (_,i) => monthStr(CUR_YEAR, i+1));
+  add(`Year to Date ${CUR_YEAR}`, 'ytd:' + ytdMonths.join(','));
+  const qDef = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]];
+  qDef.forEach((months, qi) => {
+    if (months[0] <= mo) add(`Q${qi+1} ${CUR_YEAR}`, 'multi:' + months.map(m => monthStr(CUR_YEAR, m)).join(','));
+  });
+  addSep();
+  for (let y = CUR_YEAR; y >= CUR_YEAR - 1; y--) {
+    const maxM = y === CUR_YEAR ? mo : 12;
+    for (let m = maxM; m >= 1; m--) add(`${MONTH_NAMES[m-1]} ${y}`, monthStr(y, m));
+    if (y > CUR_YEAR - 1) addSep();
+  }
+  sel.value = monthStr(CUR_YEAR, mo);
+}
+buildPeriodOptions();
 
 // ── SIDEBAR NAV ───────────────────────────────────────────────
 document.querySelectorAll('.sidebar-nav a').forEach(a => {
@@ -533,32 +546,26 @@ async function loadAll() {
   const spinner = mkLoading('Fetching data from Monday &amp; Google Ads…');
   document.getElementById('dashContent').appendChild(spinner);
 
-  const mo = monthStr(curYear, curMonth);
-  const prev = prevMonthStr();
+  const periodVal = document.getElementById('periodSelect').value;
+  const label = document.getElementById('periodSelect').selectedOptions[0].textContent;
 
   try {
-    const [monday, gads] = await Promise.all([
-      fetch(`${API_BASE}/dashboard-monday?month=${mo}&prevMonth=${prev}`).then(async r => {
-        const json = await r.json();
-        if (!r.ok || json.error) throw new Error('Monday API: ' + (json.error || r.status));
-        if (!json.current) throw new Error('Monday API returned unexpected structure: ' + JSON.stringify(json).substring(0,200));
-        return json;
-      }),
-      fetch(`${API_BASE}/dashboard-gads?month=${mo}&prevMonth=${prev}`).then(async r => {
-        const json = await r.json();
-        if (!r.ok || json.error) throw new Error('Google Ads API: ' + (json.error || r.status));
-        return json;
-      })
-    ]);
-
+    let monday, gads;
+    if (periodVal.startsWith('multi:') || periodVal.startsWith('ytd:')) {
+      const months = periodVal.split(':')[1].split(',');
+      const results = await Promise.all(months.map(mo => fetchMonth(mo)));
+      monday = mergeMonday(results.map(r => r.monday));
+      gads   = mergeGads(results.map(r => r.gads));
+    } else {
+      const prev = prevMonthOf(periodVal);
+      const res  = await fetchMonth(periodVal, prev);
+      monday = res.monday; gads = res.gads;
+    }
     spinner.remove();
     renderDash(monday, gads);
     document.getElementById('lastRefreshed').textContent =
-      `Last refreshed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · ${MONTH_NAMES[curMonth-1]} ${curYear}`;
-
-    // Async AI analysis
+      `Last refreshed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · ${label}`;
     generateWhatMoved(monday, gads);
-
   } catch(err) {
     spinner.remove();
     document.getElementById('dashContent').innerHTML = `<div class="error-banner">Failed to load: ${err.message}</div>`;
@@ -566,6 +573,98 @@ async function loadAll() {
     btn.classList.remove('loading'); btn.disabled = false;
   }
 }
+
+async function fetchMonth(mo, prev) {
+  const key = mo + (prev ? '|' + prev : '');
+  if (dataCache[key]) { console.log('Cache hit:', key); return dataCache[key]; }
+  const pp = prev ? `&prevMonth=${prev}` : '';
+  const [monday, gads] = await Promise.all([
+    fetch(`${API_BASE}/dashboard-monday?month=${mo}${pp}`).then(async r => {
+      const json = await r.json();
+      if (!r.ok || json.error) throw new Error('Monday API: ' + (json.error || r.status));
+      if (!json.current) throw new Error('Monday API unexpected: ' + JSON.stringify(json).substring(0,200));
+      return json;
+    }),
+    fetch(`${API_BASE}/dashboard-gads?month=${mo}${pp}`).then(async r => {
+      const json = await r.json();
+      if (!r.ok || json.error) throw new Error('Google Ads API: ' + (json.error || r.status));
+      return json;
+    })
+  ]);
+  dataCache[key] = { monday, gads };
+  return dataCache[key];
+}
+
+function mergeMonday(arr) {
+  function mergeLeads(a) {
+    const o = { total:0, nonSpamTotal:0, bySource:{}, byChannel:{}, byCity:{}, byCampaign:{}, byCitySource:{} };
+    a.forEach(m => {
+      const l = m.current.leads;
+      o.total += l.total; o.nonSpamTotal += l.nonSpamTotal;
+      mc(o.bySource, l.bySource); mc(o.byChannel, l.byChannel);
+      mc(o.byCity, l.byCity);     mc(o.byCampaign, l.byCampaign);
+      Object.entries(l.byCitySource||{}).forEach(([c,s]) => {
+        if (!o.byCitySource[c]) o.byCitySource[c] = {PPC:0,SEO:0,Other:0};
+        ['PPC','SEO','Other'].forEach(b => { o.byCitySource[c][b] += s[b]||0; });
+      });
+    });
+    return o;
+  }
+  function mergeBookings(a) {
+    const o = { total:0, totalRevenue:0, ppcCount:0, ppcRevenue:0, byChannel:{}, byCity:{}, bySource:{}, byCampaign:{}, byCitySource:{} };
+    a.forEach(m => {
+      const b = m.current.bookings;
+      o.total += b.total; o.totalRevenue += b.totalRevenue;
+      o.ppcCount += b.ppcCount; o.ppcRevenue += b.ppcRevenue;
+      mrc(o.byChannel, b.byChannel); mrc(o.byCity, b.byCity);
+      mrc(o.bySource, b.bySource);   mrc(o.byCampaign, b.byCampaign);
+      Object.entries(b.byCitySource||{}).forEach(([c,s]) => {
+        if (!o.byCitySource[c]) o.byCitySource[c] = {PPC:{count:0,revenue:0},SEO:{count:0,revenue:0},Other:{count:0,revenue:0}};
+        ['PPC','SEO','Other'].forEach(b2 => {
+          o.byCitySource[c][b2].count   += s[b2]?.count||0;
+          o.byCitySource[c][b2].revenue += s[b2]?.revenue||0;
+        });
+      });
+    });
+    return o;
+  }
+  return { month: arr[arr.length-1].month, current: { leads: mergeLeads(arr), bookings: mergeBookings(arr) }, previous: null };
+}
+
+function mergeGads(arr) {
+  const o = { accountSummary:{spend:0,clicks:0,impressions:0,conversions:0,conversionsValue:0}, campaigns:[], budget:null };
+  const cm = {};
+  arr.forEach(g => {
+    const a = g.accountSummary||{};
+    o.accountSummary.spend            += a.spend||0;
+    o.accountSummary.clicks           += a.clicks||0;
+    o.accountSummary.impressions      += a.impressions||0;
+    o.accountSummary.conversions      += a.conversions||0;
+    o.accountSummary.conversionsValue += a.conversionsValue||0;
+    if (g.budget) o.budget = (o.budget||0) + g.budget;
+    (g.campaigns||[]).forEach(c => {
+      if (!cm[c.name]) cm[c.name] = {...c, spend:0, clicks:0, impressions:0, conversions:0, conversionsValue:0};
+      cm[c.name].spend            += c.spend;
+      cm[c.name].clicks           += c.clicks;
+      cm[c.name].impressions      += c.impressions;
+      cm[c.name].conversions      += c.conversions;
+      cm[c.name].conversionsValue += c.conversionsValue||0;
+    });
+  });
+  const a = o.accountSummary;
+  a.ctr  = a.impressions>0 ? Math.round(a.clicks/a.impressions*10000)/100 : 0;
+  a.cpl  = a.conversions>0 ? Math.round(a.spend/a.conversions*100)/100 : 0;
+  a.roas = a.spend>0 ? Math.round(a.conversionsValue/a.spend*100)/100 : 0;
+  o.campaigns = Object.values(cm).map(c => ({
+    ...c,
+    ctr:  c.impressions>0 ? Math.round(c.clicks/c.impressions*10000)/100 : 0,
+    roas: c.spend>0 && c.conversionsValue>0 ? Math.round(c.conversionsValue/c.spend*100)/100 : null
+  })).sort((a,b) => b.spend-a.spend);
+  return o;
+}
+
+function mc(t,s)  { Object.entries(s||{}).forEach(([k,v])=>{ t[k]=(t[k]||0)+v; }); }
+function mrc(t,s) { Object.entries(s||{}).forEach(([k,v])=>{ if(!t[k])t[k]={count:0,revenue:0}; t[k].count+=v.count||0; t[k].revenue+=v.revenue||0; }); }
 
 // ── RENDER ────────────────────────────────────────────────────
 function renderDash(monday, gads) {
@@ -768,9 +867,13 @@ function renderDash(monday, gads) {
     const gProfitHtml = gHasRev
       ? `<span style="color:${gProfit>=0?'var(--green)':'var(--red)'};font-weight:600">${gProfit>=0?'':'−'}£${fmt(Math.abs(gProfit))}</span>`
       : '—';
+    const uid = groupName.replace(/\W+/g,'_');
     return `<div class="table-card" style="margin-bottom:16px;">
-      <div class="table-card-header">
-        <span class="table-card-title">${groupName}</span>
+      <div class="table-card-header" style="cursor:pointer;user-select:none;" onclick="toggleGroup('${uid}')">
+        <span class="table-card-title" style="display:flex;align-items:center;gap:8px;">
+          <span id="chevron_${uid}" style="font-size:11px;transition:transform 0.2s;display:inline-block;">▼</span>
+          ${groupName}
+        </span>
         <div style="display:flex;gap:20px;font-size:12px;align-items:center;">
           <span style="color:var(--hint);">Spend <strong style="color:var(--ink);">£${fmt(gSpend)}</strong></span>
           <span style="color:var(--hint);">Revenue <strong style="color:var(--ink);">${gRevenue>0?'£'+fmt(gRevenue):'—'}</strong></span>
@@ -778,7 +881,7 @@ function renderDash(monday, gads) {
           <span style="color:var(--hint);">ROAS ${gRoasHtml}</span>
         </div>
       </div>
-      <div class="table-card-body">
+      <div id="group_${uid}" class="table-card-body">
         <table class="data-table">
           <thead><tr>
             <th>Campaign</th><th>City</th><th>Spend</th>
@@ -953,6 +1056,14 @@ function srcColour(label) {
   if (l.includes('referral'))  return '#F4A028';
   if (l.includes('email'))     return '#7C3AED';
   return '#B8966E';
+}
+
+function toggleGroup(uid) {
+  const body    = document.getElementById('group_' + uid);
+  const chevron = document.getElementById('chevron_' + uid);
+  const isOpen  = body.style.display !== 'none';
+  body.style.display    = isOpen ? 'none' : '';
+  chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
 }
 
 function fmt(n) {
