@@ -71,7 +71,7 @@ async function fetchAllItems(boardId, columnIds, includeGroup = false, includeLi
             ... on BoardRelationValue {
               linked_items {
                 id
-                column_values(ids: ["color_mkxk8y67", "text8", "text_mm1c3b5w"]) {
+                column_values(ids: ["color_mkxk8y67", "dropdown_mkxkfbff", "text8", "text_mm1c3b5w"]) {
                   id text
                 }
               }
@@ -92,7 +92,7 @@ async function fetchAllItems(boardId, columnIds, includeGroup = false, includeLi
               ... on BoardRelationValue {
                 linked_items {
                   id
-                  column_values(ids: ["color_mkxk8y67", "text8", "text_mm1c3b5w"]) {
+                  column_values(ids: ["color_mkxk8y67", "dropdown_mkxkfbff", "text8", "text_mm1c3b5w"]) {
                     id text
                   }
                 }
@@ -204,10 +204,10 @@ function processBookings(items, startDate, endDate) {
     if (lead) {
       const lc = {};
       (lead.column_values || []).forEach(c => { lc[c.id] = c.text || ''; });
-      source   = lc['color_mkxk8y67'] || 'Unknown';
+      source   = lc['color_mkxk8y67']   || 'Unknown';
+      channel  = lc['dropdown_mkxkfbff'] || 'Unknown';
       city     = normaliseCity(lc['text8']);
-      campaign = lc['text_mm1c3b5w']  || 'Unknown';
-      channel  = source; // fallback — channel same as source if not available
+      campaign = lc['text_mm1c3b5w']     || 'Unknown'; // fallback — channel same as source if not available
     }
 
     const isPPC      = source === 'PPC';
