@@ -199,6 +199,10 @@ body {
   color: var(--hint); font-weight: 400; padding: 10px 16px; text-align: left;
 }
 .data-table thead th:not(:first-child) { text-align: right; }
+.data-table thead th.sortable { cursor: pointer; user-select: none; }
+.data-table thead th.sortable:hover { color: var(--gold); }
+.sort-icon { opacity: 0.4; font-size: 9px; margin-left: 2px; }
+.data-table thead th.sort-active .sort-icon { opacity: 1; color: var(--gold); }
 .data-table tbody tr { border-bottom: 1px solid rgba(184,150,110,0.08); transition: background 0.1s; }
 .data-table tbody tr:last-child { border-bottom: none; }
 .data-table tbody tr:hover { background: var(--gold-pale); }
@@ -426,21 +430,33 @@ body {
             <div class="table-card">
               <div class="table-card-header"><span class="table-card-title">Revenue by Source</span></div>
               <div class="table-card-body">
-                <table class="data-table"><thead><tr><th>Source</th><th>Bookings</th><th>Revenue</th></tr></thead>
+                <table class="data-table"><thead><tr>
+                  <th>Source</th>
+                  <th class="sortable" onclick="sortRevTable('revBySource','count')" id="revBySource_count">Bookings <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortRevTable('revBySource','revenue')" id="revBySource_revenue">Revenue <span class="sort-icon">↕</span></th>
+                </tr></thead>
                 <tbody id="revBySource"></tbody></table>
               </div>
             </div>
             <div class="table-card">
               <div class="table-card-header"><span class="table-card-title">Revenue by Channel (How)</span></div>
               <div class="table-card-body">
-                <table class="data-table"><thead><tr><th>Channel</th><th>Bookings</th><th>Revenue</th></tr></thead>
+                <table class="data-table"><thead><tr>
+                  <th>Channel</th>
+                  <th class="sortable" onclick="sortRevTable('revByChannel','count')" id="revByChannel_count">Bookings <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortRevTable('revByChannel','revenue')" id="revByChannel_revenue">Revenue <span class="sort-icon">↕</span></th>
+                </tr></thead>
                 <tbody id="revByChannel"></tbody></table>
               </div>
             </div>
             <div class="table-card">
               <div class="table-card-header"><span class="table-card-title">Revenue by Campaign</span></div>
               <div class="table-card-body">
-                <table class="data-table"><thead><tr><th>Campaign</th><th>Bookings</th><th>Revenue</th></tr></thead>
+                <table class="data-table"><thead><tr>
+                  <th>Campaign</th>
+                  <th class="sortable" onclick="sortRevTable('revByCampaign','count')" id="revByCampaign_count">Bookings <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortRevTable('revByCampaign','revenue')" id="revByCampaign_revenue">Revenue <span class="sort-icon">↕</span></th>
+                </tr></thead>
                 <tbody id="revByCampaign"></tbody></table>
               </div>
             </div>
@@ -719,7 +735,7 @@ function renderDash(monday, gads) {
   // ── REVENUE BY SOURCE / CHANNEL / CAMPAIGN ──
   renderRevTable('revBySource',   bookings.bySource);
   renderRevTable('revByChannel',  bookings.byChannel);
-  renderRevTable('revByCampaign', bookings.byCampaign, true);
+  renderRevTable('revByCampaign', bookings.byCampaign);
 
   // ── CITY PERFORMANCE ──
   const NAMED_CITIES = ['London','New York','Paris','Cambridge'];
@@ -831,6 +847,9 @@ function renderDash(monday, gads) {
       ? `<span style="color:${roasNum>=1?'var(--green)':roasNum>0?'inherit':'var(--red)'}">${roasNum.toFixed(2)}×</span>`
       : '—';
     return {
+      data: { name: c.name, city: c.city, spend: c.spend, leads: ll, bookings: bl.count,
+              revenue: bl.revenue, profit: profit ?? -Infinity, roas: roasNum ?? -Infinity,
+              hasRevenue, profitHtml, roasHtml },
       html: `<tr>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.name}">${c.name}</td>
         <td><span class="pill pill-gold">${c.city}</span></td>
@@ -846,18 +865,23 @@ function renderDash(monday, gads) {
     };
   }
 
+  const campGroupData = {};
+
   function renderCampaignGroup(groupName, groupCampaigns) {
     if (!groupCampaigns.length) return '';
     let gSpend=0, gBookings=0, gRevenue=0, gProfit=0, gHasRev=false;
-    const rowHtmls = groupCampaigns.map(c => {
+    const rows = groupCampaigns.map(c => {
       const r = buildCampaignRow(c);
       gSpend    += r.spend;
       gBookings += r.bookings;
       gRevenue  += r.revenue;
       gProfit   += r.profit;
       if (r.hasRevenue) gHasRev = true;
-      return r.html;
+      return r;
     });
+    const uid = groupName.replace(/\W+/g,'_');
+    campGroupData[uid] = rows.map(r => r.data);
+
     const gRoas = gSpend > 0 && gRevenue > 0 ? gRevenue / gSpend : null;
     const gRoasHtml = gRoas !== null
       ? `<span style="color:${gRoas>=1?'var(--green)':gRoas>0?'inherit':'var(--red)'};font-weight:600">${gRoas.toFixed(2)}×</span>`
@@ -865,6 +889,7 @@ function renderDash(monday, gads) {
     const gProfitHtml = gHasRev
       ? `<span style="color:${gProfit>=0?'var(--green)':'var(--red)'};font-weight:600">${gProfit>=0?'':'−'}£${fmt(Math.abs(gProfit))}</span>`
       : '—';
+    const rowHtmls = rows.map(r => r.html);
     const uid = groupName.replace(/\W+/g,'_');
     return `<div class="table-card" style="margin-bottom:16px;">
       <div class="table-card-header" style="cursor:pointer;user-select:none;" onclick="toggleGroup('${uid}')">
@@ -880,12 +905,18 @@ function renderDash(monday, gads) {
         </div>
       </div>
       <div id="group_${uid}" class="table-card-body">
-        <table class="data-table">
+        <table class="data-table" id="campTable_${uid}">
           <thead><tr>
-            <th>Campaign</th><th>City</th><th>Spend</th>
-            <th>Leads</th><th>Bookings</th><th>Revenue</th><th>Profit</th><th>ROAS</th>
+            <th>Campaign</th>
+            <th>City</th>
+            <th class="sortable" onclick="sortCampTable('${uid}','spend')">Spend <span class="sort-icon">↕</span></th>
+            <th class="sortable" onclick="sortCampTable('${uid}','leads')">Leads <span class="sort-icon">↕</span></th>
+            <th class="sortable" onclick="sortCampTable('${uid}','bookings')">Bookings <span class="sort-icon">↕</span></th>
+            <th class="sortable" onclick="sortCampTable('${uid}','revenue')">Revenue <span class="sort-icon">↕</span></th>
+            <th class="sortable" onclick="sortCampTable('${uid}','profit')">Profit <span class="sort-icon">↕</span></th>
+            <th class="sortable" onclick="sortCampTable('${uid}','roas')">ROAS <span class="sort-icon">↕</span></th>
           </tr></thead>
-          <tbody>${rowHtmls.join('')}</tbody>
+          <tbody id="campBody_${uid}">${rowHtmls.join('')}</tbody>
         </table>
       </div>
     </div>`;
@@ -895,7 +926,7 @@ function renderDash(monday, gads) {
   const oldCampaigns  = campaigns.filter(c => !isJack(c.name));
   document.getElementById('campaignsContent').innerHTML =
     renderCampaignGroup("Jack's Campaigns", jackCampaigns) +
-    renderCampaignGroup("Other Campaigns",  oldCampaigns);
+    renderCampaignGroup("Alex's Campaigns", oldCampaigns);
 }
 
 // ── WHAT MOVED (Claude API) ───────────────────────────────────
@@ -1032,12 +1063,46 @@ function renderBarList(elId, data, total) {
     </div>`).join('');
 }
 
-function renderRevTable(elId, data, truncate) {
-  const el = document.getElementById(elId);
-  const entries = Object.entries(data || {});
+// Store rev table data for re-sorting
+const revTableData = {};
+const revTableSort = {};
+
+function renderRevTable(elId, data) {
+  revTableData[elId] = data;
+  revTableSort[elId] = revTableSort[elId] || { key: 'revenue', dir: 'desc' };
+  _drawRevTable(elId);
+}
+
+function sortRevTable(elId, key) {
+  const cur = revTableSort[elId] || { key: 'revenue', dir: 'desc' };
+  revTableSort[elId] = { key, dir: cur.key === key && cur.dir === 'desc' ? 'asc' : 'desc' };
+  // Update header indicators
+  ['count','revenue'].forEach(k => {
+    const th = document.getElementById(`${elId}_${k}`);
+    if (th) {
+      th.classList.remove('sort-active');
+      th.querySelector('.sort-icon').textContent = '↕';
+    }
+  });
+  const activeTh = document.getElementById(`${elId}_${key}`);
+  if (activeTh) {
+    activeTh.classList.add('sort-active');
+    activeTh.querySelector('.sort-icon').textContent = revTableSort[elId].dir === 'desc' ? '↓' : '↑';
+  }
+  _drawRevTable(elId);
+}
+
+function _drawRevTable(elId) {
+  const el   = document.getElementById(elId);
+  const data = revTableData[elId] || {};
+  const { key, dir } = revTableSort[elId] || { key: 'revenue', dir: 'desc' };
+  const entries = Object.entries(data);
   if (!entries.length) { el.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--hint);padding:16px;">No data</td></tr>'; return; }
-  const show = truncate ? entries.slice(0,6) : entries;
-  el.innerHTML = show.map(([k, v]) => `<tr>
+  entries.sort((a,b) => {
+    const va = a[1][key] || 0, vb = b[1][key] || 0;
+    return dir === 'desc' ? vb - va : va - vb;
+  });
+  el.innerHTML = entries.map(([k, v]) => `<tr>
     <td><span class="src-dot" style="background:${srcColour(k)}"></span>${k}</td>
     <td>${v.count}</td>
     <td>£${fmt(v.revenue)}</td>
@@ -1060,8 +1125,42 @@ function toggleGroup(uid) {
   const body    = document.getElementById('group_' + uid);
   const chevron = document.getElementById('chevron_' + uid);
   const isOpen  = body.style.display !== 'none';
-  body.style.display    = isOpen ? 'none' : '';
+  body.style.display      = isOpen ? 'none' : '';
   chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
+}
+
+const campSortState = {};
+function sortCampTable(uid, key) {
+  const cur = campSortState[uid] || { key: 'spend', dir: 'desc' };
+  campSortState[uid] = { key, dir: cur.key === key && cur.dir === 'desc' ? 'asc' : 'desc' };
+  const { dir } = campSortState[uid];
+  const rows = [...(campGroupData[uid] || [])];
+  rows.sort((a, b) => {
+    const va = a[key] ?? -Infinity, vb = b[key] ?? -Infinity;
+    return dir === 'desc' ? vb - va : va - vb;
+  });
+  // Update sort icons
+  const table = document.getElementById('campTable_' + uid);
+  if (table) {
+    table.querySelectorAll('th.sortable .sort-icon').forEach(el => { el.textContent = '↕'; el.parentElement.classList.remove('sort-active'); });
+    const cols = ['spend','leads','bookings','revenue','profit','roas'];
+    const idx  = cols.indexOf(key);
+    const ths  = table.querySelectorAll('th.sortable');
+    if (ths[idx]) { ths[idx].querySelector('.sort-icon').textContent = dir==='desc'?'↓':'↑'; ths[idx].classList.add('sort-active'); }
+  }
+  // Re-render rows
+  const tbody = document.getElementById('campBody_' + uid);
+  if (!tbody) return;
+  tbody.innerHTML = rows.map(d => `<tr>
+    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.name}">${d.name}</td>
+    <td><span class="pill pill-gold">${d.city}</span></td>
+    <td>£${fmt(d.spend)}</td>
+    <td>${d.leads}</td>
+    <td>${d.bookings}</td>
+    <td>${d.hasRevenue?'£'+fmt(d.revenue):'—'}</td>
+    <td>${d.profitHtml}</td>
+    <td>${d.roasHtml}</td>
+  </tr>`).join('');
 }
 
 function fmt(n) {
