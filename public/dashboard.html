@@ -660,6 +660,7 @@ function mergeGads(arr) {
     ctr:  c.impressions>0 ? Math.round(c.clicks/c.impressions*10000)/100 : 0,
     roas: c.spend>0 && c.conversionsValue>0 ? Math.round(c.conversionsValue/c.spend*100)/100 : null
   })).sort((a,b) => b.spend-a.spend);
+  o.prevAccountSummary = null; // suppress MoM deltas for multi-month periods
   return o;
 }
 
@@ -677,31 +678,28 @@ function renderDash(monday, gads) {
   const budget   = gads.budget;
   const campaigns = gads.campaigns || [];
 
+  // Multi-month periods (YTD, quarters) suppress MoM deltas and budget bar
+  const isMulti = !prev;
+
   // ── LEADS PPC STATS ──
   const prevLeads  = prev?.leads;
-
-  // PPC-specific counts
   const ppcLeads     = leads.bySource?.['PPC'] || 0;
   const prevPpcLeads = prev?.leads?.bySource?.['PPC'] || 0;
-
-  // CPL = PPC spend ÷ PPC leads
   const cpl = ppcLeads > 0 && acct ? (acct.spend / ppcLeads) : null;
-  // CAC = PPC spend ÷ confirmed PPC bookings (identified by gclid presence)
   const ppcBookingCount = bookings.ppcCount || 0;
   const ppcRevenue      = bookings.ppcRevenue || 0;
   const cac = ppcBookingCount > 0 ? (ppcRevenue / ppcBookingCount) : null;
 
-  // ROAS — always 2dp
-  const roasVal     = acct?.roas     != null ? Number(acct.roas)                           : null;
-  const prevRoasVal = gads.prevAccountSummary?.roas != null ? Number(gads.prevAccountSummary.roas) : null;
+  const roasVal     = acct?.roas != null ? Number(acct.roas) : null;
+  const prevRoasVal = !isMulti && gads.prevAccountSummary?.roas != null ? Number(gads.prevAccountSummary.roas) : null;
   const roasDisplay = roasVal != null ? roasVal.toFixed(2) + '×' : '—';
-  const roasDelta   = roasVal != null && prevRoasVal != null ? deltaNum(roasVal, prevRoasVal, false, true) : null;
+  const roasDelta   = !isMulti && roasVal != null && prevRoasVal != null ? deltaNum(roasVal, prevRoasVal, false, true) : null;
 
   document.getElementById('leadsPpcStats').innerHTML = [
-    statCard('PPC Leads',    ppcLeads, prevLeads ? delta(ppcLeads, prevPpcLeads) : null),
+    statCard('PPC Leads',    ppcLeads, !isMulti && prevLeads ? delta(ppcLeads, prevPpcLeads) : null),
     statCard('PPC Spend',    acct ? '£'+fmt(acct.spend) : '—',
-      gads.prevAccountSummary ? delta(acct.spend, gads.prevAccountSummary.spend, true) : null,
-      budget ? budgetBar(acct?.spend||0, budget) : null),
+      !isMulti && gads.prevAccountSummary ? delta(acct.spend, gads.prevAccountSummary.spend, true) : null,
+      !isMulti && budget ? budgetBar(acct?.spend||0, budget) : null),
     statCard('Overall ROAS', roasDisplay, roasDelta),
     statCard('CPL',          cpl ? '£'+fmt(cpl) : '—', null, null, 'PPC spend ÷ PPC leads'),
     statCard('PPC CAC', cac ? '£'+fmt(cac) : '—', null, null,
@@ -711,8 +709,8 @@ function renderDash(monday, gads) {
   // ── BOOKING STATS ──
   const prevBook = prev?.bookings;
   document.getElementById('bookingStats').innerHTML = [
-    statCard('Confirmed Bookings', bookings.total, prevBook ? delta(bookings.total, prevBook.total) : null),
-    statCard('Total Revenue', '£'+fmt(bookings.totalRevenue), prevBook ? delta(bookings.totalRevenue, prevBook.totalRevenue, true) : null),
+    statCard('Confirmed Bookings', bookings.total, !isMulti && prevBook ? delta(bookings.total, prevBook.total) : null),
+    statCard('Total Revenue', '£'+fmt(bookings.totalRevenue), !isMulti && prevBook ? delta(bookings.totalRevenue, prevBook.totalRevenue, true) : null),
     statCard('Avg Booking Value', bookings.total > 0 ? '£'+fmt(Math.round(bookings.totalRevenue/bookings.total)) : '—'),
     statCard('Lead → Booking', leads.nonSpamTotal > 0 ? (bookings.total/leads.nonSpamTotal*100).toFixed(1)+'%' : '—',
       null, null, 'Non-spam leads vs confirmed bookings'),
