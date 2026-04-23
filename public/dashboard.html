@@ -890,7 +890,6 @@ function renderDash(monday, gads) {
       ? `<span style="color:${gProfit>=0?'var(--green)':'var(--red)'};font-weight:600">${gProfit>=0?'':'−'}£${fmt(Math.abs(gProfit))}</span>`
       : '—';
     const rowHtmls = rows.map(r => r.html);
-    const uid = groupName.replace(/\W+/g,'_');
     return `<div class="table-card" style="margin-bottom:16px;">
       <div class="table-card-header" style="cursor:pointer;user-select:none;" onclick="toggleGroup('${uid}')">
         <span class="table-card-title" style="display:flex;align-items:center;gap:8px;">
