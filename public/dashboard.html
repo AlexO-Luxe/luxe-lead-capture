@@ -852,70 +852,37 @@ function renderDash(monday, gads) {
   renderRevTable('revByCampaign', bookings.byCampaign);
 
   // ── CITY PERFORMANCE ──
+  // ── CITY PERFORMANCE ──
+  // Named cities always shown; any other city with ≥1 booking gets its own card
   const NAMED_CITIES = ['London','New York','Paris','Cambridge'];
-  const ALL_CITIES   = [...NAMED_CITIES, 'Other'];
-
-  // Build "Other" bucket — all leads/bookings not in named cities
   const namedCitySet = new Set(NAMED_CITIES);
-  const otherLeadsBySource   = { PPC:0, SEO:0, Other:0 };
-  const otherBooksBySrc = { _PPC:{count:0,revenue:0}, _SEO:{count:0,revenue:0}, _Other:{count:0,revenue:0} };
-  let otherLeadsTotal = 0, otherBooksTotal = 0, otherBooksRevenue = 0;
 
-  // Aggregate all non-named cities from leads
-  Object.entries(leads.byCitySource || {}).forEach(([city, src]) => {
-    if (!namedCitySet.has(city)) {
-      otherLeadsBySource.PPC   += src.PPC   || 0;
-      otherLeadsBySource.SEO   += src.SEO   || 0;
-      otherLeadsBySource.Other += src.Other || 0;
-    }
-  });
-  Object.entries(leads.byCity || {}).forEach(([city, count]) => {
-    if (!namedCitySet.has(city)) otherLeadsTotal += count;
-  });
+  // Find extra cities that have at least 1 booking
+  const extraCities = Object.entries(bookings.byCity || {})
+    .filter(([city, d]) => !namedCitySet.has(city) && d.count > 0 && city !== 'Unknown')
+    .sort((a,b) => b[1].count - a[1].count)
+    .map(([city]) => city);
 
-  // Aggregate all non-named cities from bookings
-  Object.entries(bookings.byCitySource || {}).forEach(([city, src]) => {
-    if (!namedCitySet.has(city)) {
-      ['_PPC','_SEO','_Other'].forEach(b => {
-        if (!otherBooksBySrc[b]) otherBooksBySrc[b] = {count:0,revenue:0};
-        otherBooksBySrc[b].count   += src[b]?.count   || 0;
-        otherBooksBySrc[b].revenue += src[b]?.revenue || 0;
-      });
-    }
-  });
-  Object.entries(bookings.byCity || {}).forEach(([city, d]) => {
-    if (!namedCitySet.has(city)) { otherBooksTotal += d.count; otherBooksRevenue += d.revenue; }
-  });
+  const ALL_CITIES = [...NAMED_CITIES, ...extraCities];
 
+  const SOURCE_COLOURS_PIE = {
+    'PPC':'#B8966E','SEO':'#639922','Rebooking':'#4285F4',
+    'Referral':'#F4A028','Portals':'#9B59B6','Stay Luxe':'#25D366',
+    'Partnerships':'#E1306C','Socials':'#E91E63','Extension':'#00BCD4',
+    'Agent':'#795548','Unknown':'#c0c0c0'
+  };
 
-  const cities = ALL_CITIES;
   const cityGrid = document.getElementById('cityGrid');
-  cityGrid.innerHTML = cities.map(city => {
-    const isOtherCity = city === 'Other';
+  // Make grid responsive to number of cards
+  cityGrid.style.gridTemplateColumns = `repeat(${Math.min(ALL_CITIES.length, 5)}, 1fr)`;
 
-    const totalLeads = isOtherCity ? otherLeadsTotal : (leads.byCity?.[city] || 0);
-    const bookData   = isOtherCity
-      ? { count: otherBooksTotal, revenue: otherBooksRevenue }
-      : (bookings.byCity?.[city] || { count:0, revenue:0 });
-    const citySpend  = isOtherCity ? 0 : campaigns.filter(c=>c.city===city).reduce((s,c)=>s+c.spend,0);
+  cityGrid.innerHTML = ALL_CITIES.map(city => {
+    const totalLeads = leads.byCity?.[city] || 0;
+    const bookData   = bookings.byCity?.[city] || { count:0, revenue:0 };
+    const citySpend  = campaigns.filter(c=>c.city===city).reduce((s,c)=>s+c.spend,0);
     const convRate   = totalLeads > 0 ? (bookData.count/totalLeads*100).toFixed(1)+'%' : '—';
-    const lb = isOtherCity ? otherLeadsBySource  : (leads.byCitySource?.[city]    || { PPC:0, SEO:0, Other:0 });
-    const bb = isOtherCity ? otherBooksBySrc     : (bookings.byCitySource?.[city] || {});
 
-    const ppcProfit = bb._PPC||{count:0,revenue:0}.revenue > 0 && citySpend > 0 ? bb._PPC||{count:0,revenue:0}.revenue - citySpend : null;
-
-    const row  = (label, value) => `<div class="city-metric"><span class="city-metric-label">${label}</span><span class="city-metric-value">${value}</span></div>`;
-    const div  = () => `<div style="height:0.5px;background:var(--border);margin:6px 0;"></div>`;
-    const head = (label, colour) => `<div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:${colour};margin:6px 0 3px;font-family:'DM Sans',sans-serif;">${label}</div>`;
-
-    // Pie chart — all booking sources for this city
-    const SOURCE_COLOURS_PIE = {
-      'PPC':'#B8966E','SEO':'#639922','Rebooking':'#4285F4',
-      'Referral':'#F4A028','Portals':'#9B59B6','Stay Luxe':'#25D366',
-      'Partnerships':'#E1306C','Socials':'#E91E63','Extension':'#00BCD4',
-      'Agent':'#795548','Unknown':'#c0c0c0'
-    };
-    const citySrcData = isOtherCity ? {} : (bookings.byCitySource?.[city] || {});
+    const citySrcData = bookings.byCitySource?.[city] || {};
     const pieSegments = Object.entries(citySrcData)
       .filter(([k]) => !k.startsWith('_'))
       .map(([k, v]) => ({ value: v.count||0, colour: SOURCE_COLOURS_PIE[k]||'#aaa', label: k }))
@@ -923,8 +890,6 @@ function renderDash(monday, gads) {
       .sort((a,b) => b.value - a.value);
     const pieTotal = pieSegments.reduce((s,x) => s + x.value, 0);
     const pieHtml  = buildPie(pieTotal, pieSegments);
-
-
 
     return `<div class="city-card">
       <div class="city-name">${city}</div>
@@ -936,6 +901,7 @@ function renderDash(monday, gads) {
       <div class="city-metric"><span class="city-metric-label">Conv. Rate</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${convRate}</span></div>
     </div>`;
   }).join('');
+
 
 
 
