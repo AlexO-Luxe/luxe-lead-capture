@@ -755,7 +755,9 @@ function renderDash(monday, gads) {
   const ppcRevenue      = bookings.ppcRevenue || 0;
   const cac = ppcBookingCount > 0 ? (ppcRevenue / ppcBookingCount) : null;
 
-  const roasVal     = acct?.roas != null ? Number(acct.roas) : null;
+  // ROAS: use Monday PPC revenue ÷ actual spend (more accurate than Google Ads conversions_value)
+  const ppcRevenueForRoas = bookings.ppcRevenue || 0;
+  const roasVal     = acct?.spend > 0 && ppcRevenueForRoas > 0 ? ppcRevenueForRoas / acct.spend : (acct?.roas != null ? Number(acct.roas) : null);
   const prevRoasVal = !isMulti && gads.prevAccountSummary?.roas != null ? Number(gads.prevAccountSummary.roas) : null;
   const roasDisplay = roasVal != null ? roasVal.toFixed(2) + '×' : '—';
   const roasDelta   = !isMulti && roasVal != null && prevRoasVal != null ? deltaNum(roasVal, prevRoasVal, false, true) : null;
@@ -768,7 +770,7 @@ function renderDash(monday, gads) {
     statCard('PPC Spend',    acct ? '£'+fmt(acct.spend) : '—',
       !isMulti && gads.prevAccountSummary ? delta(acct.spend, gads.prevAccountSummary.spend, true) : null,
       !isMulti && budget ? budgetBar(acct?.spend||0, budget) : null),
-    statCard('Overall ROAS', roasDisplay, roasDelta),
+    statCard('Overall ROAS', roasDisplay, roasDelta, null, 'PPC revenue (Monday) ÷ PPC spend'),
     statCard('CPL',          cpl ? '£'+fmt(cpl) : '—', null, null, 'PPC spend ÷ PPC leads'),
     statCard('PPC CAC', cac ? '£'+fmt(cac) : '—', null, null,
       'Total PPC revenue (numeric_mm1ge9h4) ÷ confirmed PPC bookings'),
