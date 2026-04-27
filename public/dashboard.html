@@ -510,14 +510,26 @@ body {
 
         <!-- WHAT MOVED -->
         <div id="moved">
-          <div class="section-heading">What Moved the Numbers</div>
+          <div class="section-heading">Comments & Notes</div>
           <div class="moved-card">
             <div class="moved-card-header">
-              <span class="moved-card-title">Month-on-month drivers</span>
-              <span class="moved-badge">AI Generated</span>
+              <span class="moved-card-title">Team Comments</span>
+              <span class="moved-badge" id="commentsMonthBadge">Select a month</span>
             </div>
-            <div id="movedContent">
-              <div class="moved-loading"><div class="ld"></div><div class="ld"></div><div class="ld"></div><span>Analysing data…</span></div>
+            <div style="display:flex;gap:10px;margin-bottom:20px;align-items:flex-start;">
+              <select id="commentAuthor" style="background:var(--gold-pale);border:1px solid var(--border-str);border-radius:8px;padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);outline:none;flex-shrink:0;cursor:pointer;">
+                <option value="">Name...</option>
+                <option value="AO">AO</option>
+                <option value="JD">JD</option>
+                <option value="AW">AW</option>
+                <option value="AK">AK</option>
+                <option value="AB">AB</option>
+              </select>
+              <textarea id="commentInput" placeholder="Add a comment for this period…" style="flex:1;border:1px solid var(--border-str);border-radius:8px;padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--gold-pale);outline:none;resize:none;height:40px;transition:height 0.2s;line-height:1.5;" onfocus="this.style.height='80px'" onblur="if(!this.value)this.style.height='40px'"></textarea>
+              <button onclick="postComment()" style="background:var(--gold);border:none;border-radius:8px;color:#fff;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;padding:9px 18px;cursor:pointer;flex-shrink:0;letter-spacing:0.06em;">Post</button>
+            </div>
+            <div id="commentsList">
+              <div style="color:var(--hint);font-size:12px;text-align:center;padding:20px 0;">Load a month to see comments</div>
             </div>
           </div>
         </div>
@@ -614,7 +626,7 @@ async function loadAll() {
     renderDash(monday, gads);
     document.getElementById('lastRefreshed').textContent =
       `Last refreshed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · ${label}`;
-    generateWhatMoved(monday, gads);
+    loadComments();
   } catch(err) {
     spinner.remove();
     document.getElementById('dashContent').innerHTML = `<div class="error-banner">Failed to load: ${err.message}</div>`;
@@ -694,7 +706,7 @@ function mergeGads(arr) {
     (g.campaigns||[]).forEach(c => {
       if (!cm[c.name]) cm[c.name] = {...c, spend:0, clicks:0, impressions:0, conversions:0, conversionsValue:0};
       cm[c.name].spend            += c.spend;
-      cm[c.name].clicks           += c.clicks;
+      cm[c.name].clicks           += Math.round(c.clicks || 0);
       cm[c.name].impressions      += c.impressions;
       cm[c.name].conversions      += c.conversions;
       cm[c.name].conversionsValue += c.conversionsValue||0;
@@ -880,7 +892,7 @@ function renderDash(monday, gads) {
     const owner = isJack(c.name) ? 'Jack' : 'Alex';
     return {
       name: c.name, city: c.city, owner,
-      spend: c.spend, clicks: c.clicks || 0, ctr: c.ctr || 0, cpc: c.cpc || null,
+      spend: c.spend, clicks: Math.round(c.clicks || 0), ctr: c.ctr || 0, cpc: c.cpc || null,
       leads: ll, bookings: bl.count, revenue: bl.revenue,
       profit: profit ?? -Infinity, roas: roasNum ?? -Infinity,
       hasRevenue,
@@ -899,82 +911,114 @@ function renderDash(monday, gads) {
 }
 
 // ── WHAT MOVED (Claude API) ───────────────────────────────────
-async function generateWhatMoved(monday, gads) {
-  const el = document.getElementById('movedContent');
-  el.innerHTML = `<div class="moved-loading"><div class="ld"></div><div class="ld"></div><div class="ld"></div><span>Analysing month-on-month data…</span></div>`;
+// ── COMMENTS SYSTEM ──────────────────────────────────────────
+let _currentPeriodKey = '';
 
-  const cur  = monday.current;
-  const prev = monday.previous;
-  if (!prev) {
-    el.innerHTML = `<div style="color:var(--hint);font-size:12px;padding:8px 0;">Previous month data unavailable for comparison.</div>`;
-    return;
-  }
+function getPeriodKey() {
+  return document.getElementById('periodSelect')?.value || '';
+}
 
-  const summary = {
-    month:     monday.month,
-    prevMonth: monday.prevMonth,
-    current: {
-      leads:         cur.leads.total,
-      bookings:      cur.bookings.total,
-      revenue:       cur.bookings.totalRevenue,
-      ppcSpend:      gads.accountSummary?.spend,
-      roas:          gads.accountSummary?.roas,
-      budget:        gads.budget,
-      leadsBySource: cur.leads.bySource,
-      revBySource:   cur.bookings.bySource,
-      topCampaigns:  (gads.campaigns||[]).slice(0,5).map(c=>({name:c.name,spend:c.spend,roas:c.roas}))
-    },
-    previous: {
-      leads:    prev.leads.total,
-      bookings: prev.bookings.total,
-      revenue:  prev.bookings.totalRevenue,
-      ppcSpend: gads.prevAccountSummary?.spend,
-      roas:     gads.prevAccountSummary?.roas,
-    }
-  };
+async function loadComments() {
+  const key = getPeriodKey();
+  _currentPeriodKey = key;
+
+  const label = document.getElementById('periodSelect')?.selectedOptions[0]?.textContent || '';
+  const badge = document.getElementById('commentsMonthBadge');
+  if (badge) badge.textContent = label;
+
+  const el = document.getElementById('commentsList');
+  if (el) el.innerHTML = '<div style="color:var(--hint);font-size:12px;text-align:center;padding:16px 0;">Loading comments…</div>';
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: `You are a concise, analytical marketing data analyst for Student Luxe, a luxury student accommodation business. 
-Analyse month-on-month performance data and return EXACTLY 3 bullet points explaining what drove performance changes.
-Focus on cause and effect only. No narrative, no fluff, no recommendations.
-Each bullet must be one to two sentences maximum.
-Format: Return only a JSON array of 3 strings. No markdown, no preamble.
-Example: ["Spend increased 12% MoM driven by budget uplift in London campaigns, with CPL improving from £145 to £131 as match type refinements took effect.","New York bookings fell from 4 to 1 despite stable spend, likely reflecting intake timing — the next cohort starts in September.","SEO leads grew 18% following publication of three new UCL neighbourhood guides in late March."]`,
-        messages: [{
-          role: 'user',
-          content: `Analyse this marketing data and return 3 bullet points as a JSON array:\n${JSON.stringify(summary, null, 2)}`
-        }]
-      })
-    });
-
-    const data = await resp.json();
-    const text = (data.content || []).filter(b=>b.type==='text').map(b=>b.text).join('');
-
-    let bullets = [];
-    try {
-      const clean = text.replace(/```json|```/g,'').trim();
-      bullets = JSON.parse(clean);
-    } catch(e) {
-      // Fallback: split on newlines
-      bullets = text.split('\n').filter(l=>l.trim()).slice(0,3);
-    }
-
-    el.innerHTML = bullets.slice(0,3).map((b,i) => `
-      <div class="moved-item">
-        <div class="moved-bullet">${i+1}</div>
-        <div>${b}</div>
-      </div>`).join('');
-
+    const r = await fetch(`${API_BASE}/dashboard-comments?period=${encodeURIComponent(key)}`);
+    const data = await r.json();
+    renderComments(data.comments || []);
   } catch(err) {
-    el.innerHTML = `<div style="color:var(--hint);font-size:12px;padding:8px 0;">Could not generate analysis: ${err.message}</div>`;
+    if (el) el.innerHTML = `<div style="color:var(--hint);font-size:12px;text-align:center;padding:16px 0;">Could not load comments</div>`;
   }
 }
+
+function renderComments(comments) {
+  const el = document.getElementById('commentsList');
+  if (!el) return;
+  if (!comments.length) {
+    el.innerHTML = '<div style="color:var(--hint);font-size:12px;text-align:center;padding:20px 0;">No comments yet for this period</div>';
+    return;
+  }
+  const COLOURS = { AO:'#B8966E', JD:'#4285F4', AW:'#639922', AK:'#9B59B6', AB:'#E1306C' };
+  el.innerHTML = [...comments].reverse().map(c => {
+    const colour = COLOURS[c.author] || 'var(--hint)';
+    const ts = new Date(c.timestamp);
+    const label = ts.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) + ' ' +
+                  ts.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    return `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:0.5px solid var(--border);">
+      <div style="width:32px;height:32px;border-radius:50%;background:${colour};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0;">${c.author}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:12px;font-weight:600;color:var(--ink);">${c.author}</span>
+          <span style="font-size:11px;color:var(--hint);">${label}</span>
+        </div>
+        <div style="font-size:13px;color:var(--ink);line-height:1.6;">${escHtml(c.text)}</div>
+      </div>
+      <button onclick="deleteComment('${c.id}')" title="Delete" style="background:none;border:none;color:var(--hint);cursor:pointer;font-size:16px;flex-shrink:0;padding:2px 6px;opacity:0.4;line-height:1;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'">×</button>
+    </div>`;
+  }).join('');
+  // Remove border from last item
+  const items = el.querySelectorAll('div[style*="border-bottom"]');
+  if (items.length) items[items.length-1].style.borderBottom = 'none';
+}
+
+async function postComment() {
+  const author = document.getElementById('commentAuthor').value.trim();
+  const text   = document.getElementById('commentInput').value.trim();
+  if (!author) { alert('Please select your name'); return; }
+  if (!text)   { alert('Please enter a comment'); return; }
+  if (!_currentPeriodKey) { alert('Please load a month first'); return; }
+
+  const btn = document.querySelector('[onclick="postComment()"]');
+  if (btn) { btn.textContent = 'Posting…'; btn.disabled = true; }
+
+  try {
+    const r = await fetch(`${API_BASE}/dashboard-comments`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ period: _currentPeriodKey, author, text })
+    });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error);
+    document.getElementById('commentInput').value = '';
+    document.getElementById('commentInput').style.height = '40px';
+    await loadComments();
+  } catch(err) {
+    alert('Failed to post comment: ' + err.message);
+  } finally {
+    if (btn) { btn.textContent = 'Post'; btn.disabled = false; }
+  }
+}
+
+async function deleteComment(id) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    await fetch(`${API_BASE}/dashboard-comments`, {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ period: _currentPeriodKey, id })
+    });
+    await loadComments();
+  } catch(err) {
+    alert('Failed to delete: ' + err.message);
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if (document.activeElement === document.getElementById('commentInput')) postComment();
+  }
+});
 
 // ── HELPERS ───────────────────────────────────────────────────
 function statCard(label, value, deltaHtml, extra, tooltip) {
