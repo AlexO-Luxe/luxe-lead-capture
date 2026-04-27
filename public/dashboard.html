@@ -858,7 +858,7 @@ function renderDash(monday, gads) {
   // Build "Other" bucket — all leads/bookings not in named cities
   const namedCitySet = new Set(NAMED_CITIES);
   const otherLeadsBySource   = { PPC:0, SEO:0, Other:0 };
-  const otherBooksBySrc      = { PPC:{count:0,revenue:0}, SEO:{count:0,revenue:0}, Other:{count:0,revenue:0} };
+  const otherBooksBySrc = { _PPC:{count:0,revenue:0}, _SEO:{count:0,revenue:0}, _Other:{count:0,revenue:0} };
   let otherLeadsTotal = 0, otherBooksTotal = 0, otherBooksRevenue = 0;
 
   // Aggregate all non-named cities from leads
@@ -876,7 +876,8 @@ function renderDash(monday, gads) {
   // Aggregate all non-named cities from bookings
   Object.entries(bookings.byCitySource || {}).forEach(([city, src]) => {
     if (!namedCitySet.has(city)) {
-      ['PPC','SEO','Other'].forEach(b => {
+      ['_PPC','_SEO','_Other'].forEach(b => {
+        if (!otherBooksBySrc[b]) otherBooksBySrc[b] = {count:0,revenue:0};
         otherBooksBySrc[b].count   += src[b]?.count   || 0;
         otherBooksBySrc[b].revenue += src[b]?.revenue || 0;
       });
@@ -885,6 +886,7 @@ function renderDash(monday, gads) {
   Object.entries(bookings.byCity || {}).forEach(([city, d]) => {
     if (!namedCitySet.has(city)) { otherBooksTotal += d.count; otherBooksRevenue += d.revenue; }
   });
+
 
   const cities = ALL_CITIES;
   const cityGrid = document.getElementById('cityGrid');
@@ -898,44 +900,58 @@ function renderDash(monday, gads) {
     const citySpend  = isOtherCity ? 0 : campaigns.filter(c=>c.city===city).reduce((s,c)=>s+c.spend,0);
     const convRate   = totalLeads > 0 ? (bookData.count/totalLeads*100).toFixed(1)+'%' : '—';
     const lb = isOtherCity ? otherLeadsBySource  : (leads.byCitySource?.[city]    || { PPC:0, SEO:0, Other:0 });
-    const bb = isOtherCity ? otherBooksBySrc     : (bookings.byCitySource?.[city] || { PPC:{count:0,revenue:0}, SEO:{count:0,revenue:0}, Other:{count:0,revenue:0} });
+    const bb = isOtherCity ? otherBooksBySrc     : (bookings.byCitySource?.[city] || {});
 
-    const ppcProfit = bb.PPC.revenue > 0 && citySpend > 0 ? bb.PPC.revenue - citySpend : null;
+    const ppcProfit = bb._PPC||{count:0,revenue:0}.revenue > 0 && citySpend > 0 ? bb._PPC||{count:0,revenue:0}.revenue - citySpend : null;
 
-    const row = (label, value) => `<div class="city-metric">
-      <span class="city-metric-label">${label}</span>
-      <span class="city-metric-value">${value}</span>
-    </div>`;
-    const div = () => `<div style="height:0.5px;background:var(--border);margin:6px 0;"></div>`;
+    const row  = (label, value) => `<div class="city-metric"><span class="city-metric-label">${label}</span><span class="city-metric-value">${value}</span></div>`;
+    const div  = () => `<div style="height:0.5px;background:var(--border);margin:6px 0;"></div>`;
     const head = (label, colour) => `<div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:${colour};margin:6px 0 3px;font-family:'DM Sans',sans-serif;">${label}</div>`;
+
+    // Pie chart — all booking sources for this city
+    const SOURCE_COLOURS_PIE = {
+      'PPC':'#B8966E','SEO':'#639922','Rebooking':'#4285F4',
+      'Referral':'#F4A028','Portals':'#9B59B6','Stay Luxe':'#25D366',
+      'Partnerships':'#E1306C','Socials':'#E91E63','Extension':'#00BCD4',
+      'Agent':'#795548','Unknown':'#c0c0c0'
+    };
+    const citySrcData = isOtherCity ? {} : (bookings.byCitySource?.[city] || {});
+    const pieSegments = Object.entries(citySrcData)
+      .filter(([k]) => !k.startsWith('_'))
+      .map(([k, v]) => ({ value: v.count||0, colour: SOURCE_COLOURS_PIE[k]||'#aaa', label: k }))
+      .filter(s => s.value > 0)
+      .sort((a,b) => b.value - a.value);
+    const pieTotal = pieSegments.reduce((s,x) => s + x.value, 0);
+    const pieHtml  = buildPie(pieTotal, pieSegments);
+
 
     return `<div class="city-card">
       <div class="city-name">${city}</div>
+      ${pieHtml}
+      ${div()}
       ${head('PPC', 'var(--gold)')}
       ${row('Leads', lb.PPC)}
-      ${row('Bookings', bb.PPC.count)}
-      ${row('Revenue', bb.PPC.revenue > 0 ? '£'+fmt(bb.PPC.revenue) : '—')}
+      ${row('Bookings', bb._PPC||{count:0,revenue:0}.count)}
+      ${row('Revenue', bb._PPC||{count:0,revenue:0}.revenue > 0 ? '£'+fmt(bb._PPC||{count:0,revenue:0}.revenue) : '—')}
       ${!isOtherCity ? row('Spend', citySpend > 0 ? '£'+fmt(citySpend) : '—') : ''}
-      ${ppcProfit !== null ? `<div class="city-metric">
-        <span class="city-metric-label">Profit</span>
-        <span class="city-metric-value" style="color:${ppcProfit >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:500">${ppcProfit >= 0 ? '' : '−'}£${fmt(Math.abs(ppcProfit))}</span>
-      </div>` : ''}
+      ${ppcProfit !== null ? `<div class="city-metric"><span class="city-metric-label">Profit</span><span class="city-metric-value" style="color:${ppcProfit>=0?'var(--green)':'var(--red)'};font-weight:500">${ppcProfit>=0?'':'−'}£${fmt(Math.abs(ppcProfit))}</span></div>` : ''}
       ${div()}
       ${head('SEO', 'var(--green)')}
       ${row('Leads', lb.SEO)}
-      ${row('Bookings', bb.SEO.count)}
-      ${row('Revenue', bb.SEO.revenue > 0 ? '£'+fmt(bb.SEO.revenue) : '—')}
+      ${row('Bookings', bb._SEO||{count:0,revenue:0}.count)}
+      ${row('Revenue', bb._SEO||{count:0,revenue:0}.revenue > 0 ? '£'+fmt(bb._SEO||{count:0,revenue:0}.revenue) : '—')}
       ${div()}
       ${head('Other', 'var(--hint)')}
       ${row('Leads', lb.Other)}
-      ${row('Bookings', bb.Other.count)}
-      ${row('Revenue', bb.Other.revenue > 0 ? '£'+fmt(bb.Other.revenue) : '—')}
+      ${row('Bookings', bb._Other||{count:0,revenue:0}.count)}
+      ${row('Revenue', bb._Other||{count:0,revenue:0}.revenue > 0 ? '£'+fmt(bb._Other||{count:0,revenue:0}.revenue) : '—')}
       ${div()}
       <div class="city-metric"><span class="city-metric-label" style="font-weight:500;color:var(--ink);">Total Leads</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${totalLeads}</span></div>
-      <div class="city-metric"><span class="city-metric-label" style="font-weight:500;color:var(--ink);">Total Revenue</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.revenue > 0 ? '£'+fmt(bookData.revenue) : '—'}</span></div>
+      <div class="city-metric"><span class="city-metric-label" style="font-weight:500;color:var(--ink);">Total Revenue</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.revenue>0?'£'+fmt(bookData.revenue):'—'}</span></div>
       <div class="city-metric"><span class="city-metric-label" style="font-weight:500;color:var(--ink);">Conv. Rate</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${convRate}</span></div>
     </div>`;
   }).join('');
+
 
   // ── CAMPAIGNS — unified table ──
   const bookByCampaign = bookings.byCampaign || {};
@@ -1221,6 +1237,32 @@ function srcColour(label) {
   if (l.includes('referral'))  return '#F4A028';
   if (l.includes('email'))     return '#7C3AED';
   return '#B8966E';
+}
+
+
+function buildPie(total, segments) {
+  if (!total) return '<div style="text-align:center;padding:12px 0;color:var(--hint);font-size:11px;">No bookings</div>';
+  const size = 80, cx = 40, cy = 40, r = 32;
+  const circ = 2 * Math.PI * r;
+  let offset = 0, paths = '';
+  segments.forEach(seg => {
+    const dash = (seg.value / total) * circ;
+    if (!dash) return;
+    paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.colour}" stroke-width="14" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    offset += dash;
+  });
+  const legend = segments.filter(s=>s.value>0).map(s =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);"><span style="width:7px;height:7px;border-radius:50%;background:${s.colour};display:inline-block;"></span>${s.label} ${Math.round(s.value/total*100)}%</span>`
+  ).join('');
+  return `<div style="display:flex;flex-direction:column;align-items:center;padding:10px 0 4px;">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--gold-mid)" stroke-width="14"/>
+      ${paths}
+      <text x="${cx}" y="${cy+1}" text-anchor="middle" dominant-baseline="middle" style="font-size:13px;font-weight:600;fill:var(--navy);font-family:'DM Sans',sans-serif;">${total}</text>
+      <text x="${cx}" y="${cy+13}" text-anchor="middle" dominant-baseline="middle" style="font-size:7px;fill:var(--hint);font-family:'DM Sans',sans-serif;letter-spacing:0.05em;">BOOKINGS</text>
+    </svg>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px;">${legend}</div>
+  </div>`;
 }
 
 function filterCamps(filter) {
