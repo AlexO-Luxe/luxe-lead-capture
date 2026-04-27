@@ -56,16 +56,14 @@ module.exports = async function handler(req, res) {
   });
 
   // ── GOOGLE ADS SERVER-SIDE CONVERSION ─────────────────────────
-  // Only fires when a gclid is present — meaning the enquiry came from a Google Ad click.
+  // Fires for all enquiries (not just GCLID) so Google can match via hashed email/phone.
   // Runs after Monday + emails so a failure here never affects the lead capture.
-  if (p.gclid) {
-    try {
-      await uploadGoogleAdsConversion(p);
-      console.log('Google Ads conversion uploaded OK');
-    } catch(err) {
-      // Log but never fail the request — lead is already in Monday
-      console.error('Google Ads conversion failed (non-fatal):', err.message);
-    }
+  try {
+    await uploadGoogleAdsConversion(p);
+    console.log('Google Ads conversion uploaded OK');
+  } catch(err) {
+    // Log but never fail the request — lead is already in Monday
+    console.error('Google Ads conversion failed (non-fatal):', err.message);
   }
 
   return res.status(200).json({ success: true });
@@ -120,20 +118,21 @@ async function uploadGoogleAdsConversion(p) {
   const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
 
   // Step 4 — Build payload
+  const conversion = {
+    conversionAction:   conversionAction,
+    conversionDateTime: conversionTime,
+    conversionValue:    1.0,
+    currencyCode:       'GBP',
+    userIdentifiers: [
+      ...(hashedEmail ? [{ hashedEmail:       hashedEmail }] : []),
+      ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
+    ]
+  };
+  // Only include gclid when present — without it Google matches via email/phone
+  if (p.gclid) conversion.gclid = p.gclid;
+
   const payload = {
-    conversions: [
-      {
-        gclid:              p.gclid,
-        conversionAction:   conversionAction,
-        conversionDateTime: conversionTime,
-        conversionValue:    1.0,
-        currencyCode:       'GBP',
-        userIdentifiers: [
-          ...(hashedEmail ? [{ hashedEmail:       hashedEmail }] : []),
-          ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
-        ]
-      }
-    ],
+    conversions: [ conversion ],
     partialFailure: true
   };
 
@@ -465,7 +464,7 @@ const CAMPAIGN_MAP = {
   '23676319627': 'jf15_search_generic_os_tablet_exact_in_row_destination_london - £150 tCPA Test',
   '23593627429': 'jf16_search_generic_os_tablet_exact_in_us_destination_london',
   '23452513132': 'lse-summer-perf-max',
-  '23642461894': 'PARIS - from OS _Experiment',
+  '23642461894': 'paris-os-exp',
   '23666244384': 'jf8_search_generic_os_mobile_broad_in_us_destination_london - £150 tCPA Test',
   '23666254497': 'jf5_search_generic_os_desktop_exact_in_us_destination_london - £150 tCPA Test',
   '22082273952': 'rentals-os',
@@ -485,7 +484,7 @@ const CAMPAIGN_MAP = {
   '23603514478': 'jf13_search_generic_os_tablet_broad_in_row_destination_london',
   '23598893927': 'jf11_search_generic_os_mobile_phrase_in_row_destination_london',
   '23598893684': 'jf1_search_generic_os_desktop_phrase_in_row_destination_london',
-  '23642456119': 'LSE SUMMER - All US _Experiment',
+  '23642456119': 'lse-summer-all-us-exp',
   '23593406142': 'jf15_search_generic_os_tablet_exact_in_row_destination_london',
   '23671689740': 'jf16_search_generic_os_tablet_exact_in_us_destination_london - £150 tCPA Test',
   '23593406559': 'jf8_search_generic_os_mobile_broad_in_us_destination_london',
