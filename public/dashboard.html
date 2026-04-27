@@ -27,7 +27,6 @@
   --bg:         #f4f1ec;
   --surface:    #ffffff;
   --surface2:   #fdfcfb;
-  --sidebar-w:  230px;
 }
 
 html { font-size: 14px; }
@@ -40,7 +39,7 @@ body {
 }
 
 /* ── LAYOUT ── */
-.shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+.shell { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* ── SIDEBAR ── */
 .sidebar {
@@ -311,13 +310,82 @@ body {
   border-radius: 8px; padding: 12px 16px; font-size: 12px; color: var(--red); margin-bottom: 16px;
 }
 
-@media(max-width:1100px){ .city-grid{grid-template-columns:repeat(3,1fr)} .stat-grid-5,.stat-grid-6{grid-template-columns:repeat(3,1fr)} }
-@media(max-width:900px){
-  .shell{grid-template-columns:1fr} .sidebar{display:none}
-  .stat-grid{grid-template-columns:repeat(2,1fr)}
-  .two-col,.three-col{grid-template-columns:1fr}
-  .city-grid{grid-template-columns:repeat(2,1fr)}
-  .content{padding:20px 16px} .topbar{padding:14px 16px}
+/* ── TOP NAV LINKS ── */
+.topnav {
+  display: flex; align-items: center; gap: 2px;
+  padding: 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.topnav::-webkit-scrollbar { display: none; }
+.topnav a {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 14px; font-size: 12px; color: var(--hint);
+  text-decoration: none; white-space: nowrap;
+  border-bottom: 2px solid transparent; transition: all 0.15s;
+}
+.topnav a:hover { color: var(--gold); }
+.topnav a.active { color: var(--gold); border-bottom-color: var(--gold); }
+.topnav a svg { width: 12px; height: 12px; }
+
+@media(max-width:1100px){
+  .city-grid{grid-template-columns:repeat(3,1fr)}
+  .stat-grid-5,.stat-grid-6{grid-template-columns:repeat(3,1fr)}
+}
+
+@media(max-width:768px){
+  /* Layout */
+  .content{padding:16px 14px}
+  .topbar{padding:12px 16px; flex-wrap:wrap; gap:8px;}
+  .topbar h1{font-size:17px;}
+  .topbar-sub{display:none;}
+  .topbar-right{gap:6px; width:100%;}
+  .topnav{padding:0 14px;}
+  #periodSelect{flex:1; font-size:12px; padding:7px 10px;}
+  .refresh-btn{padding:7px 12px; font-size:11px;}
+
+  /* Grids */
+  .stat-grid{grid-template-columns:repeat(2,1fr); gap:8px;}
+  .stat-grid-5{grid-template-columns:repeat(2,1fr); gap:8px;}
+  .stat-grid-6{grid-template-columns:repeat(2,1fr); gap:8px;}
+  .two-col,.three-col{grid-template-columns:1fr; gap:10px;}
+  .city-grid{grid-template-columns:1fr 1fr; gap:8px;}
+
+  /* Cards */
+  .stat-card{padding:14px 14px;}
+  .stat-card-value{font-size:22px;}
+  .table-card-header{flex-direction:column; align-items:flex-start; gap:8px;}
+  .table-card-header > div{flex-wrap:wrap; gap:10px;}
+
+  /* City cards */
+  .city-card{padding:12px;}
+  .city-name{font-size:14px;}
+  .city-metric-value{font-size:12px;}
+  .city-metric-label{font-size:10px;}
+
+  /* Campaign filter buttons */
+  .camp-filter-btn{padding:4px 10px; font-size:11px;}
+
+  /* Rev tables */
+  .data-table thead th{font-size:9px; padding:8px 10px;}
+  .data-table tbody td{padding:8px 10px; font-size:12px;}
+  .data-table tfoot td{padding:8px 10px; font-size:11px;}
+
+  /* Section headings */
+  .section-heading{font-size:9px; margin:24px 0 12px;}
+
+  /* Password gate */
+  #passwordGate > div{width:92vw; padding:28px 24px;}
+
+  /* Comments */
+  #commentsList > div{gap:8px;}
+}
+
+@media(max-width:480px){
+  .city-grid{grid-template-columns:1fr;}
+  .stat-grid{grid-template-columns:1fr 1fr;}
+  .topbar h1{font-size:15px;}
 }
 </style>
 </head>
@@ -359,37 +427,6 @@ body {
 <div class="shell">
 
   <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <img src="https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?format=1500w" alt="Student Luxe">
-    </div>
-    <div class="sidebar-label">Sections</div>
-    <nav class="sidebar-nav">
-      <a href="#leads" class="active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Leads
-      </a>
-      <a href="#bookings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        Bookings
-      </a>
-      <a href="#city">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        City Performance
-      </a>
-      <a href="#campaigns">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        Ad Campaigns
-      </a>
-      <a href="#moved">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        What Moved
-      </a>
-    </nav>
-    <div class="sidebar-bottom">
-      <p>Monday.com + Google Ads<br>Refreshed on demand</p>
-    </div>
-  </aside>
 
   <!-- MAIN -->
   <main class="main">
@@ -411,6 +448,29 @@ body {
         </button>
       </div>
     </div>
+
+    <nav class="topnav" id="topnav">
+      <a href="#leads" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        Leads
+      </a>
+      <a href="#bookings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Bookings
+      </a>
+      <a href="#city">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        City
+      </a>
+      <a href="#campaigns">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Campaigns
+      </a>
+      <a href="#moved">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Comments
+      </a>
+    </nav>
 
     <div class="content" id="dashContent">
       <div class="loading-state" id="emptyState">
@@ -588,11 +648,11 @@ function buildPeriodOptions() {
 }
 buildPeriodOptions();
 
-// ── SIDEBAR NAV ───────────────────────────────────────────────
-document.querySelectorAll('.sidebar-nav a').forEach(a => {
+// ── TOP NAV ───────────────────────────────────────────────────
+document.querySelectorAll('.topnav a').forEach(a => {
   a.addEventListener('click', e => {
     e.preventDefault();
-    document.querySelectorAll('.sidebar-nav a').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.topnav a').forEach(x => x.classList.remove('active'));
     a.classList.add('active');
     const t = document.getElementById(a.getAttribute('href').slice(1));
     if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
