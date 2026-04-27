@@ -697,7 +697,7 @@ async function loadAll() {
   document.getElementById('emptyState').style.display    = 'none';
   document.getElementById('dashSections').style.display  = 'none';
   document.getElementById('ytdOverview').style.display   = 'none';
-  const spinner = mkLoading('Fetching data from Monday &amp; Google Ads…');
+  const spinner = mkLoading(isYTD ? 'Loading all 2026 data… this may take 20–30s' : 'Fetching data from Monday &amp; Google Ads…');
   document.getElementById('dashContent').appendChild(spinner);
 
   const periodVal = document.getElementById('periodSelect').value;
@@ -707,8 +707,13 @@ async function loadAll() {
   try {
     if (isYTD) {
       const months  = periodVal.split(':')[1].split(',');
-      // Fetch all months in parallel
-      const results = await Promise.all(months.map(mo => fetchMonth(mo)));
+      // Fetch in batches of 2 to avoid overwhelming the API
+      const results = [];
+      for (let i = 0; i < months.length; i += 2) {
+        const batch = months.slice(i, i + 2);
+        const batchResults = await Promise.all(batch.map(mo => fetchMonth(mo)));
+        results.push(...batchResults);
+      }
       spinner.remove();
       renderYTD(months, results);
       document.getElementById('lastRefreshed').textContent =
