@@ -683,7 +683,37 @@ document.querySelectorAll('.topnav a').forEach(a => {
 });
 
 // ── REFRESH ───────────────────────────────────────────────────
-document.getElementById('refreshBtn').addEventListener('click', loadAll);
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  // Clear cache for current period so refresh forces re-fetch
+  const periodVal = document.getElementById('periodSelect').value;
+  if (periodVal.startsWith('ytd:') || periodVal.startsWith('multi:')) {
+    const months = periodVal.split(':')[1].split(',');
+    months.forEach(mo => { delete dataCache[mo]; delete dataCache[mo + '|' + prevMonthOf(mo)]; });
+  } else {
+    delete dataCache[periodVal];
+    delete dataCache[periodVal + '|' + prevMonthOf(periodVal)];
+  }
+  loadAll();
+});
+
+// Auto-switch on dropdown change — use cache if available, else show hint
+document.getElementById('periodSelect').addEventListener('change', () => {
+  const periodVal = document.getElementById('periodSelect').value;
+  const isYTD     = periodVal.startsWith('ytd:');
+  const isMulti   = periodVal.startsWith('multi:');
+
+  if (isYTD || isMulti) {
+    const months   = periodVal.split(':')[1].split(',');
+    const allCached = months.every(mo => dataCache[mo] || dataCache[mo + '|' + prevMonthOf(mo)]);
+    if (allCached) { loadAll(); return; }
+  } else {
+    const key     = periodVal;
+    const keyPrev = periodVal + '|' + prevMonthOf(periodVal);
+    if (dataCache[key] || dataCache[keyPrev]) { loadAll(); return; }
+  }
+  // Not cached — show hint to refresh
+  document.getElementById('lastRefreshed').textContent = 'Hit Refresh to load this period';
+});
 
 async function loadAllYTD() {
   // Set dropdown to YTD and trigger load
@@ -710,10 +740,10 @@ async function loadAll() {
   try {
     if (isYTD) {
       const months  = periodVal.split(':')[1].split(',');
-      // Fetch in batches of 2 to avoid overwhelming the API
+      // Fetch in batches of 3 to balance speed vs API limits
       const results = [];
-      for (let i = 0; i < months.length; i += 2) {
-        const batch = months.slice(i, i + 2);
+      for (let i = 0; i < months.length; i += 3) {
+        const batch = months.slice(i, i + 3);
         const batchResults = await Promise.all(batch.map(mo => fetchMonth(mo)));
         results.push(...batchResults);
       }
@@ -1345,7 +1375,6 @@ function showYTDLoader() {
     "Bribing the Google Ads API…",
     "Counting all those leads…",
     "Slow loading, mo bookings 🤌",
-    "Crunching January numbers…",
     "Still going, this is the good stuff…",
     "Almost there, promise…",
     "Calculating your ROAS…",
