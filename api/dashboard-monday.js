@@ -215,12 +215,17 @@ function processBookings(items, startDate, endDate) {
     const isOther    = !isPPC && !isSEO;
     if (isPPC) { ppcCount++; ppcRevenue += rev; }
 
-    if (!byCitySource[city]) byCitySource[city] = {
-      PPC:   { count: 0, revenue: 0 },
-      SEO:   { count: 0, revenue: 0 },
-      Other: { count: 0, revenue: 0 }
-    };
-    const bucket = isPPC ? 'PPC' : isSEO ? 'SEO' : 'Other';
+    // Track all sources per city for pie chart
+    if (!byCitySource[city]) byCitySource[city] = {};
+    if (!byCitySource[city][source]) byCitySource[city][source] = { count: 0, revenue: 0 };
+    byCitySource[city][source].count++;
+    byCitySource[city][source].revenue += rev;
+
+    // Keep PPC/SEO/Other buckets for existing city breakdown rows
+    if (!byCitySource[city]._PPC)   byCitySource[city]._PPC   = { count: 0, revenue: 0 };
+    if (!byCitySource[city]._SEO)   byCitySource[city]._SEO   = { count: 0, revenue: 0 };
+    if (!byCitySource[city]._Other) byCitySource[city]._Other = { count: 0, revenue: 0 };
+    const bucket = isPPC ? '_PPC' : isSEO ? '_SEO' : '_Other';
     byCitySource[city][bucket].count++;
     byCitySource[city][bucket].revenue += rev;
 
