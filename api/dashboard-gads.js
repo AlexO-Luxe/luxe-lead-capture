@@ -205,7 +205,7 @@ async function queryCampaigns(token, startStr, endStr) {
       name:             c.name,
       city:             cityFromCampaign(c.name),
       spend:            r2(spend),
-      clicks:           c.clicks,
+      clicks:           Math.round(c.clicks),
       impressions:      c.impressions,
       ctr:              r2(ctr),
       cpc:              cpc ? r2(cpc) : null,
