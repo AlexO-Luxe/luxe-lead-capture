@@ -1,27 +1,6 @@
 // ============================================================
 //  Student Luxe — Confirmed Booking Conversion Upload
 //  Deploy to: /api/submit-booking.js
-//
-//  TWO TRIGGERS on Booking Flow board (2171015589):
-//
-//  Trigger A: 'status' changes to 'Confirmed Booking'
-//  → If 'Revenue Submitted to Google' (numeric_mm1ge9h4) is empty:
-//    sends internal notification email to alex@studentluxe.co.uk
-//  → If already filled + PPC + gclid: uploads conversion immediately
-//
-//  Trigger B: 'numeric_mm1ge9h4' changes (Revenue Submitted to Google)
-//  → Checks status = 'Confirmed Booking' AND gclid present AND PPC
-//  → Uploads conversion to Google Ads + sends success email
-//
-//  Environment variables required:
-//    MONDAY_API_KEY
-//    GOOGLE_ADS_CLIENT_ID
-//    GOOGLE_ADS_CLIENT_SECRET
-//    GOOGLE_ADS_REFRESH_TOKEN
-//    GOOGLE_ADS_CUSTOMER_ID
-//    GOOGLE_ADS_DEVELOPER_TOKEN
-//    GOOGLE_ADS_BOOKING_ACTION_ID
-//    RESEND_API_KEY
 // ============================================================
 
 const MONDAY_API = 'https://api.monday.com/v2';
@@ -38,155 +17,122 @@ module.exports = async function handler(req, res) {
     const body = req.body;
     console.log('Booking webhook received:', JSON.stringify(body));
 
-    // ── MONDAY WEBHOOK CHALLENGE ──────────────────────────────
     if (body.challenge) {
-      console.log('Monday challenge received, responding');
       return res.status(200).json({ challenge: body.challenge });
     }
 
     const event = body.event;
-    if (!event) {
-      console.log('No event in payload, skipping');
-      return res.status(200).json({ skipped: true, reason: 'no event' });
-    }
+    if (!event) return res.status(200).json({ skipped: true, reason: 'no event' });
 
     const itemId   = event.pulseId || event.itemId;
     const columnId = event.columnId;
+    if (!itemId) return res.status(200).json({ skipped: true, reason: 'no item id' });
 
-    if (!itemId) {
-      console.log('No item ID in event, skipping');
-      return res.status(200).json({ skipped: true, reason: 'no item id' });
-    }
-
-    // ── DETERMINE WHICH TRIGGER FIRED ────────────────────────
     const isStatusTrigger  = columnId === 'status';
     const isRevenueTrigger = columnId === 'numeric_mm1ge9h4';
-
     if (!isStatusTrigger && !isRevenueTrigger) {
-      console.log('Unrecognised column trigger:', columnId);
       return res.status(200).json({ skipped: true, reason: 'unrecognised column' });
     }
 
-    // ── FETCH ITEM DATA FROM MONDAY ───────────────────────────
+    // ── FETCH BOOKING + LINKED LEAD DATA FROM MONDAY ─────────
     const query = `
       query {
         items(ids: [${itemId}]) {
-          id
-          name
-          created_at
+          id name created_at
           column_values(ids: ["status", "mirror21__1", "lookup_mkxtxk48", "numeric_mm1ge9h4"]) {
+            id text value
+            ... on MirrorValue { display_value }
+            ... on BoardRelationValue { display_value }
+            ... on StatusValue { label }
+          }
+          relation: column_values(ids: ["link_to_leads26"]) {
             id
-            text
-            value
-            ... on MirrorValue {
-              display_value
-            }
             ... on BoardRelationValue {
-              display_value
-            }
-            ... on StatusValue {
-              label
+              linked_items {
+                id
+                column_values(ids: ["email", "phone_1"]) { id text }
+              }
             }
           }
         }
       }
     `;
 
-    const mondayRes = await fetch(MONDAY_API, {
+    const mondayRes  = await fetch(MONDAY_API, {
       method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': process.env.MONDAY_API_KEY
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
       body: JSON.stringify({ query })
     });
 
     const mondayData = await mondayRes.json();
-    const item = mondayData?.data?.items?.[0];
+    const item       = mondayData?.data?.items?.[0];
+    if (!item) return res.status(200).json({ skipped: true, reason: 'item not found' });
 
-    if (!item) {
-      console.error('Item not found in Monday:', itemId);
-      return res.status(200).json({ skipped: true, reason: 'item not found' });
+    const cols = {};
+    item.column_values.forEach(c => { cols[c.id] = c.display_value || c.label || c.text || ''; });
+
+    const bookingName = item.name;
+    const status      = cols['status'];
+    const gclid       = cols['mirror21__1'];
+    const leadSource  = cols['lookup_mkxtxk48'];
+    const revenueRaw  = cols['numeric_mm1ge9h4'];
+    const timestamp   = item.created_at;
+    const isPPC       = (leadSource || '').toLowerCase().includes('ppc');
+    const hasGclid    = !!gclid;
+
+    // Extract email + phone from linked lead for enhanced matching
+    const relationCol  = (item.relation || []).find(c => c.id === 'link_to_leads26');
+    const linkedLead   = relationCol?.linked_items?.[0];
+    let leadEmail = '', leadPhone = '';
+    if (linkedLead) {
+      linkedLead.column_values.forEach(c => {
+        if (c.id === 'email')   leadEmail = c.text || '';
+        if (c.id === 'phone_1') leadPhone = c.text || '';
+      });
     }
 
-    // Extract column values
-    const cols = {};
-    item.column_values.forEach(c => {
-      cols[c.id] = c.display_value || c.label || c.text || '';
-    });
-
-    const bookingName  = item.name;
-    const status       = cols['status'];
-    const gclid        = cols['mirror21__1'];
-    const leadSource   = cols['lookup_mkxtxk48'];
-    const revenueRaw   = cols['numeric_mm1ge9h4'];
-    const timestamp    = item.created_at;
-    const isPPC        = (leadSource || '').toLowerCase().includes('ppc');
-    const hasGclid     = !!gclid;
-
-    console.log('Item data:', { itemId, bookingName, status, gclid, leadSource, revenueRaw });
+    console.log('Item data:', { itemId, bookingName, status, gclid, leadSource, revenueRaw, leadEmail: leadEmail ? '✓' : '✗', leadPhone: leadPhone ? '✓' : '✗' });
 
     // ── TRIGGER A: Status changed to Confirmed Booking ────────
     if (isStatusTrigger) {
       const newValue = (
         event.value?.label?.text ||
-        (typeof event.value?.label === 'string' ? event.value.label : '') ||
-        ''
+        (typeof event.value?.label === 'string' ? event.value.label : '') || ''
       ).toString();
 
       if (!newValue.toLowerCase().includes('confirmed booking')) {
-        console.log('Not Confirmed Booking status, skipping. Value was:', newValue);
         return res.status(200).json({ skipped: true, reason: 'not confirmed booking' });
       }
 
-      // Check if revenue already filled
       const cleanValue = parseFloat((revenueRaw || '').toString().replace(/[£$€,\s]/g, ''));
 
-      if (cleanValue > 0 && isPPC && hasGclid) {
-        // Revenue already there — upload immediately
-        console.log('Status confirmed + revenue present, uploading conversion. Value: £' + cleanValue);
-        const result1 = await uploadConversion({ gclid, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-        await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result1?.skipped });
-        return res.status(200).json({ success: true, itemId, gclid, value: cleanValue, gadsSkipped: result1?.skipped });
+      if (cleanValue > 0 && isPPC) {
+        console.log('Status confirmed + revenue present, uploading. Value: £' + cleanValue);
+        const result = await uploadConversion({ gclid, email: leadEmail, phone: leadPhone, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+        await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
+        return res.status(200).json({ success: true, itemId, value: cleanValue });
       }
 
-      // Revenue not yet filled — send notification
-      console.log('Confirmed Booking — revenue not yet filled, sending notification email');
+      console.log('Confirmed Booking — revenue not yet filled, sending notification');
       await sendNotificationEmail({ bookingName, itemId, gclid, leadSource, isPPC, hasGclid });
       return res.status(200).json({ notified: true, itemId });
     }
 
-    // ── TRIGGER B: Revenue Submitted to Google column filled ──
-    // Note: No status check here — if revenue is manually entered, the conversion
-    // should be uploaded regardless of booking status. The ad did its job.
+    // ── TRIGGER B: Revenue column filled ─────────────────────
     if (isRevenueTrigger) {
+      if (!isPPC) return res.status(200).json({ skipped: true, reason: 'not ppc' });
 
-      // Must be PPC with gclid
-      if (!hasGclid) {
-        console.log('No gclid, skipping');
-        return res.status(200).json({ skipped: true, reason: 'no gclid' });
-      }
-
-      if (!isPPC) {
-        console.log('Not PPC lead, skipping. Source:', leadSource);
-        return res.status(200).json({ skipped: true, reason: 'not ppc' });
-      }
-
-      // Parse value — try event payload first, fall back to Monday column value
-      const eventValue  = event.value?.value ?? event.value ?? '';
-      const cleanValue  = parseFloat(
-        (String(eventValue || revenueRaw || '0')).replace(/[£$€,\s]/g, '')
-      );
+      const eventValue = event.value?.value ?? event.value ?? '';
+      const cleanValue = parseFloat((String(eventValue || revenueRaw || '0')).replace(/[£$€,\s]/g, ''));
 
       if (!cleanValue || cleanValue <= 0) {
-        console.log('Invalid revenue value:', eventValue, revenueRaw);
         return res.status(200).json({ skipped: true, reason: 'invalid value' });
       }
 
-      console.log('Revenue filled for confirmed PPC booking, uploading. Value: £' + cleanValue);
-      const result2 = await uploadConversion({ gclid, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-      await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result2?.skipped });
-      return res.status(200).json({ success: true, itemId, gclid, value: cleanValue, gadsSkipped: result2?.skipped });
+      console.log('Revenue filled for PPC booking, uploading. Value: £' + cleanValue);
+      const result = await uploadConversion({ gclid, email: leadEmail, phone: leadPhone, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+      await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
+      return res.status(200).json({ success: true, itemId, value: cleanValue });
     }
 
   } catch (err) {
@@ -196,131 +142,11 @@ module.exports = async function handler(req, res) {
 };
 
 // ──────────────────────────────────────────────────────────────
-//  EMAIL — Internal notification (revenue not yet filled)
-// ──────────────────────────────────────────────────────────────
-async function sendNotificationEmail({ bookingName, itemId, gclid, leadSource, isPPC, hasGclid }) {
-  const emailRes = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
-    },
-    body: JSON.stringify({
-      from:    'Student Luxe <noreply@studentluxe.co.uk>',
-      to:      ['alex@studentluxe.co.uk'],
-      subject: `🏠 New Confirmed Booking — Add Commission Value`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #0d1a2e;">New Confirmed Booking</h2>
-          <p>A booking has been marked as <strong>Confirmed Booking</strong> in Monday.com.</p>
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <tr style="background: #f7f2eb;">
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>Booking</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;">${bookingName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>Monday Item ID</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;">${itemId}</td>
-            </tr>
-            <tr style="background: #f7f2eb;">
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>PPC Lead</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;">${isPPC ? '✅ Yes' : '❌ No'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>GCLID Present</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;">${hasGclid ? '✅ Yes' : '❌ No — no Google Ads conversion will be sent'}</td>
-            </tr>
-          </table>
-          ${isPPC && hasGclid ? `
-          <div style="background: #fff3cd; border: 1px solid #B8966E; padding: 15px; border-radius: 4px; margin: 20px 0;">
-            <strong>Action required:</strong> This is a PPC lead with a valid GCLID.
-            Please add the <strong>Revenue Submitted to Google</strong> value in Monday.com
-            to trigger the offline conversion upload to Google Ads.
-          </div>
-          ` : `
-          <div style="background: #f8f9fa; border: 1px solid #e5e3dd; padding: 15px; border-radius: 4px; margin: 20px 0;">
-            <strong>Note:</strong> This booking is not from a PPC lead or has no GCLID —
-            no Google Ads conversion will be sent.
-          </div>
-          `}
-          <p><a href="https://studentluxe.monday.com/boards/2171015589/views/149480482" style="color: #B8966E;">Open Booking Flow Board →</a></p>
-        </div>
-      `
-    })
-  });
-
-  const emailData = await emailRes.json();
-  console.log('Notification email sent:', emailData.id || emailData.error);
-}
-
-// ──────────────────────────────────────────────────────────────
-//  EMAIL — Success notification (conversion uploaded)
-// ──────────────────────────────────────────────────────────────
-async function sendSuccessEmail({ bookingName, itemId, value, gclid, skipped }) {
-  const emailRes = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
-    },
-    body: JSON.stringify({
-      from:    'Student Luxe <noreply@studentluxe.co.uk>',
-      to:      ['alex@studentluxe.co.uk'],
-      subject: skipped ? `📋 Confirmed Booking Logged — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Google Ads skipped — old lead)` : `✅ Google Ads Offline Conversion Submitted — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #0d1a2e;">Offline Conversion Submitted to Google Ads</h2>
-          <p>A confirmed booking conversion has been successfully uploaded to Google Ads.</p>
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <tr style="background: #f7f2eb;">
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>Booking</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;">${bookingName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>Conversion Value</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd; font-size: 18px; color: #0d1a2e;"><strong>£${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
-            </tr>
-            <tr style="background: #f7f2eb;">
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>GCLID</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd; font-size: 11px; color: #666;">${gclid}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>Monday Item ID</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;">${itemId}</td>
-            </tr>
-            <tr style="background: #f7f2eb;">
-              <td style="padding: 10px; border: 1px solid #e5e3dd;"><strong>Submitted at</strong></td>
-              <td style="padding: 10px; border: 1px solid #e5e3dd;">${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}</td>
-            </tr>
-          </table>
-          ${skipped ? `
-          <div style="background: #fff3cd; border: 1px solid #e6a817; padding: 15px; border-radius: 4px; margin: 20px 0;">
-            <strong>Note:</strong> This booking has been logged but the Google Ads conversion upload was skipped
-            because the original lead click is older than the conversion action's window.
-            This is expected for leads that came in before 18 April 2026.
-          </div>
-          ` : `
-          <div style="background: #d4edda; border: 1px solid #28a745; padding: 15px; border-radius: 4px; margin: 20px 0;">
-            This conversion will appear in Google Ads within 24–48 hours and will be used
-            by Smart Bidding to optimise for similar high-value bookings.
-          </div>
-          `}
-          <p><a href="https://studentluxe.monday.com/boards/2171015589" style="color: #B8966E;">Open Booking Flow Board →</a></p>
-        </div>
-      `
-    })
-  });
-
-  const emailData = await emailRes.json();
-  console.log('Success email sent:', emailData.id || emailData.error);
-}
-
-// ──────────────────────────────────────────────────────────────
 //  GOOGLE ADS CONVERSION UPLOAD
 // ──────────────────────────────────────────────────────────────
-async function uploadConversion({ gclid, timestamp, value, currency, actionId }) {
+async function uploadConversion({ gclid, email, phone, timestamp, value, currency, actionId }) {
 
-  // Step 1 — Get fresh access token
+  // Get fresh access token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -333,23 +159,43 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
   });
 
   const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) {
-    throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
+  if (!tokenData.access_token) throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
+
+  // Hash email and phone for enhanced matching
+  async function sha256(str) {
+    const encoder    = new TextEncoder();
+    const data       = encoder.encode(str.toLowerCase().trim());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  // Step 2 — Format timestamp
+  const hashedEmail = email ? await sha256(email) : null;
+  const cleanPhone  = phone ? phone.replace(/[\s\-().]/g, '') : null;
+  const hashedPhone = cleanPhone ? await sha256(cleanPhone) : null;
+
+  // Format timestamp
   const rawTime        = timestamp ? new Date(timestamp) : new Date();
-  const conversionTime = rawTime.toISOString()
-    .replace('T', ' ')
-    .replace(/\.\d{3}Z$/, '+00:00');
+  const conversionTime = rawTime.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '+00:00');
 
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
   const endpoint         = `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`;
 
-  console.log('Uploading conversion:', { endpoint, conversionAction, gclid, conversionTime, value });
+  // Build conversion — gclid optional, matched via email/phone when absent
+  const conversion = {
+    conversionAction,
+    conversionDateTime: conversionTime,
+    conversionValue:    value,
+    currencyCode:       currency,
+    userIdentifiers: [
+      ...(hashedEmail ? [{ hashedEmail }] : []),
+      ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
+    ]
+  };
+  if (gclid) conversion.gclid = gclid;
 
-  // Step 3 — Upload to Google Ads Conversions API
+  console.log('Uploading conversion:', { endpoint, conversionAction, hasGclid: !!gclid, hasEmail: !!hashedEmail, hasPhone: !!hashedPhone, conversionTime, value });
+
   const gadsRes = await fetch(endpoint, {
     method:  'POST',
     headers: {
@@ -358,20 +204,11 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
       'login-customer-id': '6046238343',
       'Content-Type':      'application/json'
     },
-    body: JSON.stringify({
-      conversions: [{
-        gclid,
-        conversionAction,
-        conversionDateTime: conversionTime,
-        conversionValue:    value,
-        currencyCode:       currency
-      }],
-      partialFailure: true
-    })
+    body: JSON.stringify({ conversions: [conversion], partialFailure: true })
   });
 
   const rawText = await gadsRes.text();
-  console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 500));
+  console.log('Google Ads response (status ' + gadsRes.status + '):', rawText.substring(0, 500));
 
   if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
     throw new Error('Google Ads returned non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
@@ -381,19 +218,70 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
 
   if (gadsData.partialFailureError) {
     const errStr = JSON.stringify(gadsData.partialFailureError);
-    // EXPIRED_EVENT means the gclid is too old for this conversion action
-    // This is expected for bookings where the lead came in before the conversion action existed
-    // Log it but don't throw — the booking is still valid
     if (errStr.includes('EXPIRED_EVENT') || errStr.includes('TOO_RECENT_CONVERSION_ACTION')) {
       console.log('Google Ads upload skipped (expected):', errStr.substring(0, 200));
       return { skipped: true, reason: 'expired_event' };
     }
     throw new Error('Partial failure: ' + errStr);
   }
-  if (gadsData.error) {
-    throw new Error('API error: ' + JSON.stringify(gadsData.error));
-  }
+  if (gadsData.error) throw new Error('API error: ' + JSON.stringify(gadsData.error));
 
   console.log('Google Ads conversion uploaded successfully');
   return gadsData;
+}
+
+// ──────────────────────────────────────────────────────────────
+//  EMAILS
+// ──────────────────────────────────────────────────────────────
+async function sendNotificationEmail({ bookingName, itemId, gclid, leadSource, isPPC, hasGclid }) {
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` },
+    body: JSON.stringify({
+      from:    'Student Luxe <noreply@studentluxe.co.uk>',
+      to:      ['alex@studentluxe.co.uk'],
+      subject: `🏠 New Confirmed Booking — Add Commission Value`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#0d1a2e;">New Confirmed Booking</h2>
+        <p>Marked as <strong>Confirmed Booking</strong> in Monday.com.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Booking</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${bookingName}</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Monday Item ID</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${itemId}</td></tr>
+          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>PPC Lead</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${isPPC ? '✅ Yes' : '❌ No'}</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e5e3dd;"><strong>GCLID</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${hasGclid ? '✅ Present' : '❌ None — will match via email/phone'}</td></tr>
+        </table>
+        ${isPPC ? `<div style="background:#fff3cd;border:1px solid #B8966E;padding:15px;border-radius:4px;margin:20px 0;"><strong>Action required:</strong> Please add the <strong>Revenue Submitted to Google</strong> value in Monday.com to trigger the conversion upload.</div>` : `<div style="background:#f8f9fa;border:1px solid #e5e3dd;padding:15px;border-radius:4px;margin:20px 0;">Not a PPC lead — no Google Ads conversion will be sent.</div>`}
+        <p><a href="https://studentluxe.monday.com/boards/2171015589/views/149480482" style="color:#B8966E;">Open Booking Flow Board →</a></p>
+      </div>`
+    })
+  });
+}
+
+async function sendSuccessEmail({ bookingName, itemId, value, gclid, skipped }) {
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` },
+    body: JSON.stringify({
+      from:    'Student Luxe <noreply@studentluxe.co.uk>',
+      to:      ['alex@studentluxe.co.uk'],
+      subject: skipped
+        ? `📋 Confirmed Booking Logged — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2 })} (Google Ads skipped)`
+        : `✅ Google Ads Conversion Submitted — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#0d1a2e;">${skipped ? 'Booking Logged' : 'Offline Conversion Submitted'}</h2>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Booking</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${bookingName}</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Value</strong></td><td style="padding:10px;border:1px solid #e5e3dd;font-size:18px;color:#0d1a2e;"><strong>£${value.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</strong></td></tr>
+          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>GCLID</strong></td><td style="padding:10px;border:1px solid #e5e3dd;font-size:11px;color:#666;">${gclid || 'None — matched via email/phone'}</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Item ID</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${itemId}</td></tr>
+          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Submitted at</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}</td></tr>
+        </table>
+        ${skipped
+          ? `<div style="background:#fff3cd;border:1px solid #e6a817;padding:15px;border-radius:4px;margin:20px 0;"><strong>Note:</strong> Google Ads upload skipped — lead click is outside the conversion window.</div>`
+          : `<div style="background:#d4edda;border:1px solid #28a745;padding:15px;border-radius:4px;margin:20px 0;">Conversion will appear in Google Ads within 24–48 hours.</div>`
+        }
+        <p><a href="https://studentluxe.monday.com/boards/2171015589" style="color:#B8966E;">Open Booking Flow Board →</a></p>
+      </div>`
+    })
+  });
 }
