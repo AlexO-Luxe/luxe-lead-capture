@@ -712,7 +712,10 @@ function renderDash(monday, gads) {
   const roasDelta   = !isMulti && roasVal != null && prevRoasVal != null ? deltaNum(roasVal, prevRoasVal, false, true) : null;
 
   document.getElementById('leadsPpcStats').innerHTML = [
-    statCard('PPC Leads',    ppcLeads, !isMulti && prevLeads ? delta(ppcLeads, prevPpcLeads) : null),
+    statCard('PPC Leads', ppcLeads,
+      !isMulti && prevLeads ? delta(ppcLeads, prevPpcLeads) : null,
+      !isMulti && prevPpcLeads > 0 ? leadsBar(ppcLeads, prevPpcLeads) : null
+    ),
     statCard('PPC Spend',    acct ? '£'+fmt(acct.spend) : '—',
       !isMulti && gads.prevAccountSummary ? delta(acct.spend, gads.prevAccountSummary.spend, true) : null,
       !isMulti && budget ? budgetBar(acct?.spend||0, budget) : null),
@@ -865,7 +868,7 @@ function renderDash(monday, gads) {
     };
   }
 
-  const campGroupData = {};
+
 
   function renderCampaignGroup(groupName, groupCampaigns) {
     if (!groupCampaigns.length) return '';
@@ -1029,6 +1032,17 @@ function budgetBar(spend, budget) {
     : `£${fmt(remaining)} remaining of £${fmt(budget)} budget`}</div>`;
 }
 
+function leadsBar(current, prevTotal) {
+  // Show current leads as % of last month's total
+  const pct  = Math.min(Math.round(current / prevTotal * 100), 120);
+  const diff = current - prevTotal;
+  const over = current > prevTotal;
+  return `<div class="budget-bar-wrap"><div class="budget-bar ${over?'':''}\" style="width:${Math.min(pct,100)}%;background:${over?'var(--green)':'var(--gold)'}"></div></div>
+  <div class="budget-label">${over
+    ? `<span class="up">+${diff} leads vs last month total (${prevTotal})</span>`
+    : `${Math.abs(diff)} leads behind last month total (${prevTotal})`}</div>`;
+}
+
 function deltaNum(cur, prev, isCurrency, isDecimal) {
   if (prev === null || prev === undefined || prev === 0) return '';
   const diff = cur - prev;
@@ -1129,6 +1143,7 @@ function toggleGroup(uid) {
 }
 
 const campSortState = {};
+const campGroupData = {}; // populated by renderCampaignGroup, read by sortCampTable
 function sortCampTable(uid, key) {
   const cur = campSortState[uid] || { key: 'spend', dir: 'desc' };
   campSortState[uid] = { key, dir: cur.key === key && cur.dir === 'desc' ? 'asc' : 'desc' };
