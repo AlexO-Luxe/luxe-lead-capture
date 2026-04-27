@@ -925,32 +925,18 @@ function renderDash(monday, gads) {
     const pieHtml  = buildPie(pieTotal, pieSegments);
 
 
+
     return `<div class="city-card">
       <div class="city-name">${city}</div>
       ${pieHtml}
-      ${div()}
-      ${head('PPC', 'var(--gold)')}
-      ${row('Leads', lb.PPC)}
-      ${row('Bookings', bb._PPC||{count:0,revenue:0}.count)}
-      ${row('Revenue', bb._PPC||{count:0,revenue:0}.revenue > 0 ? '£'+fmt(bb._PPC||{count:0,revenue:0}.revenue) : '—')}
-      ${!isOtherCity ? row('Spend', citySpend > 0 ? '£'+fmt(citySpend) : '—') : ''}
-      ${ppcProfit !== null ? `<div class="city-metric"><span class="city-metric-label">Profit</span><span class="city-metric-value" style="color:${ppcProfit>=0?'var(--green)':'var(--red)'};font-weight:500">${ppcProfit>=0?'':'−'}£${fmt(Math.abs(ppcProfit))}</span></div>` : ''}
-      ${div()}
-      ${head('SEO', 'var(--green)')}
-      ${row('Leads', lb.SEO)}
-      ${row('Bookings', bb._SEO||{count:0,revenue:0}.count)}
-      ${row('Revenue', bb._SEO||{count:0,revenue:0}.revenue > 0 ? '£'+fmt(bb._SEO||{count:0,revenue:0}.revenue) : '—')}
-      ${div()}
-      ${head('Other', 'var(--hint)')}
-      ${row('Leads', lb.Other)}
-      ${row('Bookings', bb._Other||{count:0,revenue:0}.count)}
-      ${row('Revenue', bb._Other||{count:0,revenue:0}.revenue > 0 ? '£'+fmt(bb._Other||{count:0,revenue:0}.revenue) : '—')}
-      ${div()}
-      <div class="city-metric"><span class="city-metric-label" style="font-weight:500;color:var(--ink);">Total Leads</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${totalLeads}</span></div>
-      <div class="city-metric"><span class="city-metric-label" style="font-weight:500;color:var(--ink);">Total Revenue</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.revenue>0?'£'+fmt(bookData.revenue):'—'}</span></div>
-      <div class="city-metric"><span class="city-metric-label" style="font-weight:500;color:var(--ink);">Conv. Rate</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${convRate}</span></div>
+      <div style="height:0.5px;background:var(--border);margin:8px 0 6px;"></div>
+      <div class="city-metric"><span class="city-metric-label">No. of Leads</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${totalLeads}</span></div>
+      <div class="city-metric"><span class="city-metric-label">No. of Bookings</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.count}</span></div>
+      <div class="city-metric"><span class="city-metric-label">Total Revenue</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.revenue>0?'£'+fmt(bookData.revenue):'—'}</span></div>
+      <div class="city-metric"><span class="city-metric-label">Conv. Rate</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${convRate}</span></div>
     </div>`;
   }).join('');
+
 
 
   // ── CAMPAIGNS — unified table ──
@@ -1252,7 +1238,7 @@ function buildPie(total, segments) {
     offset += dash;
   });
   const legend = segments.filter(s=>s.value>0).map(s =>
-    `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);"><span style="width:7px;height:7px;border-radius:50%;background:${s.colour};display:inline-block;"></span>${s.label} ${Math.round(s.value/total*100)}%</span>`
+    `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);"><span style="width:7px;height:7px;border-radius:50%;background:${s.colour};display:inline-block;"></span>${s.label} ${s.value}</span>`
   ).join('');
   return `<div style="display:flex;flex-direction:column;align-items:center;padding:10px 0 4px;">
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
