@@ -24,23 +24,18 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Fetch both boards in parallel — NO nested linked items query
     const [leadsItems, bookingsItems] = await Promise.all([
       fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'link_to_leads26'], true)
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4'], true, true)
     ]);
-
-    // Build a lead lookup map by item ID for fast join
-    const leadById = {};
-    leadsItems.forEach(item => { leadById[item.id] = item; });
 
     const cur  = monthRange(month);
     const prev = prevMonth && /^\d{4}-\d{2}$/.test(prevMonth) ? monthRange(prevMonth) : null;
 
-    const result = { month, current: processMonth(leadsItems, bookingsItems, leadById, cur.start, cur.end) };
+    const result = { month, current: processMonth(leadsItems, bookingsItems, cur.start, cur.end) };
     if (prev) {
       result.prevMonth = prevMonth;
-      result.previous  = processMonth(leadsItems, bookingsItems, leadById, prev.start, prev.end);
+      result.previous  = processMonth(leadsItems, bookingsItems, prev.start, prev.end);
     }
 
     return res.status(200).json(result);
@@ -50,10 +45,10 @@ module.exports = async function handler(req, res) {
   }
 };
 
-function processMonth(leadsItems, bookingsItems, leadById, startDate, endDate) {
+function processMonth(leadsItems, bookingsItems, startDate, endDate) {
   return {
     leads:    processLeads(leadsItems, startDate, endDate),
-    bookings: processBookings(bookingsItems, leadById, startDate, endDate)
+    bookings: processBookings(bookingsItems, startDate, endDate)
   };
 }
 
@@ -68,7 +63,7 @@ async function mondayQuery(query) {
   return data;
 }
 
-async function fetchAllItems(boardId, columnIds, includeGroup = false) {
+async function fetchAllItems(boardId, columnIds, includeGroup = false, includeLinked = false) {
   const cols = columnIds.map(c => `"${c}"`).join(', ');
   const groupField = includeGroup ? 'group { title }' : '';
   let allItems = [], cursor = null;
@@ -81,6 +76,17 @@ async function fetchAllItems(boardId, columnIds, includeGroup = false) {
           items {
             id name created_at ${groupField}
             column_values(ids: [${cols}]) { id text value }
+            ${includeLinked ? `relation: column_values(ids: ["link_to_leads26"]) {
+              id
+              ... on BoardRelationValue {
+                linked_items {
+                  id
+                  column_values(ids: ["color_mkxk8y67", "dropdown_mkxkfbff", "text8", "text_mm1c3b5w"]) {
+                    id text
+                  }
+                }
+              }
+            }` : ''}
           }
         }
       }
@@ -156,7 +162,7 @@ function processLeads(items, startDate, endDate) {
   };
 }
 
-function processBookings(items, leadById, startDate, endDate) {
+function processBookings(items, startDate, endDate) {
   const eligible = items.filter(item => {
     const groupTitle = item.group?.title || '';
     return !EXCLUDED_BOOKING_GROUPS.includes(groupTitle);
@@ -176,15 +182,14 @@ function processBookings(items, leadById, startDate, endDate) {
     const cols = colMap(item);
     const rev  = parseFloat(cols['numeric_mm1ge9h4']) || 0;
 
-    // Join to lead via link_to_leads26 column (contains linked item ID as text)
-    const linkedIdRaw = cols['link_to_leads26'] || '';
-    // Monday returns linked IDs as comma-separated list e.g. "12345678"
-    const linkedId    = linkedIdRaw.split(',')[0].trim();
-    const lead        = linkedId ? leadById[linkedId] : null;
+    const relationCol = (item.relation || []).find(cv => cv.id === 'link_to_leads26');
+    const linkedItems = relationCol?.linked_items || [];
+    const lead        = linkedItems[0];
 
     let source = 'Unknown', channel = 'Unknown', city = 'Unknown', campaign = 'Unknown';
     if (lead) {
-      const lc   = colMap(lead);
+      const lc   = {};
+      (lead.column_values || []).forEach(c => { lc[c.id] = c.text || ''; });
       source   = lc['color_mkxk8y67']   || 'Unknown';
       channel  = lc['dropdown_mkxkfbff'] || 'Unknown';
       city     = normaliseCity(lc['text8']);
@@ -195,13 +200,11 @@ function processBookings(items, leadById, startDate, endDate) {
     const isSEO = source === 'SEO';
     if (isPPC) { ppcCount++; ppcRevenue += rev; }
 
-    // All sources per city
     if (!byCitySource[city]) byCitySource[city] = {};
     if (!byCitySource[city][source]) byCitySource[city][source] = { count:0, revenue:0 };
     byCitySource[city][source].count++;
     byCitySource[city][source].revenue += rev;
 
-    // PPC/SEO/Other buckets
     if (!byCitySource[city]._PPC)   byCitySource[city]._PPC   = { count:0, revenue:0 };
     if (!byCitySource[city]._SEO)   byCitySource[city]._SEO   = { count:0, revenue:0 };
     if (!byCitySource[city]._Other) byCitySource[city]._Other = { count:0, revenue:0 };
@@ -225,7 +228,6 @@ function processBookings(items, leadById, startDate, endDate) {
     totalRevenue += rev;
   });
 
-  // Top 5 bookings by revenue
   const top5Bookings = filtered
     .map(item => {
       const cols = colMap(item);
