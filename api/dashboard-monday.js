@@ -224,12 +224,20 @@ function processBookings(items, startDate, endDate) {
     byCitySource[city][bucket].count++;
     byCitySource[city][bucket].revenue += rev;
 
-    [byChannel, byCity, bySource, byCampaign].forEach((obj, i) => {
-      const key = [channel, city, source, campaign][i];
+    [byChannel, byCity, bySource].forEach((obj, i) => {
+      const key = [channel, city, source][i];
       if (!obj[key]) obj[key] = { count: 0, revenue: 0 };
       obj[key].count++;
       obj[key].revenue += rev;
     });
+
+    // Only attribute to campaign if PPC source
+    if (isPPC && campaign !== 'Unknown') {
+      if (!byCampaign[campaign]) byCampaign[campaign] = { count: 0, revenue: 0 };
+      byCampaign[campaign].count++;
+      byCampaign[campaign].revenue += rev;
+    }
+
     totalRevenue += rev;
   });
 
