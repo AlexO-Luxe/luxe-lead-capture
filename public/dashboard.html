@@ -304,6 +304,7 @@ body {
 .ld { width:6px;height:6px;border-radius:50%;background:var(--gold);animation:pulse 1.2s ease-in-out infinite; }
 .ld:nth-child(2){animation-delay:.2s} .ld:nth-child(3){animation-delay:.4s}
 @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+@keyframes ytdBounce{0%,100%{transform:translateY(0);opacity:0.5}50%{transform:translateY(-8px);opacity:1}}
 
 .error-banner {
   background: var(--red-bg); border: 1px solid rgba(192,57,43,0.2);
@@ -698,6 +699,9 @@ async function loadAll() {
   document.getElementById('dashSections').style.display  = 'none';
   document.getElementById('ytdOverview').style.display   = 'none';
   const spinner = mkLoading(isYTD ? 'Loading all 2026 data… this may take 20–30s' : 'Fetching data from Monday &amp; Google Ads…');
+
+  // Show fun loading lightbox for YTD
+  if (isYTD) showYTDLoader();
   document.getElementById('dashContent').appendChild(spinner);
 
   const periodVal = document.getElementById('periodSelect').value;
@@ -715,6 +719,7 @@ async function loadAll() {
         results.push(...batchResults);
       }
       spinner.remove();
+      hideYTDLoader();
       renderYTD(months, results);
       document.getElementById('lastRefreshed').textContent =
         `Last refreshed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · ${label}`;
@@ -739,6 +744,7 @@ async function loadAll() {
     }
   } catch(err) {
     spinner.remove();
+    hideYTDLoader();
     document.getElementById('dashContent').innerHTML = `<div class="error-banner">Failed to load: ${err.message}</div>`;
   } finally {
     btn.classList.remove('loading'); btn.disabled = false;
@@ -822,8 +828,23 @@ function renderYTD(months, results) {
   }).join('');
 }
 async function fetchMonth(mo, prev) {
-  const key = mo + (prev ? '|' + prev : '');
-  if (dataCache[key]) { console.log('Cache hit:', key); return dataCache[key]; }
+  // Check cache with prev first, then without (YTD cache)
+  const keyWithPrev = mo + (prev ? '|' + prev : '');
+  const keyNoPrev   = mo;
+
+  if (dataCache[keyWithPrev]) { console.log('Cache hit:', keyWithPrev); return dataCache[keyWithPrev]; }
+  if (!prev && dataCache[keyNoPrev]) { console.log('Cache hit (no-prev):', keyNoPrev); return dataCache[keyNoPrev]; }
+  // If we have the month cached without prev but need prev, fetch prev separately
+  if (prev && dataCache[keyNoPrev]) {
+    const prevData = dataCache[keyNoPrev + '|'] || await fetchMonth(prev);
+    const result = { monday: dataCache[keyNoPrev].monday, gads: dataCache[keyNoPrev].gads };
+    // Attach previous month data
+    result.monday = { ...result.monday, prevMonth: prev, previous: prevData.monday.current };
+    result.gads   = { ...result.gads, prevMonth: prev, prevAccountSummary: prevData.gads.accountSummary };
+    dataCache[keyWithPrev] = result;
+    return result;
+  }
+
   const pp = prev ? `&prevMonth=${prev}` : '';
   const [monday, gads] = await Promise.all([
     fetch(`${API_BASE}/dashboard-monday?month=${mo}${pp}`).then(async r => {
@@ -838,8 +859,9 @@ async function fetchMonth(mo, prev) {
       return json;
     })
   ]);
-  dataCache[key] = { monday, gads };
-  return dataCache[key];
+  dataCache[keyWithPrev] = { monday, gads };
+  dataCache[keyNoPrev]   = { monday, gads }; // also cache without prev key
+  return dataCache[keyWithPrev];
 }
 
 function mergeMonday(arr) {
@@ -1314,6 +1336,81 @@ function srcColour(label) {
   return '#B8966E';
 }
 
+
+function showYTDLoader() {
+  const existing = document.getElementById('ytdLoader');
+  if (existing) existing.remove();
+
+  const messages = [
+    "Waking up Monday.com…",
+    "Bribing the Google Ads API…",
+    "Counting all those leads…",
+    "Slow loading, mo bookings 🤌",
+    "Crunching January numbers…",
+    "Still going, this is the good stuff…",
+    "Almost there, promise…",
+    "Calculating your ROAS…",
+    "Worth the wait 💰",
+  ];
+
+  let msgIndex = 0;
+  const el = document.createElement('div');
+  el.id = 'ytdLoader';
+  el.innerHTML = `
+    <div style="position:fixed;inset:0;z-index:9998;background:rgba(13,26,46,0.75);backdrop-filter:blur(6px);
+      display:flex;align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border:1px solid var(--border-str);border-radius:20px;
+        padding:44px 52px;text-align:center;max-width:360px;width:90%;
+        box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <img src="https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?format=1500w"
+          style="height:16px;width:auto;margin-bottom:28px;filter:invert(1) sepia(1) saturate(0.3) hue-rotate(5deg) brightness(0.5);">
+        <div style="display:flex;justify-content:center;gap:6px;margin-bottom:24px;">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--gold);animation:ytdBounce 1.2s ease-in-out infinite;"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--gold);animation:ytdBounce 1.2s ease-in-out 0.2s infinite;"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--gold);animation:ytdBounce 1.2s ease-in-out 0.4s infinite;"></div>
+        </div>
+        <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:20px;
+          font-weight:400;color:var(--navy);letter-spacing:-0.02em;margin-bottom:8px;">
+          Loading 2026
+        </div>
+        <div id="ytdLoaderMsg" style="font-size:13px;color:var(--hint);min-height:20px;transition:opacity 0.3s;">
+          ${messages[0]}
+        </div>
+        <div style="margin-top:20px;height:3px;background:var(--gold-mid);border-radius:2px;overflow:hidden;">
+          <div id="ytdLoaderBar" style="height:100%;width:0%;background:var(--gold);border-radius:2px;transition:width 1.5s ease;"></div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  // Cycle messages
+  el._interval = setInterval(() => {
+    msgIndex = (msgIndex + 1) % messages.length;
+    const msgEl = document.getElementById('ytdLoaderMsg');
+    if (msgEl) {
+      msgEl.style.opacity = '0';
+      setTimeout(() => {
+        msgEl.textContent = messages[msgIndex];
+        msgEl.style.opacity = '1';
+      }, 300);
+    }
+  }, 2500);
+
+  // Animate progress bar
+  setTimeout(() => {
+    const bar = document.getElementById('ytdLoaderBar');
+    if (bar) bar.style.width = '90%';
+  }, 100);
+}
+
+function hideYTDLoader() {
+  const el = document.getElementById('ytdLoader');
+  if (!el) return;
+  clearInterval(el._interval);
+  el.style.opacity = '0';
+  el.style.transition = 'opacity 0.3s';
+  setTimeout(() => el.remove(), 300);
+}
 
 function buildPie(total, segments) {
   if (!total) return '<div style="text-align:center;padding:12px 0;color:var(--hint);font-size:11px;">No bookings</div>';
