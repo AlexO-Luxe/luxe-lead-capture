@@ -198,6 +198,7 @@ async function queryCampaigns(token, startStr, endStr) {
   return Object.values(map).map(c => {
     const spend = c.costMicros / 1_000_000;
     const ctr   = c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0;
+    const cpc  = c.clicks > 0 ? spend / c.clicks : null;
     const roas  = spend > 0 && c.conversionsValue > 0 ? c.conversionsValue / spend : null;
     return {
       id:               c.id,
@@ -207,6 +208,7 @@ async function queryCampaigns(token, startStr, endStr) {
       clicks:           c.clicks,
       impressions:      c.impressions,
       ctr:              r2(ctr),
+      cpc:              cpc ? r2(cpc) : null,
       conversions:      r1(c.conversions),
       conversionsValue: r2(c.conversionsValue),
       roas:             roas ? r2(roas) : null
