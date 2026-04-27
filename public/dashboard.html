@@ -698,15 +698,14 @@ async function loadAll() {
   document.getElementById('emptyState').style.display    = 'none';
   document.getElementById('dashSections').style.display  = 'none';
   document.getElementById('ytdOverview').style.display   = 'none';
-  const spinner = mkLoading(isYTD ? 'Loading all 2026 data… this may take 20–30s' : 'Fetching data from Monday &amp; Google Ads…');
-
-  // Show fun loading lightbox for YTD
-  if (isYTD) showYTDLoader();
-  document.getElementById('dashContent').appendChild(spinner);
 
   const periodVal = document.getElementById('periodSelect').value;
   const label     = document.getElementById('periodSelect').selectedOptions[0].textContent;
   const isYTD     = periodVal.startsWith('ytd:');
+
+  const spinner = mkLoading(isYTD ? 'Loading all 2026 data… this may take 20–30s' : 'Fetching data from Monday &amp; Google Ads…');
+  if (isYTD) showYTDLoader();
+  document.getElementById('dashContent').appendChild(spinner);
 
   try {
     if (isYTD) {
