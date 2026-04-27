@@ -439,7 +439,8 @@ body {
                   <th class="sortable" onclick="sortRevTable('revBySource','count')" id="revBySource_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revBySource','revenue')" id="revBySource_revenue">Revenue <span class="sort-icon">↕</span></th>
                 </tr></thead>
-                <tbody id="revBySource"></tbody></table>
+                <tbody id="revBySource"></tbody>
+                <tfoot><tr id="revBySource_foot"></tr></tfoot></table>
               </div>
             </div>
             <div class="table-card">
@@ -450,7 +451,8 @@ body {
                   <th class="sortable" onclick="sortRevTable('revByChannel','count')" id="revByChannel_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revByChannel','revenue')" id="revByChannel_revenue">Revenue <span class="sort-icon">↕</span></th>
                 </tr></thead>
-                <tbody id="revByChannel"></tbody></table>
+                <tbody id="revByChannel"></tbody>
+                <tfoot><tr id="revByChannel_foot"></tr></tfoot></table>
               </div>
             </div>
             <div class="table-card">
@@ -461,7 +463,8 @@ body {
                   <th class="sortable" onclick="sortRevTable('revByCampaign','count')" id="revByCampaign_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revByCampaign','revenue')" id="revByCampaign_revenue">Revenue <span class="sort-icon">↕</span></th>
                 </tr></thead>
-                <tbody id="revByCampaign"></tbody></table>
+                <tbody id="revByCampaign"></tbody>
+                <tfoot><tr id="revByCampaign_foot"></tr></tfoot></table>
               </div>
             </div>
           </div>
@@ -1135,6 +1138,15 @@ function _drawRevTable(elId) {
     <td style="width:70px;">${v.count}</td>
     <td style="width:90px;">£${fmt(v.revenue)}</td>
   </tr>`).join('');
+
+  // Totals footer
+  const totBookings = entries.reduce((s,[,v]) => s + (v.count||0), 0);
+  const totRevenue  = entries.reduce((s,[,v]) => s + (v.revenue||0), 0);
+  const foot = document.getElementById(elId + '_foot');
+  if (foot) foot.innerHTML = `
+    <td style="font-weight:600;font-size:12px;color:var(--navy);">Total</td>
+    <td style="font-weight:600;font-size:12px;color:var(--navy);">${totBookings}</td>
+    <td style="font-weight:600;font-size:12px;color:var(--navy);">£${fmt(totRevenue)}</td>`;
 }
 
 function srcColour(label) {
