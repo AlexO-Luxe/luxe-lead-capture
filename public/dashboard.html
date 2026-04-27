@@ -479,18 +479,28 @@ body {
       <div id="emptyState" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px;">
         <img src="https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?format=1500w"
           style="height:20px;width:auto;margin-bottom:32px;filter:invert(1) sepia(1) saturate(0.3) hue-rotate(5deg) brightness(0.5);">
-        <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:32px;font-weight:400;color:var(--navy);letter-spacing:-0.04em;margin-bottom:10px;">Marketing Performance</div>
-        <div style="font-size:14px;color:var(--hint);margin-bottom:36px;">Student Luxe · 2026</div>
-        <button onclick="loadAllYTD()" style="
-          background:var(--gold);border:none;border-radius:10px;color:#fff;
-          font-size:14px;font-family:'DM Sans',sans-serif;font-weight:500;
-          padding:14px 36px;cursor:pointer;letter-spacing:0.06em;
-          box-shadow:0 4px 20px rgba(184,150,110,0.3);transition:all 0.2s;
-        " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 24px rgba(184,150,110,0.4)'"
-           onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(184,150,110,0.3)'">
-          Get Latest Numbers
-        </button>
-        <div style="font-size:11px;color:var(--hint);margin-top:14px;">Loads all 2026 data</div>
+        <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:32px;font-weight:400;color:var(--navy);letter-spacing:-0.04em;margin-bottom:8px;">Marketing Performance</div>
+        <div style="font-size:14px;color:var(--hint);margin-bottom:40px;">Student Luxe · 2026</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;">
+          <div onclick="loadCurrentMonth()" style="
+            background:var(--gold);border-radius:12px;padding:24px 32px;cursor:pointer;
+            width:200px;box-shadow:0 4px 20px rgba(184,150,110,0.25);transition:all 0.2s;
+          " onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px rgba(184,150,110,0.35)'"
+             onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(184,150,110,0.25)'">
+            <div style="font-size:28px;margin-bottom:10px;">📅</div>
+            <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px;" id="currentMonthLabel">This Month</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.7);">~15 seconds</div>
+          </div>
+          <div onclick="loadAllYTD()" style="
+            background:var(--surface);border:2px solid var(--border-str);border-radius:12px;padding:24px 32px;cursor:pointer;
+            width:200px;box-shadow:0 4px 20px rgba(0,0,0,0.06);transition:all 0.2s;
+          " onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='var(--gold)'"
+             onmouseout="this.style.transform='';this.style.borderColor='var(--border-str)'">
+            <div style="font-size:28px;margin-bottom:10px;">📊</div>
+            <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px;">Year to Date</div>
+            <div style="font-size:12px;color:var(--hint);">~2 minutes</div>
+          </div>
+        </div>
       </div>
 
       <!-- YTD OVERVIEW (shown when YTD selected) -->
@@ -671,6 +681,10 @@ function buildPeriodOptions() {
 }
 buildPeriodOptions();
 
+// Set splash screen current month label
+const splashLabel = document.getElementById('currentMonthLabel');
+if (splashLabel) splashLabel.textContent = MONTH_NAMES[now.getMonth()] + ' ' + CUR_YEAR;
+
 // ── TOP NAV ───────────────────────────────────────────────────
 document.querySelectorAll('.topnav a').forEach(a => {
   a.addEventListener('click', e => {
@@ -715,9 +729,16 @@ document.getElementById('periodSelect').addEventListener('change', () => {
   document.getElementById('lastRefreshed').textContent = 'Hit Refresh to load this period';
 });
 
-async function loadAllYTD() {
-  // Set dropdown to YTD and trigger load
+async function loadCurrentMonth() {
   const sel = document.getElementById('periodSelect');
+  // Select current month (first individual month option)
+  const curMo = monthStr(CUR_YEAR, now.getMonth() + 1);
+  const opt   = Array.from(sel.options).find(o => o.value === curMo);
+  if (opt) { sel.value = curMo; loadAll(); }
+}
+
+async function loadAllYTD() {
+  const sel    = document.getElementById('periodSelect');
   const ytdOpt = Array.from(sel.options).find(o => o.value.startsWith('ytd:'));
   if (ytdOpt) { sel.value = ytdOpt.value; loadAll(); }
 }
