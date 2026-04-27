@@ -434,6 +434,7 @@ body {
                   <th>Source</th>
                   <th class="sortable" onclick="sortRevTable('revBySource','count')" id="revBySource_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revBySource','revenue')" id="revBySource_revenue">Revenue <span class="sort-icon">↕</span></th>
+                  <th style="color:var(--hint);font-weight:400;text-align:right;" id="revBySource_total"></th>
                 </tr></thead>
                 <tbody id="revBySource"></tbody></table>
               </div>
@@ -445,17 +446,19 @@ body {
                   <th>Channel</th>
                   <th class="sortable" onclick="sortRevTable('revByChannel','count')" id="revByChannel_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revByChannel','revenue')" id="revByChannel_revenue">Revenue <span class="sort-icon">↕</span></th>
+                  <th style="color:var(--hint);font-weight:400;text-align:right;" id="revByChannel_total"></th>
                 </tr></thead>
                 <tbody id="revByChannel"></tbody></table>
               </div>
             </div>
             <div class="table-card">
-              <div class="table-card-header"><span class="table-card-title">Revenue by Campaign</span></div>
+              <div class="table-card-header"><span class="table-card-title">Revenue by PPC Campaign</span></div>
               <div class="table-card-body">
                 <table class="data-table"><thead><tr>
                   <th>Campaign</th>
                   <th class="sortable" onclick="sortRevTable('revByCampaign','count')" id="revByCampaign_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revByCampaign','revenue')" id="revByCampaign_revenue">Revenue <span class="sort-icon">↕</span></th>
+                  <th style="color:var(--hint);font-weight:400;text-align:right;" id="revByCampaign_total"></th>
                 </tr></thead>
                 <tbody id="revByCampaign"></tbody></table>
               </div>
@@ -1111,14 +1114,27 @@ function _drawRevTable(elId) {
   const { key, dir } = revTableSort[elId] || { key: 'revenue', dir: 'desc' };
   const entries = Object.entries(data);
   if (!entries.length) { el.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--hint);padding:16px;">No data</td></tr>'; return; }
+
+  // Calculate totals
+  const totBookings = entries.reduce((s,[,v]) => s + (v.count||0), 0);
+  const totRevenue  = entries.reduce((s,[,v]) => s + (v.revenue||0), 0);
+
+  // Update total header cell
+  const totalEl = document.getElementById(elId + '_total');
+  if (totalEl) totalEl.textContent = `${totBookings} · £${fmt(totRevenue)}`;
+
   entries.sort((a,b) => {
     const va = a[1][key] || 0, vb = b[1][key] || 0;
     return dir === 'desc' ? vb - va : va - vb;
   });
+
   el.innerHTML = entries.map(([k, v]) => `<tr>
-    <td><span class="src-dot" style="background:${srcColour(k)}"></span>${k}</td>
-    <td>${v.count}</td>
-    <td>£${fmt(v.revenue)}</td>
+    <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${k}">
+      <span class="src-dot" style="background:${srcColour(k)}"></span>${k}
+    </td>
+    <td style="width:70px;">${v.count}</td>
+    <td style="width:90px;">£${fmt(v.revenue)}</td>
+    <td style="width:0;padding:0;"></td>
   </tr>`).join('');
 }
 
