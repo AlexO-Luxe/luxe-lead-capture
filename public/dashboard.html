@@ -199,6 +199,10 @@ body {
   color: var(--hint); font-weight: 400; padding: 10px 16px; text-align: left;
 }
 .data-table thead th:not(:first-child) { text-align: right; }
+.camp-filter-btn { background: var(--gold-pale); border: 1px solid var(--border-str); border-radius: 6px; padding: 5px 14px; font-size: 11.5px; font-weight: 500; font-family: "DM Sans", sans-serif; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+.camp-filter-btn:hover { border-color: var(--gold); color: var(--gold); }
+.camp-filter-btn.active { background: var(--gold); border-color: var(--gold); color: #fff; }
+
 .data-table thead th.sortable { cursor: pointer; user-select: none; }
 .data-table thead th.sortable:hover { color: var(--gold); }
 .sort-icon { opacity: 0.4; font-size: 9px; margin-left: 2px; }
@@ -434,7 +438,6 @@ body {
                   <th>Source</th>
                   <th class="sortable" onclick="sortRevTable('revBySource','count')" id="revBySource_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revBySource','revenue')" id="revBySource_revenue">Revenue <span class="sort-icon">↕</span></th>
-                  <th style="color:var(--hint);font-weight:400;text-align:right;" id="revBySource_total"></th>
                 </tr></thead>
                 <tbody id="revBySource"></tbody></table>
               </div>
@@ -446,7 +449,6 @@ body {
                   <th>Channel</th>
                   <th class="sortable" onclick="sortRevTable('revByChannel','count')" id="revByChannel_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revByChannel','revenue')" id="revByChannel_revenue">Revenue <span class="sort-icon">↕</span></th>
-                  <th style="color:var(--hint);font-weight:400;text-align:right;" id="revByChannel_total"></th>
                 </tr></thead>
                 <tbody id="revByChannel"></tbody></table>
               </div>
@@ -458,7 +460,6 @@ body {
                   <th>Campaign</th>
                   <th class="sortable" onclick="sortRevTable('revByCampaign','count')" id="revByCampaign_count">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortRevTable('revByCampaign','revenue')" id="revByCampaign_revenue">Revenue <span class="sort-icon">↕</span></th>
-                  <th style="color:var(--hint);font-weight:400;text-align:right;" id="revByCampaign_total"></th>
                 </tr></thead>
                 <tbody id="revByCampaign"></tbody></table>
               </div>
@@ -475,7 +476,36 @@ body {
         <!-- CAMPAIGNS -->
         <div id="campaigns">
           <div class="section-heading">Ad Campaigns</div>
-          <div id="campaignsContent"></div>
+          <div class="table-card">
+            <div class="table-card-header" style="flex-wrap:wrap;gap:10px;">
+              <span class="table-card-title">All Campaigns</span>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <button class="camp-filter-btn active" onclick="filterCamps('all')" id="campFilter_all">All</button>
+                <button class="camp-filter-btn" onclick="filterCamps('jack')" id="campFilter_jack">Jack's</button>
+                <button class="camp-filter-btn" onclick="filterCamps('alex')" id="campFilter_alex">Alex's</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+              <table class="data-table" id="campMainTable" style="min-width:1100px;">
+                <thead><tr>
+                  <th style="min-width:180px;">Campaign</th>
+                  <th style="min-width:80px;">Owner</th>
+                  <th style="min-width:70px;">City</th>
+                  <th class="sortable" onclick="sortMainCamp('spend')">Spend <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('clicks')">Clicks <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('ctr')">CTR <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('cpc')">Avg CPC <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('leads')">Leads <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('bookings')">Bookings <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('revenue')">Revenue <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('profit')">Profit <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('roas')">ROAS <span class="sort-icon">↕</span></th>
+                </tr></thead>
+                <tbody id="campMainBody"></tbody>
+                <tfoot><tr id="campMainTotals"></tr></tfoot>
+              </table>
+            </div>
+          </div>
         </div>
 
         <!-- WHAT MOVED -->
@@ -677,6 +707,7 @@ function mergeGads(arr) {
   o.campaigns = Object.values(cm).map(c => ({
     ...c,
     ctr:  c.impressions>0 ? Math.round(c.clicks/c.impressions*10000)/100 : 0,
+    cpc:  c.clicks>0 ? Math.round(c.spend/c.clicks*100)/100 : null,
     roas: c.spend>0 && c.conversionsValue>0 ? Math.round(c.conversionsValue/c.spend*100)/100 : null
   })).sort((a,b) => b.spend-a.spend);
   o.prevAccountSummary = null; // suppress MoM deltas for multi-month periods
@@ -829,7 +860,7 @@ function renderDash(monday, gads) {
     </div>`;
   }).join('');
 
-  // ── CAMPAIGNS TABLE ──
+  // ── CAMPAIGNS — unified table ──
   const bookByCampaign = bookings.byCampaign || {};
   const leadByCampaign = leads.byCampaign    || {};
 
@@ -838,7 +869,7 @@ function renderDash(monday, gads) {
     return n.startsWith('jf') || n.includes('experiment');
   }
 
-  function buildCampaignRow(c) {
+  window._allCampRows = campaigns.map(c => {
     const bl = bookByCampaign[c.name] || { count:0, revenue:0 };
     const ll = leadByCampaign[c.name] || 0;
     const hasRevenue = bl.revenue > 0;
@@ -846,92 +877,25 @@ function renderDash(monday, gads) {
     const roasNum = c.spend > 0
       ? (hasRevenue ? bl.revenue / c.spend : (c.conversionsValue > 0 ? c.conversionsValue / c.spend : null))
       : null;
-    const profitHtml = profit !== null
-      ? `<span style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:500">${profit>=0?'':'−'}£${fmt(Math.abs(profit))}</span>`
-      : '—';
-    const roasHtml = roasNum !== null
-      ? `<span style="color:${roasNum>=1?'var(--green)':roasNum>0?'inherit':'var(--red)'}">${roasNum.toFixed(2)}×</span>`
-      : '—';
+    const owner = isJack(c.name) ? 'Jack' : 'Alex';
     return {
-      data: { name: c.name, city: c.city, spend: c.spend, leads: ll, bookings: bl.count,
-              revenue: bl.revenue, profit: profit ?? -Infinity, roas: roasNum ?? -Infinity,
-              hasRevenue, profitHtml, roasHtml },
-      html: `<tr>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.name}">${c.name}</td>
-        <td><span class="pill pill-gold">${c.city}</span></td>
-        <td>£${fmt(c.spend)}</td>
-        <td>${ll}</td>
-        <td>${bl.count}</td>
-        <td>${hasRevenue?'£'+fmt(bl.revenue):'—'}</td>
-        <td>${profitHtml}</td>
-        <td>${roasHtml}</td>
-      </tr>`,
-      spend: c.spend, bookings: bl.count, revenue: bl.revenue,
-      profit: profit ?? 0, hasRevenue
+      name: c.name, city: c.city, owner,
+      spend: c.spend, clicks: c.clicks || 0, ctr: c.ctr || 0, cpc: c.cpc || null,
+      leads: ll, bookings: bl.count, revenue: bl.revenue,
+      profit: profit ?? -Infinity, roas: roasNum ?? -Infinity,
+      hasRevenue,
+      profitHtml: profit !== null
+        ? `<span style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:500">${profit>=0?'':'−'}£${fmt(Math.abs(profit))}</span>`
+        : '—',
+      roasHtml: roasNum !== null
+        ? `<span style="color:${roasNum>=1?'var(--green)':roasNum>0?'inherit':'var(--red)'}">${roasNum.toFixed(2)}×</span>`
+        : '—'
     };
-  }
+  });
 
-
-
-  function renderCampaignGroup(groupName, groupCampaigns) {
-    if (!groupCampaigns.length) return '';
-    let gSpend=0, gBookings=0, gRevenue=0, gProfit=0, gHasRev=false;
-    const rows = groupCampaigns.map(c => {
-      const r = buildCampaignRow(c);
-      gSpend    += r.spend;
-      gBookings += r.bookings;
-      gRevenue  += r.revenue;
-      gProfit   += r.profit;
-      if (r.hasRevenue) gHasRev = true;
-      return r;
-    });
-    const uid = groupName.replace(/\W+/g,'_');
-    campGroupData[uid] = rows.map(r => r.data);
-
-    const gRoas = gSpend > 0 && gRevenue > 0 ? gRevenue / gSpend : null;
-    const gRoasHtml = gRoas !== null
-      ? `<span style="color:${gRoas>=1?'var(--green)':gRoas>0?'inherit':'var(--red)'};font-weight:600">${gRoas.toFixed(2)}×</span>`
-      : '—';
-    const gProfitHtml = gHasRev
-      ? `<span style="color:${gProfit>=0?'var(--green)':'var(--red)'};font-weight:600">${gProfit>=0?'':'−'}£${fmt(Math.abs(gProfit))}</span>`
-      : '—';
-    const rowHtmls = rows.map(r => r.html);
-    return `<div class="table-card" style="margin-bottom:16px;">
-      <div class="table-card-header" style="cursor:pointer;user-select:none;" onclick="toggleGroup('${uid}')">
-        <span class="table-card-title" style="display:flex;align-items:center;gap:8px;">
-          <span id="chevron_${uid}" style="font-size:11px;transition:transform 0.2s;display:inline-block;">▼</span>
-          ${groupName}
-        </span>
-        <div style="display:flex;gap:20px;font-size:12px;align-items:center;">
-          <span style="color:var(--hint);">Spend <strong style="color:var(--ink);">£${fmt(gSpend)}</strong></span>
-          <span style="color:var(--hint);">Revenue <strong style="color:var(--ink);">${gRevenue>0?'£'+fmt(gRevenue):'—'}</strong></span>
-          <span style="color:var(--hint);">Profit ${gProfitHtml}</span>
-          <span style="color:var(--hint);">ROAS ${gRoasHtml}</span>
-        </div>
-      </div>
-      <div id="group_${uid}" class="table-card-body">
-        <table class="data-table" id="campTable_${uid}">
-          <thead><tr>
-            <th>Campaign</th>
-            <th>City</th>
-            <th class="sortable" onclick="sortCampTable('${uid}','spend')">Spend <span class="sort-icon">↕</span></th>
-            <th class="sortable" onclick="sortCampTable('${uid}','leads')">Leads <span class="sort-icon">↕</span></th>
-            <th class="sortable" onclick="sortCampTable('${uid}','bookings')">Bookings <span class="sort-icon">↕</span></th>
-            <th class="sortable" onclick="sortCampTable('${uid}','revenue')">Revenue <span class="sort-icon">↕</span></th>
-            <th class="sortable" onclick="sortCampTable('${uid}','profit')">Profit <span class="sort-icon">↕</span></th>
-            <th class="sortable" onclick="sortCampTable('${uid}','roas')">ROAS <span class="sort-icon">↕</span></th>
-          </tr></thead>
-          <tbody id="campBody_${uid}">${rowHtmls.join('')}</tbody>
-        </table>
-      </div>
-    </div>`;
-  }
-
-  const jackCampaigns = campaigns.filter(c =>  isJack(c.name));
-  const oldCampaigns  = campaigns.filter(c => !isJack(c.name));
-  document.getElementById('campaignsContent').innerHTML =
-    renderCampaignGroup("Jack's Campaigns", jackCampaigns) +
-    renderCampaignGroup("Alex's Campaigns", oldCampaigns);
+  window._campFilter = window._campFilter || 'all';
+  window._campSort   = window._campSort   || { key: 'spend', dir: 'desc' };
+  drawCampTable();
 }
 
 // ── WHAT MOVED (Claude API) ───────────────────────────────────
@@ -1115,14 +1079,6 @@ function _drawRevTable(elId) {
   const entries = Object.entries(data);
   if (!entries.length) { el.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--hint);padding:16px;">No data</td></tr>'; return; }
 
-  // Calculate totals
-  const totBookings = entries.reduce((s,[,v]) => s + (v.count||0), 0);
-  const totRevenue  = entries.reduce((s,[,v]) => s + (v.revenue||0), 0);
-
-  // Update total header cell
-  const totalEl = document.getElementById(elId + '_total');
-  if (totalEl) totalEl.textContent = `${totBookings} · £${fmt(totRevenue)}`;
-
   entries.sort((a,b) => {
     const va = a[1][key] || 0, vb = b[1][key] || 0;
     return dir === 'desc' ? vb - va : va - vb;
@@ -1134,7 +1090,6 @@ function _drawRevTable(elId) {
     </td>
     <td style="width:70px;">${v.count}</td>
     <td style="width:90px;">£${fmt(v.revenue)}</td>
-    <td style="width:0;padding:0;"></td>
   </tr>`).join('');
 }
 
@@ -1150,48 +1105,97 @@ function srcColour(label) {
   return '#B8966E';
 }
 
-function toggleGroup(uid) {
-  const body    = document.getElementById('group_' + uid);
-  const chevron = document.getElementById('chevron_' + uid);
-  const isOpen  = body.style.display !== 'none';
-  body.style.display      = isOpen ? 'none' : '';
-  chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
+function filterCamps(filter) {
+  window._campFilter = filter;
+  window._campSort   = { key: 'spend', dir: 'desc' };
+  document.querySelectorAll('.camp-filter-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('campFilter_' + filter);
+  if (btn) btn.classList.add('active');
+  drawCampTable();
 }
 
-const campSortState = {};
-const campGroupData = {}; // populated by renderCampaignGroup, read by sortCampTable
-function sortCampTable(uid, key) {
-  const cur = campSortState[uid] || { key: 'spend', dir: 'desc' };
-  campSortState[uid] = { key, dir: cur.key === key && cur.dir === 'desc' ? 'asc' : 'desc' };
-  const { dir } = campSortState[uid];
-  const rows = [...(campGroupData[uid] || [])];
+function sortMainCamp(key) {
+  const cur = window._campSort || { key: 'spend', dir: 'desc' };
+  window._campSort = { key, dir: cur.key === key && cur.dir === 'desc' ? 'asc' : 'desc' };
+  drawCampTable();
+}
+
+function drawCampTable() {
+  const filter = window._campFilter || 'all';
+  const { key, dir } = window._campSort || { key: 'spend', dir: 'desc' };
+  let rows = [...(window._allCampRows || [])];
+
+  if (filter === 'jack') rows = rows.filter(r => r.owner === 'Jack');
+  if (filter === 'alex') rows = rows.filter(r => r.owner === 'Alex');
+
   rows.sort((a, b) => {
     const va = a[key] ?? -Infinity, vb = b[key] ?? -Infinity;
     return dir === 'desc' ? vb - va : va - vb;
   });
-  // Update sort icons
-  const table = document.getElementById('campTable_' + uid);
+
+  const table = document.getElementById('campMainTable');
   if (table) {
-    table.querySelectorAll('th.sortable .sort-icon').forEach(el => { el.textContent = '↕'; el.parentElement.classList.remove('sort-active'); });
-    const cols = ['spend','leads','bookings','revenue','profit','roas'];
+    table.querySelectorAll('th.sortable').forEach(th => {
+      th.classList.remove('sort-active');
+      const si = th.querySelector('.sort-icon');
+      if (si) si.textContent = '↕';
+    });
+    const cols = ['spend','clicks','ctr','cpc','leads','bookings','revenue','profit','roas'];
     const idx  = cols.indexOf(key);
     const ths  = table.querySelectorAll('th.sortable');
-    if (ths[idx]) { ths[idx].querySelector('.sort-icon').textContent = dir==='desc'?'↓':'↑'; ths[idx].classList.add('sort-active'); }
+    if (ths[idx]) {
+      ths[idx].classList.add('sort-active');
+      const si = ths[idx].querySelector('.sort-icon');
+      if (si) si.textContent = dir === 'desc' ? '↓' : '↑';
+    }
   }
-  // Re-render rows
-  const tbody = document.getElementById('campBody_' + uid);
-  if (!tbody) return;
-  tbody.innerHTML = rows.map(d => `<tr>
-    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.name}">${d.name}</td>
-    <td><span class="pill pill-gold">${d.city}</span></td>
-    <td>£${fmt(d.spend)}</td>
-    <td>${d.leads}</td>
-    <td>${d.bookings}</td>
-    <td>${d.hasRevenue?'£'+fmt(d.revenue):'—'}</td>
-    <td>${d.profitHtml}</td>
-    <td>${d.roasHtml}</td>
+
+  let tSpend=0, tClicks=0, tLeads=0, tBookings=0, tRevenue=0, tHasRev=false;
+  rows.forEach(r => {
+    tSpend    += r.spend    || 0;
+    tClicks   += r.clicks   || 0;
+    tLeads    += r.leads    || 0;
+    tBookings += r.bookings || 0;
+    if (r.hasRevenue) { tRevenue += r.revenue; tHasRev = true; }
+  });
+  const totProfit = tHasRev ? tRevenue - tSpend : null;
+  const tRoas     = tSpend > 0 && tRevenue > 0 ? tRevenue / tSpend : null;
+
+  const body = document.getElementById('campMainBody');
+  if (body) body.innerHTML = rows.map(r => `<tr>
+    <td style="min-width:180px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.name}">${r.name}</td>
+    <td><span style="font-size:11px;font-weight:500;color:${r.owner==='Jack'?'#4285F4':'var(--gold)'};">${r.owner}</span></td>
+    <td><span class="pill pill-gold" style="font-size:10px;">${r.city}</span></td>
+    <td>£${fmt(r.spend)}</td>
+    <td>${fmt(r.clicks)}</td>
+    <td>${r.ctr}%</td>
+    <td>${r.cpc ? '£'+fmt(r.cpc) : '—'}</td>
+    <td>${r.leads}</td>
+    <td>${r.bookings}</td>
+    <td>${r.hasRevenue?'£'+fmt(r.revenue):'—'}</td>
+    <td>${r.profitHtml}</td>
+    <td>${r.roasHtml}</td>
   </tr>`).join('');
+
+  const totPHtml = totProfit !== null
+    ? `<span style="color:${totProfit>=0?'var(--green)':'var(--red)'};font-weight:600">${totProfit>=0?'':'−'}£${fmt(Math.abs(totProfit))}</span>`
+    : '—';
+  const totRHtml = tRoas !== null
+    ? `<span style="color:${tRoas>=1?'var(--green)':tRoas>0?'inherit':'var(--red)'};font-weight:600">${tRoas.toFixed(2)}×</span>`
+    : '—';
+  const totals = document.getElementById('campMainTotals');
+  if (totals) totals.innerHTML = `
+    <td style="font-weight:600;">Totals</td><td></td><td></td>
+    <td style="font-weight:600;">£${fmt(tSpend)}</td>
+    <td style="font-weight:600;">${fmt(tClicks)}</td>
+    <td></td><td></td>
+    <td style="font-weight:600;">${tLeads}</td>
+    <td style="font-weight:600;">${tBookings}</td>
+    <td style="font-weight:600;">${tRevenue>0?'£'+fmt(tRevenue):'—'}</td>
+    <td>${totPHtml}</td>
+    <td>${totRHtml}</td>`;
 }
+
 
 function fmt(n) {
   if (n === null || n === undefined) return '—';
@@ -1210,7 +1214,7 @@ function mkLoading(msg) {
 </div><!-- end mainContent -->
 
 <script>
-const DASHBOARD_PASSWORD = 'badonde4eva2026!?';
+const DASHBOARD_PASSWORD = 'luxe2026';
 
 function checkPassword() {
   const val = document.getElementById('pwInput').value;
