@@ -489,7 +489,7 @@ body {
              onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(184,150,110,0.25)'">
             <div style="font-size:28px;margin-bottom:10px;">📅</div>
             <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px;" id="currentMonthLabel">This Month</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.7);">~15 seconds</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.7);">~1 min 30 sec</div>
           </div>
           <div onclick="loadAllYTD()" style="
             background:var(--surface);border:2px solid var(--border-str);border-radius:12px;padding:24px 32px;cursor:pointer;
@@ -498,7 +498,7 @@ body {
              onmouseout="this.style.transform='';this.style.borderColor='var(--border-str)'">
             <div style="font-size:28px;margin-bottom:10px;">📊</div>
             <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px;">Year to Date</div>
-            <div style="font-size:12px;color:var(--hint);">~2 minutes</div>
+            <div style="font-size:12px;color:var(--hint);">~5 minutes</div>
           </div>
         </div>
       </div>
@@ -1445,18 +1445,19 @@ function showYTDLoader() {
     }
   }, 2500);
 
-  // Stagger progress bar over ~90s to match expected load time
+  // Stagger progress bar — YTD ~5min, single month ~90s
   const bar = document.getElementById('ytdLoaderBar');
   if (bar) {
     const steps = [
-      [500,   8],
-      [4000,  20],
-      [10000, 35],
-      [20000, 50],
-      [35000, 65],
-      [50000, 78],
-      [70000, 88],
-      [90000, 93],
+      [500,    5],
+      [15000,  15],
+      [30000,  28],
+      [60000,  42],
+      [90000,  55],
+      [120000, 67],
+      [180000, 78],
+      [240000, 87],
+      [280000, 93],
     ];
     steps.forEach(([delay, pct]) => {
       setTimeout(() => {
