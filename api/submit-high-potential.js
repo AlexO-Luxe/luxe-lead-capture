@@ -1,33 +1,10 @@
 // ============================================================
 //  Student Luxe — Lead Potential Conversion Upload
 //  Deploy to: /api/submit-high-potential.js
-//
-//  Triggered by a Monday.com webhook when the
-//  'potential_to_book' column (color_mkt29g1r) changes
-//  on the Leads board.
-//
-//  Handles:
-//  - 'High Potential'     → Step 3, £300, GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID
-//  - 'Moderate Potential' → Step 2, £150, GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID
-//
-//  Only fires if:
-//  - lead_source (color_mkxk8y67) = 'PPC'
-//  - gclid (text4__1) is present
-//
-//  Environment variables required:
-//    MONDAY_API_KEY
-//    GOOGLE_ADS_CLIENT_ID
-//    GOOGLE_ADS_CLIENT_SECRET
-//    GOOGLE_ADS_REFRESH_TOKEN
-//    GOOGLE_ADS_CUSTOMER_ID
-//    GOOGLE_ADS_DEVELOPER_TOKEN
-//    GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID
-//    GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID
 // ============================================================
 
 const MONDAY_API = 'https://api.monday.com/v2';
 
-// ── Conversion config by label ────────────────────────────────
 const POTENTIAL_CONFIG = {
   'high potential': {
     value:    300.0,
@@ -53,72 +30,46 @@ module.exports = async function handler(req, res) {
     const body = req.body;
     console.log('Potential webhook received:', JSON.stringify(body));
 
-    // ── MONDAY WEBHOOK CHALLENGE ──────────────────────────────
-    if (body.challenge) {
-      console.log('Monday challenge received, responding');
-      return res.status(200).json({ challenge: body.challenge });
-    }
+    if (body.challenge) return res.status(200).json({ challenge: body.challenge });
 
     const event = body.event;
-    if (!event) {
-      console.log('No event in payload, skipping');
-      return res.status(200).json({ skipped: true, reason: 'no event' });
-    }
+    if (!event) return res.status(200).json({ skipped: true, reason: 'no event' });
 
-    // ── IDENTIFY WHICH POTENTIAL LEVEL TRIGGERED ─────────────
     const newValue = (
       event.value?.label?.text ||
-      (typeof event.value?.label === 'string' ? event.value.label : '') ||
-      ''
+      (typeof event.value?.label === 'string' ? event.value.label : '') || ''
     ).toString().toLowerCase().trim();
 
     const config = POTENTIAL_CONFIG[newValue];
-
     if (!config) {
-      console.log('Not a tracked potential status, skipping. Value was:', newValue);
       return res.status(200).json({ skipped: true, reason: 'not a tracked potential status', value: newValue });
     }
 
-    console.log(`Matched: ${config.label} — value £${config.value}`);
-
     const itemId = event.pulseId || event.itemId;
-    if (!itemId) {
-      console.log('No item ID in event, skipping');
-      return res.status(200).json({ skipped: true, reason: 'no item id' });
-    }
+    if (!itemId) return res.status(200).json({ skipped: true, reason: 'no item id' });
 
-    // ── FETCH ITEM DATA FROM MONDAY ───────────────────────────
+    // ── FETCH LEAD DATA FROM MONDAY ───────────────────────────
+    // Fetch gclid, source, timestamp, email and phone directly from leads board
     const query = `
       query {
         items(ids: [${itemId}]) {
-          id
-          name
-          created_at
-          column_values(ids: ["text4__1", "color_mkxk8y67", "mirror28__1"]) {
-            id
-            text
-            value
+          id name created_at
+          column_values(ids: ["text4__1", "color_mkxk8y67", "mirror28__1", "email", "phone_1"]) {
+            id text value
           }
         }
       }
     `;
 
-    const mondayRes = await fetch(MONDAY_API, {
+    const mondayRes  = await fetch(MONDAY_API, {
       method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': process.env.MONDAY_API_KEY
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
       body: JSON.stringify({ query })
     });
 
     const mondayData = await mondayRes.json();
-    const item = mondayData?.data?.items?.[0];
-
-    if (!item) {
-      console.error('Item not found in Monday:', itemId);
-      return res.status(200).json({ skipped: true, reason: 'item not found' });
-    }
+    const item       = mondayData?.data?.items?.[0];
+    if (!item) return res.status(200).json({ skipped: true, reason: 'item not found' });
 
     const cols = {};
     item.column_values.forEach(c => { cols[c.id] = c.text || ''; });
@@ -126,30 +77,29 @@ module.exports = async function handler(req, res) {
     const gclid      = cols['text4__1'];
     const leadSource = cols['color_mkxk8y67'];
     const timestamp  = cols['mirror28__1'] || item.created_at;
+    const email      = cols['email'];
+    const phone      = cols['phone_1'];
 
-    console.log('Item data:', { itemId, gclid, leadSource, timestamp });
+    console.log('Item data:', { itemId, gclid, leadSource, timestamp, hasEmail: !!email, hasPhone: !!phone });
 
-    // ── GUARD: Only fire for PPC leads with a gclid ───────────
-    if (!gclid) {
-      console.log('No gclid present, skipping conversion upload');
-      return res.status(200).json({ skipped: true, reason: 'no gclid' });
-    }
-
+    // ── GUARD: Only fire for PPC leads ────────────────────────
     if (!leadSource.toLowerCase().includes('ppc')) {
-      console.log('Lead source is not PPC, skipping. Source was:', leadSource);
+      console.log('Not PPC, skipping. Source:', leadSource);
       return res.status(200).json({ skipped: true, reason: 'not ppc' });
     }
 
-    // ── UPLOAD CONVERSION TO GOOGLE ADS ──────────────────────
+    // Upload — gclid optional, matched via email/phone when absent
     await uploadConversion({
       gclid,
+      email,
+      phone,
       timestamp,
       value:    config.value,
       currency: 'GBP',
       actionId: config.actionId()
     });
 
-    console.log(`${config.label} conversion uploaded successfully for item:`, itemId);
+    console.log(`${config.label} conversion uploaded for item:`, itemId);
     return res.status(200).json({ success: true, itemId, gclid, potential: config.label, value: config.value });
 
   } catch (err) {
@@ -161,9 +111,9 @@ module.exports = async function handler(req, res) {
 // ──────────────────────────────────────────────────────────────
 //  GOOGLE ADS CONVERSION UPLOAD
 // ──────────────────────────────────────────────────────────────
-async function uploadConversion({ gclid, timestamp, value, currency, actionId }) {
+async function uploadConversion({ gclid, email, phone, timestamp, value, currency, actionId }) {
 
-  // Step 1 — Get fresh access token
+  // Get fresh access token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -176,60 +126,73 @@ async function uploadConversion({ gclid, timestamp, value, currency, actionId })
   });
 
   const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) {
-    throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
+  if (!tokenData.access_token) throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
+
+  // Hash email and phone for enhanced matching
+  async function sha256(str) {
+    const encoder    = new TextEncoder();
+    const data       = encoder.encode(str.toLowerCase().trim());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  // Step 2 — Format timestamp
+  const hashedEmail = email ? await sha256(email) : null;
+  const cleanPhone  = phone ? phone.replace(/[\s\-().]/g, '') : null;
+  const hashedPhone = cleanPhone ? await sha256(cleanPhone) : null;
+
+  // Format timestamp
   const rawTime        = timestamp ? new Date(timestamp) : new Date();
-  const conversionTime = rawTime.toISOString()
-    .replace('T', ' ')
-    .replace(/\.\d{3}Z$/, '+00:00');
+  const conversionTime = rawTime.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '+00:00');
 
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
-  const mccId            = '6046238343';
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
   const endpoint         = `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`;
 
-  console.log('Upload details:', { endpoint, conversionAction, gclid, conversionTime, value });
+  // Build conversion — gclid optional
+  const conversion = {
+    conversionAction,
+    conversionDateTime: conversionTime,
+    conversionValue:    value,
+    currencyCode:       currency,
+    userIdentifiers: [
+      ...(hashedEmail ? [{ hashedEmail }] : []),
+      ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
+    ]
+  };
+  if (gclid) conversion.gclid = gclid;
 
-  // Step 3 — Upload to Google Ads Conversions API
+  console.log('Uploading:', { conversionAction, hasGclid: !!gclid, hasEmail: !!hashedEmail, hasPhone: !!hashedPhone, value });
+
   const gadsRes = await fetch(endpoint, {
     method:  'POST',
     headers: {
       'Authorization':     `Bearer ${tokenData.access_token}`,
       'developer-token':   process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-      'login-customer-id': mccId,
+      'login-customer-id': '6046238343',
       'Content-Type':      'application/json'
     },
-    body: JSON.stringify({
-      conversions: [{
-        gclid,
-        conversionAction:   conversionAction,
-        conversionDateTime: conversionTime,
-        conversionValue:    value,
-        currencyCode:       currency
-      }],
-      partialFailure: true
-    })
+    body: JSON.stringify({ conversions: [conversion], partialFailure: true })
   });
 
   const rawText = await gadsRes.text();
-  console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 800));
+  console.log('Google Ads response (status ' + gadsRes.status + '):', rawText.substring(0, 800));
 
   if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
-    throw new Error('Google Ads returned non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
+    throw new Error('Google Ads non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
   }
 
   const gadsData = JSON.parse(rawText);
 
   if (gadsData.partialFailureError) {
-    throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
+    const errStr = JSON.stringify(gadsData.partialFailureError);
+    if (errStr.includes('EXPIRED_EVENT') || errStr.includes('TOO_RECENT_CONVERSION_ACTION')) {
+      console.log('Upload skipped (expected):', errStr.substring(0, 200));
+      return { skipped: true, reason: 'expired_event' };
+    }
+    throw new Error('Partial failure: ' + errStr);
   }
-  if (gadsData.error) {
-    throw new Error('API error: ' + JSON.stringify(gadsData.error));
-  }
+  if (gadsData.error) throw new Error('API error: ' + JSON.stringify(gadsData.error));
 
-  console.log('Google Ads conversion uploaded successfully');
+  console.log('Conversion uploaded successfully');
   return gadsData;
 }
