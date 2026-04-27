@@ -1424,11 +1424,25 @@ function showYTDLoader() {
     }
   }, 2500);
 
-  // Animate progress bar
-  setTimeout(() => {
-    const bar = document.getElementById('ytdLoaderBar');
-    if (bar) bar.style.width = '90%';
-  }, 100);
+  // Stagger progress bar over ~90s to match expected load time
+  const bar = document.getElementById('ytdLoaderBar');
+  if (bar) {
+    const steps = [
+      [500,   8],
+      [4000,  20],
+      [10000, 35],
+      [20000, 50],
+      [35000, 65],
+      [50000, 78],
+      [70000, 88],
+      [90000, 93],
+    ];
+    steps.forEach(([delay, pct]) => {
+      setTimeout(() => {
+        if (bar.parentElement) bar.style.width = pct + '%';
+      }, delay);
+    });
+  }
 }
 
 function hideYTDLoader() {
