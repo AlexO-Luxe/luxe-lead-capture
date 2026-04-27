@@ -94,7 +94,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         from:    'Student Luxe <reservations@studentluxe.co.uk>',
         to:      [process.env.TEAM_EMAIL || 'alex@studentluxe.co.uk'],
-        subject: `📱 WhatsApp Click — ${p.page_path || 'Site'} · ${isPPC ? 'PPC' : leadSource}`,
+        subject: `Potential WA Lead — ${timeStr}`,
         html
       })
     });
