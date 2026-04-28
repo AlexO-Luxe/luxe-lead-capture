@@ -594,6 +594,7 @@ body {
                   <th class="sortable" onclick="sortMainCamp('leads')">Leads <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('bookings')">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('revenue')">Revenue <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('avgBooking')">Avg Booking <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('profit')">Profit <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('roas')">ROAS <span class="sort-icon">↕</span></th>
                 </tr></thead>
@@ -1008,7 +1009,9 @@ function renderDash(monday, gads) {
   const cpl = ppcLeads > 0 && acct ? (acct.spend / ppcLeads) : null;
   const ppcBookingCount = bookings.ppcCount || 0;
   const ppcRevenue      = bookings.ppcRevenue || 0;
-  const cac = ppcBookingCount > 0 ? (ppcRevenue / ppcBookingCount) : null;
+  const avgPpcBookingVal = ppcBookingCount > 0 ? (ppcRevenue / ppcBookingCount) : null;
+
+  const cac = ppcBookingCount > 0 && acct?.spend > 0 ? (acct.spend / ppcBookingCount) : null;
 
   // ROAS: use Monday PPC revenue ÷ actual spend (more accurate than Google Ads conversions_value)
   const ppcRevenueForRoas = bookings.ppcRevenue || 0;
@@ -1027,8 +1030,8 @@ function renderDash(monday, gads) {
       !isMulti && budget ? budgetBar(acct?.spend||0, budget) : null),
     statCard('Overall ROAS', roasDisplay, roasDelta, null, 'PPC revenue (Monday) ÷ PPC spend'),
     statCard('CPL',          cpl ? '£'+fmt(cpl) : '—', null, null, 'PPC spend ÷ PPC leads'),
-    statCard('PPC CAC', cac ? '£'+fmt(cac) : '—', null, null,
-      'Total PPC revenue (numeric_mm1ge9h4) ÷ confirmed PPC bookings'),
+    statCard('PPC CAC', cac ? '£'+fmt(cac) : '—', null, null, 'PPC spend ÷ no. of PPC bookings'),
+    statCard('Avg. PPC Booking', avgPpcBookingVal ? '£'+fmt(avgPpcBookingVal) : '—', null, null, 'PPC revenue ÷ no. of PPC bookings'),
   ].join('');
 
   // ── BOOKING STATS ──
@@ -1113,17 +1116,20 @@ function renderDash(monday, gads) {
     const bl = bookByCampaign[c.name] || { count:0, revenue:0 };
     const ll = leadByCampaign[c.name] || 0;
     const hasRevenue = bl.revenue > 0;
-    const profit  = hasRevenue ? bl.revenue - c.spend : null;
-    const roasNum = c.spend > 0
+    const profit     = hasRevenue ? bl.revenue - c.spend : null;
+    const roasNum    = c.spend > 0
       ? (hasRevenue ? bl.revenue / c.spend : (c.conversionsValue > 0 ? c.conversionsValue / c.spend : null))
       : null;
+    const avgBooking = bl.count > 0 && bl.revenue > 0 ? bl.revenue / bl.count : null;
     const owner = isJack(c.name) ? 'Jack' : 'Alex';
     return {
       name: c.name, city: c.city, owner,
       spend: c.spend, clicks: Math.round(c.clicks || 0), ctr: c.ctr || 0, cpc: c.cpc || null,
       leads: ll, bookings: bl.count, revenue: bl.revenue,
+      avgBooking: avgBooking ?? -Infinity,
       profit: profit ?? -Infinity, roas: roasNum ?? -Infinity,
       hasRevenue,
+      avgBookingHtml: avgBooking !== null ? `£${fmt(avgBooking)}` : '—',
       profitHtml: profit !== null
         ? `<span style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:500">${profit>=0?'':'−'}£${fmt(Math.abs(profit))}</span>`
         : '—',
@@ -1569,6 +1575,7 @@ function drawCampTable() {
     <td>${r.leads}</td>
     <td>${r.bookings}</td>
     <td>${r.hasRevenue?'£'+fmt(r.revenue):'—'}</td>
+    <td>${r.avgBookingHtml}</td>
     <td>${r.profitHtml}</td>
     <td>${r.roasHtml}</td>
   </tr>`).join('');
@@ -1588,6 +1595,7 @@ function drawCampTable() {
     <td style="font-weight:600;">${tLeads}</td>
     <td style="font-weight:600;">${tBookings}</td>
     <td style="font-weight:600;">${tRevenue>0?'£'+fmt(tRevenue):'—'}</td>
+    <td style="font-weight:600;">${tBookings>0&&tRevenue>0?'£'+fmt(tRevenue/tBookings):'—'}</td>
     <td>${totPHtml}</td>
     <td>${totRHtml}</td>`;
 }
