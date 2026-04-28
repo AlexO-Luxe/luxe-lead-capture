@@ -622,6 +622,7 @@ async function pushToMonday(p) {
     ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
     ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
     dropdown_mm1v31yb: { labels: ['/Stay Luxe Form'] },
+    status1__1:          { label: 'Stay Luxe' },
     ...(p.city && currencyForCity(p.city, p.other_city) && { status0__1: { label: currencyForCity(p.city, p.other_city) } }),
   };
 
