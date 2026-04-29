@@ -26,16 +26,19 @@ module.exports = async function handler(req, res) {
   try {
     const [leadsItems, bookingsItems] = await Promise.all([
       fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'formula1', 'people_1'], true, true)
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4'], true, true)
     ]);
+
+    // Fetch nights and salesperson separately to avoid GraphQL fragment issues
+    const bookingsExtra = await fetchExtraBookingCols(['formula11', 'people98']);
 
     const cur  = monthRange(month);
     const prev = prevMonth && /^\d{4}-\d{2}$/.test(prevMonth) ? monthRange(prevMonth) : null;
 
-    const result = { month, current: processMonth(leadsItems, bookingsItems, cur.start, cur.end) };
+    const result = { month, current: processMonth(leadsItems, bookingsItems, bookingsExtra, cur.start, cur.end) };
     if (prev) {
       result.prevMonth = prevMonth;
-      result.previous  = processMonth(leadsItems, bookingsItems, prev.start, prev.end);
+      result.previous  = processMonth(leadsItems, bookingsItems, bookingsExtra, prev.start, prev.end);
     }
 
     return res.status(200).json(result);
@@ -45,10 +48,10 @@ module.exports = async function handler(req, res) {
   }
 };
 
-function processMonth(leadsItems, bookingsItems, startDate, endDate) {
+function processMonth(leadsItems, bookingsItems, bookingsExtra, startDate, endDate) {
   return {
     leads:    processLeads(leadsItems, startDate, endDate),
-    bookings: processBookings(bookingsItems, startDate, endDate)
+    bookings: processBookings(bookingsItems, bookingsExtra, startDate, endDate)
   };
 }
 
@@ -99,6 +102,43 @@ async function fetchAllItems(boardId, columnIds, includeGroup = false, includeLi
   return allItems;
 }
 
+// Fetch formula/people columns separately using display_value
+async function fetchExtraBookingCols(columnIds) {
+  const cols = columnIds.map(c => `"${c}"`).join(', ');
+  const extraMap = {}; // itemId → { col: value }
+  let cursor = null;
+  do {
+    const cursorArg = cursor ? `, cursor: "${cursor}"` : '';
+    const query = `query {
+      boards(ids: [${BOOKINGS_BOARD}]) {
+        items_page(limit: 500${cursorArg}) {
+          cursor
+          items {
+            id
+            column_values(ids: [${cols}]) {
+              id
+              text
+              ... on MirrorValue { display_value }
+              ... on FormulaValue { display_value }
+              ... on PeopleValue { text }
+            }
+          }
+        }
+      }
+    }`;
+    const data = await mondayQuery(query);
+    const page = data?.data?.boards?.[0]?.items_page;
+    (page?.items || []).forEach(item => {
+      extraMap[item.id] = {};
+      (item.column_values || []).forEach(c => {
+        extraMap[item.id][c.id] = c.display_value || c.text || '';
+      });
+    });
+    cursor = page?.cursor || null;
+  } while (cursor);
+  return extraMap;
+}
+
 function colMap(item) {
   const map = {};
   (item.column_values || []).forEach(c => { map[c.id] = c.text || ''; });
@@ -131,10 +171,8 @@ function processLeads(items, startDate, endDate) {
     return (cols['status'] || '').trim() !== 'Spam!';
   });
 
-  // Unqualified leads
   const unqualified = filtered.filter(item => {
-    const s = (colMap(item)['status'] || '').trim();
-    return s === 'Unqualified Lead';
+    return (colMap(item)['status'] || '').trim() === 'Unqualified Lead';
   });
 
   const bySource = {}, byChannel = {}, byCity = {}, byCampaign = {};
@@ -169,7 +207,7 @@ function processLeads(items, startDate, endDate) {
   };
 }
 
-function processBookings(items, startDate, endDate) {
+function processBookings(items, bookingsExtra, startDate, endDate) {
   const eligible = items.filter(item => {
     const groupTitle = item.group?.title || '';
     return !EXCLUDED_BOOKING_GROUPS.includes(groupTitle);
@@ -189,7 +227,7 @@ function processBookings(items, startDate, endDate) {
     const cols = colMap(item);
     const rev  = parseFloat(cols['numeric_mm1ge9h4']) || 0;
 
-    const relationCol = (item.relation || []).find(cv => cv.id === 'link_to_leads26');
+    const relationCol = (item.relation || []).find(c => c.id === 'link_to_leads26');
     const linkedItems = relationCol?.linked_items || [];
     const lead        = linkedItems[0];
 
@@ -235,6 +273,7 @@ function processBookings(items, startDate, endDate) {
     totalRevenue += rev;
   });
 
+  // Top 5 bookings by revenue
   const top5Bookings = filtered
     .map(item => {
       const cols = colMap(item);
@@ -244,25 +283,24 @@ function processBookings(items, startDate, endDate) {
     .sort((a,b) => b.revenue - a.revenue)
     .slice(0, 5);
 
-  // Avg nights (formula1 column)
+  // Avg nights from extra cols (formula11)
   const nightsValues = filtered
-    .map(item => parseFloat(colMap(item)['formula1']) || 0)
+    .map(item => parseFloat((bookingsExtra[item.id] || {})['formula11']) || 0)
     .filter(n => n > 0);
   const avgNights = nightsValues.length > 0
     ? Math.round(nightsValues.reduce((a,b) => a+b, 0) / nightsValues.length)
     : null;
 
-  // Top salesperson by revenue (people_1 column)
+  // Top salesperson from extra cols (people98)
   const salesRev = {};
   filtered.forEach(item => {
-    const cols = colMap(item);
-    const name = (cols['people_1'] || '').trim();
-    const rev  = parseFloat(cols['numeric_mm1ge9h4']) || 0;
+    const name = ((bookingsExtra[item.id] || {})['people98'] || '').trim();
+    const rev  = parseFloat(colMap(item)['numeric_mm1ge9h4']) || 0;
     if (name) salesRev[name] = (salesRev[name] || 0) + rev;
   });
   const topSalesperson = Object.keys(salesRev).length > 0
     ? Object.entries(salesRev).sort((a,b) => b[1]-a[1])[0]
-    : null; // [name, totalRevenue]
+    : null;
 
   return {
     total:          filtered.length,
