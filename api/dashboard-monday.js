@@ -289,7 +289,7 @@ function processBookings(items, startDate, endDate) {
     })
     .filter(b => b.revenue > 0)
     .sort((a,b) => b.revenue - a.revenue)
-    .slice(0, 5);
+    .slice(0, 10);
 
   return {
     total:          filtered.length,
