@@ -1,303 +1,1738 @@
-// ============================================================
-//  Student Luxe — Dashboard: Monday Data
-//  GET /api/dashboard-monday?month=2026-04&prevMonth=2026-03
-// ============================================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student Luxe — Marketing Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-const MONDAY_API     = 'https://api.monday.com/v2';
-const LEADS_BOARD    = 2171015719;
-const BOOKINGS_BOARD = 2171015589;
+:root {
+  --gold:       #B8966E;
+  --gold-dark:  #9a7a56;
+  --gold-pale:  #F7F2EB;
+  --gold-mid:   #EDE3D5;
+  --navy:       #0d1a2e;
+  --ink:        #1a1a1a;
+  --muted:      #6b6b6b;
+  --hint:       #9b9b9b;
+  --border:     rgba(184,150,110,0.2);
+  --border-str: rgba(184,150,110,0.35);
+  --green:      #4a8c1c;
+  --green-bg:   #EAF3DE;
+  --red:        #c0392b;
+  --red-bg:     #fdf3f2;
+  --bg:         #f4f1ec;
+  --surface:    #ffffff;
+  --surface2:   #fdfcfb;
+}
 
-module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+html { font-size: 14px; }
+body {
+  font-family: 'DM Sans', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
 
-  const { month, prevMonth } = req.query;
-  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-    return res.status(400).json({ error: 'month param required, format YYYY-MM' });
+/* ── LAYOUT ── */
+.shell { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: var(--navy);
+  padding: 28px 0;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.sidebar-logo { padding: 0 22px 24px; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 18px; }
+.sidebar-logo img { height: 18px; width: auto; opacity: 0.85; }
+.sidebar-label { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.25); padding: 0 22px 8px; }
+.sidebar-nav a {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 22px; font-size: 12.5px; color: rgba(255,255,255,0.45);
+  text-decoration: none; transition: all 0.15s;
+  border-left: 2px solid transparent;
+}
+.sidebar-nav a:hover, .sidebar-nav a.active { color: #fff; background: rgba(255,255,255,0.05); border-left-color: var(--gold); }
+.sidebar-nav a svg { width: 13px; height: 13px; opacity: 0.6; flex-shrink: 0; }
+.sidebar-nav a.active svg { opacity: 1; }
+.sidebar-bottom { margin-top: auto; padding: 18px 22px 0; border-top: 1px solid rgba(255,255,255,0.07); }
+.sidebar-bottom p { font-size: 10.5px; color: rgba(255,255,255,0.2); line-height: 1.7; }
+
+/* ── MAIN ── */
+.main { display: flex; flex-direction: column; min-width: 0; }
+
+/* ── TOPBAR ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar h1 {
+  font-family: 'Baskerville Display PT', Baskerville, Georgia, serif;
+  font-size: 20px; font-weight: 400; color: var(--navy); letter-spacing: -0.03em;
+}
+.topbar-sub { font-size: 11px; color: var(--hint); margin-top: 2px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+.month-picker {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--gold-pale); border: 1px solid var(--border-str);
+  border-radius: 8px; padding: 5px 10px;
+}
+.month-btn {
+  background: none; border: none; color: var(--hint); cursor: pointer;
+  font-size: 16px; line-height: 1; transition: color 0.15s;
+  display: flex; align-items: center; padding: 2px 4px;
+}
+.month-btn:hover { color: var(--gold); }
+.month-display { font-size: 13px; font-weight: 500; color: var(--ink); min-width: 118px; text-align: center; }
+
+.refresh-btn {
+  background: var(--gold); border: none; border-radius: 8px;
+  color: #fff; font-size: 11.5px; font-family: 'DM Sans', sans-serif; font-weight: 500;
+  letter-spacing: 0.08em; padding: 8px 18px; cursor: pointer;
+  transition: background 0.15s; display: flex; align-items: center; gap: 6px;
+}
+.refresh-btn:hover { background: var(--gold-dark); }
+.refresh-btn svg { width: 12px; height: 12px; }
+.refresh-btn.loading svg { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── CONTENT ── */
+.content { padding: 28px 32px; flex: 1; }
+
+/* ── SECTION HEADING ── */
+.section-heading {
+  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--gold); margin: 32px 0 16px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-heading:first-child { margin-top: 0; }
+.section-heading::after { content: ''; flex: 1; height: 0.5px; background: var(--border); }
+
+/* ── STAT CARDS ── */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.stat-grid-5 { grid-template-columns: repeat(5, 1fr); }
+.stat-grid-6 { grid-template-columns: repeat(6, 1fr); }
+
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.stat-card:hover { border-color: var(--border-str); box-shadow: 0 2px 12px rgba(184,150,110,0.1); }
+.stat-card-label {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--hint); margin-bottom: 8px; display: flex; align-items: center; gap: 5px;
+}
+.stat-card-value {
+  font-family: 'Baskerville Display PT', Baskerville, Georgia, serif;
+  font-size: 28px; font-weight: 400; color: var(--navy);
+  letter-spacing: -0.04em; line-height: 1; margin-bottom: 5px;
+}
+.stat-card-sub { font-size: 11px; color: var(--hint); }
+.stat-card-sub .up   { color: var(--green); font-weight: 500; }
+.stat-card-sub .down { color: var(--red);   font-weight: 500; }
+
+/* Budget progress bar */
+.budget-bar-wrap {
+  margin-top: 10px; height: 4px; background: var(--gold-mid);
+  border-radius: 2px; overflow: hidden;
+}
+.budget-bar { height: 100%; border-radius: 2px; background: var(--gold); transition: width 0.6s ease; }
+.budget-bar.over { background: var(--red); }
+.budget-label { font-size: 10px; color: var(--hint); margin-top: 5px; }
+
+/* ── INFO TOOLTIP ── */
+.info-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--gold-mid); color: var(--gold-dark);
+  font-size: 9px; font-weight: 600; cursor: default;
+  position: relative; flex-shrink: 0;
+}
+.info-icon::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: var(--navy); color: rgba(255,255,255,0.85);
+  font-size: 10.5px; font-weight: 400; letter-spacing: 0; text-transform: none;
+  white-space: nowrap; padding: 5px 10px; border-radius: 6px;
+  opacity: 0; pointer-events: none; transition: opacity 0.15s;
+  z-index: 200;
+}
+.info-icon:hover::after { opacity: 1; }
+
+/* ── TWO / THREE COL ── */
+.two-col   { display: grid; grid-template-columns: 1fr 1fr;   gap: 16px; margin-bottom: 16px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+/* ── TABLE CARD ── */
+.table-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden; margin-bottom: 16px;
+}
+.table-card-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface2);
+}
+.table-card-title { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.02em; }
+
+.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.data-table thead tr { border-bottom: 1px solid var(--border); background: var(--gold-pale); }
+.data-table thead th {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--hint); font-weight: 400; padding: 10px 16px; text-align: left;
+}
+.data-table thead th:not(:first-child) { text-align: right; }
+.camp-filter-btn { background: var(--gold-pale); border: 1px solid var(--border-str); border-radius: 6px; padding: 5px 14px; font-size: 11.5px; font-weight: 500; font-family: "DM Sans", sans-serif; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+.camp-filter-btn:hover { border-color: var(--gold); color: var(--gold); }
+.camp-filter-btn.active { background: var(--gold); border-color: var(--gold); color: #fff; }
+
+.data-table thead th.sortable { cursor: pointer; user-select: none; }
+.data-table thead th.sortable:hover { color: var(--gold); }
+.sort-icon { opacity: 0.4; font-size: 9px; margin-left: 2px; }
+.data-table thead th.sort-active .sort-icon { opacity: 1; color: var(--gold); }
+.data-table tbody tr { border-bottom: 1px solid rgba(184,150,110,0.08); transition: background 0.1s; }
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--gold-pale); }
+.data-table tbody td { padding: 10px 16px; color: var(--ink); vertical-align: middle; }
+.data-table tbody td:not(:first-child) { text-align: right; color: var(--muted); }
+.data-table tbody td:first-child { font-weight: 400; }
+.data-table tfoot tr { border-top: 1px solid var(--border-str); background: var(--gold-pale); }
+.data-table tfoot td { padding: 10px 16px; font-weight: 500; font-size: 12px; color: var(--navy); }
+.data-table tfoot td:not(:first-child) { text-align: right; }
+
+/* ── BAR LIST ── */
+.bar-list { padding: 4px 0; }
+.bar-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px; border-bottom: 1px solid rgba(184,150,110,0.08);
+}
+.bar-row:last-child { border-bottom: none; }
+.bar-label { font-size: 12.5px; color: var(--ink); width: 150px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { flex: 1; height: 4px; background: var(--gold-mid); border-radius: 2px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+.bar-value { font-size: 12px; font-weight: 500; color: var(--navy); width: 36px; text-align: right; flex-shrink: 0; }
+
+/* ── CITY PERFORMANCE ── */
+.city-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 16px; }
+.city-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; transition: border-color 0.15s;
+}
+.city-card:hover { border-color: var(--border-str); }
+.city-name {
+  font-family: 'Baskerville Display PT', Baskerville, Georgia, serif;
+  font-size: 16px; font-weight: 400; color: var(--navy); letter-spacing: -0.02em;
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 0.5px solid var(--border);
+}
+.city-metric { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; }
+.city-metric-label { font-size: 10.5px; color: var(--hint); }
+.city-metric-value { font-size: 13px; font-weight: 500; color: var(--ink); }
+
+/* ── WHAT MOVED ── */
+.moved-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 24px; margin-bottom: 16px;
+}
+.moved-card-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px; padding-bottom: 12px; border-bottom: 0.5px solid var(--border);
+}
+.moved-card-title {
+  font-family: 'Baskerville Display PT', Baskerville, Georgia, serif;
+  font-size: 17px; font-weight: 400; color: var(--navy); letter-spacing: -0.02em;
+}
+.moved-badge {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  background: rgba(184,150,110,0.12); color: var(--gold);
+  border: 0.5px solid var(--border-str); border-radius: 20px; padding: 3px 9px;
+}
+.moved-item {
+  display: flex; gap: 12px; padding: 10px 0;
+  border-bottom: 0.5px solid rgba(184,150,110,0.1);
+  font-size: 13px; color: var(--ink); line-height: 1.6;
+}
+.moved-item:last-child { border-bottom: none; padding-bottom: 0; }
+.moved-bullet {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; background: var(--gold-pale); color: var(--gold);
+}
+.moved-loading {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--hint); font-size: 12px; padding: 8px 0;
+}
+.moved-loading .ld { width:5px;height:5px;border-radius:50%;background:var(--gold);animation:pulse 1.2s ease infinite; }
+.moved-loading .ld:nth-child(2){animation-delay:.2s}
+.moved-loading .ld:nth-child(3){animation-delay:.4s}
+
+/* ── PILL ── */
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 10px; font-weight: 500; letter-spacing: 0.04em;
+}
+.pill-gold  { background: rgba(184,150,110,0.12); color: var(--gold-dark); }
+.pill-green { background: var(--green-bg); color: var(--green); }
+.pill-red   { background: var(--red-bg); color: var(--red); }
+
+/* ── SRC DOT ── */
+.src-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  margin-right: 6px; vertical-align: middle; position: relative; top: -1px;
+}
+
+/* ── LOADING / ERROR ── */
+.loading-state {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; padding: 60px; color: var(--hint); font-size: 13px;
+}
+.ld { width:6px;height:6px;border-radius:50%;background:var(--gold);animation:pulse 1.2s ease-in-out infinite; }
+.ld:nth-child(2){animation-delay:.2s} .ld:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+@keyframes ytdBounce{0%,100%{transform:translateY(0);opacity:0.5}50%{transform:translateY(-8px);opacity:1}}
+
+.error-banner {
+  background: var(--red-bg); border: 1px solid rgba(192,57,43,0.2);
+  border-radius: 8px; padding: 12px 16px; font-size: 12px; color: var(--red); margin-bottom: 16px;
+}
+
+/* ── TOP NAV LINKS ── */
+.topnav {
+  display: flex; align-items: center; gap: 2px;
+  padding: 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.topnav::-webkit-scrollbar { display: none; }
+.topnav a {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 14px; font-size: 12px; color: var(--hint);
+  text-decoration: none; white-space: nowrap;
+  border-bottom: 2px solid transparent; transition: all 0.15s;
+}
+.topnav a:hover { color: var(--gold); }
+.topnav a.active { color: var(--gold); border-bottom-color: var(--gold); }
+.topnav a svg { width: 12px; height: 12px; }
+
+@media(max-width:1100px){
+  .city-grid{grid-template-columns:repeat(3,1fr)}
+  .stat-grid-5,.stat-grid-6{grid-template-columns:repeat(3,1fr)}
+}
+
+@media(max-width:768px){
+  /* Layout */
+  .content{padding:16px 14px}
+  .topbar{padding:12px 16px; flex-wrap:wrap; gap:8px;}
+  .topbar h1{font-size:17px;}
+  .topbar-sub{display:none;}
+  .topbar-right{gap:6px; width:100%;}
+  .topnav{padding:0 14px;}
+  #periodSelect{flex:1; font-size:12px; padding:7px 10px;}
+  .refresh-btn{padding:7px 12px; font-size:11px;}
+
+  /* Grids */
+  .stat-grid{grid-template-columns:repeat(2,1fr); gap:8px;}
+  .stat-grid-5{grid-template-columns:repeat(2,1fr); gap:8px;}
+  .stat-grid-6{grid-template-columns:repeat(2,1fr); gap:8px;}
+  .two-col,.three-col{grid-template-columns:1fr; gap:10px;}
+  .city-grid{grid-template-columns:1fr 1fr; gap:8px;}
+
+  /* Cards */
+  .stat-card{padding:14px 14px;}
+  .stat-card-value{font-size:22px;}
+  .table-card-header{flex-direction:column; align-items:flex-start; gap:8px;}
+  .table-card-header > div{flex-wrap:wrap; gap:10px;}
+
+  /* City cards */
+  .city-card{padding:12px;}
+  .city-name{font-size:14px;}
+  .city-metric-value{font-size:12px;}
+  .city-metric-label{font-size:10px;}
+
+  /* Campaign filter buttons */
+  .camp-filter-btn{padding:4px 10px; font-size:11px;}
+
+  /* Rev tables */
+  .data-table thead th{font-size:9px; padding:8px 10px;}
+  .data-table tbody td{padding:8px 10px; font-size:12px;}
+  .data-table tfoot td{padding:8px 10px; font-size:11px;}
+
+  /* Section headings */
+  .section-heading{font-size:9px; margin:24px 0 12px;}
+
+  /* Password gate */
+  #passwordGate > div{width:92vw; padding:28px 24px;}
+
+  /* Comments */
+  #commentsList > div{gap:8px;}
+}
+
+@media(max-width:480px){
+  .city-grid{grid-template-columns:1fr;}
+  .stat-grid{grid-template-columns:1fr 1fr;}
+  .topbar h1{font-size:15px;}
+}
+</style>
+</head>
+<body>
+
+<!-- PASSWORD GATE -->
+<div id="passwordGate" style="
+  position:fixed;inset:0;z-index:9999;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+">
+  <div style="
+    background:var(--surface);border:1px solid var(--border-str);
+    border-radius:16px;padding:40px 44px;width:360px;
+    box-shadow:0 8px 40px rgba(184,150,110,0.12);
+    text-align:center;
+  ">
+    <img src="https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?format=1500w"
+      style="height:18px;width:auto;margin-bottom:28px;filter:invert(1) sepia(1) saturate(0.5) hue-rotate(5deg) brightness(0.4);">
+    <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:22px;font-weight:400;color:var(--navy);letter-spacing:-0.03em;margin-bottom:6px;">Marketing Dashboard</div>
+    <div style="font-size:12px;color:var(--hint);margin-bottom:24px;">Enter password to continue</div>
+    <input id="pwInput" type="password" placeholder="Password"
+      style="
+        width:100%;padding:11px 14px;border:1px solid var(--border-str);
+        border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;
+        background:var(--gold-pale);color:var(--ink);outline:none;
+        margin-bottom:10px;
+      ">
+    <div id="pwError" style="font-size:11px;color:var(--red);margin-bottom:10px;min-height:16px;"></div>
+    <button onclick="checkPassword()" style="
+      width:100%;padding:12px;background:var(--gold);border:none;
+      border-radius:8px;color:#fff;font-size:13px;font-weight:500;
+      font-family:'DM Sans',sans-serif;letter-spacing:0.06em;cursor:pointer;
+    ">Enter</button>
+  </div>
+</div>
+
+<div id="mainContent" style="display:none;">
+<div class="shell">
+
+  <!-- SIDEBAR -->
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Marketing Performance</h1>
+        <div class="topbar-sub" id="lastRefreshed">Select month and refresh</div>
+      </div>
+      <div class="topbar-right">
+        <select id="periodSelect" style="
+          background:var(--gold-pale);border:1px solid var(--border-str);
+          border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;
+          color:var(--ink);font-family:'DM Sans',sans-serif;cursor:pointer;
+          outline:none;min-width:180px;
+        "></select>
+        <button class="refresh-btn" id="refreshBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <nav class="topnav" id="topnav">
+      <a href="#leads" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        Leads
+      </a>
+      <a href="#bookings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Bookings
+      </a>
+      <a href="#city">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        City
+      </a>
+      <a href="#campaigns">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Campaigns
+      </a>
+      <a href="#moved">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Comments
+      </a>
+    </nav>
+
+    <div class="content" id="dashContent">
+
+      <!-- SPLASH -->
+      <div id="emptyState" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px;">
+        <img src="https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?format=1500w"
+          style="height:20px;width:auto;margin-bottom:32px;filter:invert(1) sepia(1) saturate(0.3) hue-rotate(5deg) brightness(0.5);">
+        <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:32px;font-weight:400;color:var(--navy);letter-spacing:-0.04em;margin-bottom:8px;">Marketing Performance</div>
+        <div style="font-size:14px;color:var(--hint);margin-bottom:40px;">Student Luxe · 2026</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;">
+          <div onclick="loadCurrentMonth()" style="
+            background:var(--gold);border-radius:12px;padding:24px 32px;cursor:pointer;
+            width:200px;box-shadow:0 4px 20px rgba(184,150,110,0.25);transition:all 0.2s;
+          " onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px rgba(184,150,110,0.35)'"
+             onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(184,150,110,0.25)'">
+            <div style="font-size:28px;margin-bottom:10px;">📅</div>
+            <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px;" id="currentMonthLabel">This Month</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.7);">~1 min 30 sec</div>
+          </div>
+          <div onclick="loadAllYTD()" style="
+            background:var(--surface);border:2px solid var(--border-str);border-radius:12px;padding:24px 32px;cursor:pointer;
+            width:200px;box-shadow:0 4px 20px rgba(0,0,0,0.06);transition:all 0.2s;
+          " onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='var(--gold)'"
+             onmouseout="this.style.transform='';this.style.borderColor='var(--border-str)'">
+            <div style="font-size:28px;margin-bottom:10px;">📊</div>
+            <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px;">Year to Date</div>
+            <div style="font-size:12px;color:var(--hint);">~5 minutes</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- YTD OVERVIEW (shown when YTD selected) -->
+      <div id="ytdOverview" style="display:none;">
+        <div class="section-heading" style="margin-top:0;">2026 — Year to Date</div>
+        <div class="stat-grid" id="ytdTotals" style="margin-bottom:24px;"></div>
+        <div id="ytdMonthCards" style="display:flex;flex-direction:column;gap:16px;"></div>
+      </div>
+
+      <div id="dashSections" style="display:none">
+
+        <!-- BOOKINGS & LEADS -->
+        <div id="leads">
+          <div class="section-heading">Bookings &amp; No. of Leads</div>
+          <div class="stat-grid stat-grid-6" id="bookingStats"></div>
+
+          <div class="section-heading" style="margin-top:24px;">PPC Performance</div>
+          <div class="stat-grid stat-grid-6" id="leadsPpcStats"></div>
+        </div>
+
+        <!-- BOOKINGS TABLES -->
+        <div id="bookings">
+          <div class="three-col">
+            <div class="table-card">
+              <div class="table-card-header"><span class="table-card-title">Bookings / Source</span></div>
+              <div class="table-card-body">
+                <table class="data-table"><thead><tr>
+                  <th>Source</th>
+                  <th class="sortable" onclick="sortRevTable('revBySource','count')" id="revBySource_count">Bookings <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortRevTable('revBySource','revenue')" id="revBySource_revenue">Revenue <span class="sort-icon">↕</span></th>
+                </tr></thead>
+                <tbody id="revBySource"></tbody>
+                <tfoot><tr id="revBySource_foot"></tr></tfoot></table>
+              </div>
+            </div>
+            <div class="table-card">
+              <div class="table-card-header"><span class="table-card-title">Channel Breakdown</span></div>
+              <div class="table-card-body">
+                <table class="data-table"><thead><tr>
+                  <th>Channel</th>
+                  <th class="sortable" onclick="sortRevTable('revByChannel','count')" id="revByChannel_count">Bookings <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortRevTable('revByChannel','revenue')" id="revByChannel_revenue">Revenue <span class="sort-icon">↕</span></th>
+                </tr></thead>
+                <tbody id="revByChannel"></tbody>
+                <tfoot><tr id="revByChannel_foot"></tr></tfoot></table>
+              </div>
+            </div>
+            <div class="table-card">
+              <div class="table-card-header"><span class="table-card-title">Bookings / PPC Campaigns</span></div>
+              <div class="table-card-body">
+                <table class="data-table"><thead><tr>
+                  <th>Campaign</th>
+                  <th class="sortable" onclick="sortRevTable('revByCampaign','count')" id="revByCampaign_count">Bookings <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortRevTable('revByCampaign','revenue')" id="revByCampaign_revenue">Revenue <span class="sort-icon">↕</span></th>
+                </tr></thead>
+                <tbody id="revByCampaign"></tbody>
+                <tfoot><tr id="revByCampaign_foot"></tr></tfoot></table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CITY -->
+        <div id="city">
+          <div class="section-heading">City Performance</div>
+          <div class="city-grid" id="cityGrid"></div>
+        </div>
+
+        <!-- CAMPAIGNS -->
+        <div id="campaigns">
+          <div class="section-heading">Ad Campaigns</div>
+          <div class="table-card">
+            <div class="table-card-header" style="flex-wrap:wrap;gap:10px;">
+              <span class="table-card-title">All Campaigns</span>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <button class="camp-filter-btn active" onclick="filterCamps('all')" id="campFilter_all">All</button>
+                <button class="camp-filter-btn" onclick="filterCamps('jack')" id="campFilter_jack">Jack's</button>
+                <button class="camp-filter-btn" onclick="filterCamps('alex')" id="campFilter_alex">Alex's</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+              <table class="data-table" id="campMainTable" style="min-width:1100px;">
+                <thead><tr>
+                  <th style="min-width:180px;">Campaign</th>
+                  <th style="min-width:80px;">Owner</th>
+                  <th style="min-width:70px;">City</th>
+                  <th class="sortable" onclick="sortMainCamp('spend')">Spend <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('clicks')">Clicks <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('ctr')">CTR <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('cpc')">Avg CPC <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('leads')">Leads <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('bookings')">Bookings <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('revenue')">Revenue <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('avgBooking')">Avg Booking <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('profit')">Profit <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('roas')">ROAS <span class="sort-icon">↕</span></th>
+                </tr></thead>
+                <tbody id="campMainBody"></tbody>
+                <tfoot><tr id="campMainTotals"></tr></tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- WHAT MOVED -->
+        <div id="moved">
+          <div class="section-heading">Comments & Notes</div>
+          <div class="moved-card">
+            <div class="moved-card-header">
+              <span class="moved-card-title">Team Comments</span>
+              <span class="moved-badge" id="commentsMonthBadge">Select a month</span>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:20px;align-items:flex-start;">
+              <select id="commentAuthor" style="background:var(--gold-pale);border:1px solid var(--border-str);border-radius:8px;padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);outline:none;flex-shrink:0;cursor:pointer;">
+                <option value="">Name...</option>
+                <option value="AO">AO</option>
+                <option value="JD">JD</option>
+                <option value="AW">AW</option>
+                <option value="AK">AK</option>
+                <option value="AB">AB</option>
+              </select>
+              <textarea id="commentInput" placeholder="Add a comment for this period…" style="flex:1;border:1px solid var(--border-str);border-radius:8px;padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--gold-pale);outline:none;resize:none;height:40px;transition:height 0.2s;line-height:1.5;" onfocus="this.style.height='80px'" onblur="if(!this.value)this.style.height='40px'"></textarea>
+              <button onclick="postComment()" style="background:var(--gold);border:none;border-radius:8px;color:#fff;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;padding:9px 18px;cursor:pointer;flex-shrink:0;letter-spacing:0.06em;">Post</button>
+            </div>
+            <div id="commentsList">
+              <div style="color:var(--hint);font-size:12px;text-align:center;padding:20px 0;">Load a month to see comments</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end dashSections -->
+    </div><!-- end content -->
+  </main>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────
+const API_BASE = 'https://luxe-lead-capture.vercel.app/api';
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// ── CACHE ─────────────────────────────────────────────────────
+const dataCache = {};
+
+// ── PERIOD STATE ──────────────────────────────────────────────
+const now = new Date();
+const CUR_YEAR = now.getFullYear();
+
+function monthStr(y, m) { return `${y}-${String(m).padStart(2,'0')}`; }
+function prevMonthOf(mo) {
+  const [y, m] = mo.split('-').map(Number);
+  return m > 1 ? monthStr(y, m-1) : monthStr(y-1, 12);
+}
+
+function buildPeriodOptions() {
+  const sel = document.getElementById('periodSelect');
+  sel.innerHTML = '';
+  const add = (label, value) => {
+    const opt = document.createElement('option');
+    opt.value = value; opt.textContent = label;
+    sel.appendChild(opt);
+  };
+  const addSep = () => {
+    const s = document.createElement('option'); s.disabled = true; s.textContent = '──────────'; sel.appendChild(s);
+  };
+  const mo = now.getMonth() + 1;
+  const ytdMonths = Array.from({length: mo}, (_,i) => monthStr(CUR_YEAR, i+1));
+  add(`Year to Date ${CUR_YEAR}`, 'ytd:' + ytdMonths.join(','));
+  const qDef = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]];
+  qDef.forEach((months, qi) => {
+    if (months[0] <= mo) add(`Q${qi+1} ${CUR_YEAR}`, 'multi:' + months.map(m => monthStr(CUR_YEAR, m)).join(','));
+  });
+  addSep();
+  for (let y = CUR_YEAR; y >= CUR_YEAR - 1; y--) {
+    const maxM = y === CUR_YEAR ? mo : 12;
+    for (let m = maxM; m >= 1; m--) add(`${MONTH_NAMES[m-1]} ${y}`, monthStr(y, m));
+    if (y > CUR_YEAR - 1) addSep();
   }
+  sel.value = monthStr(CUR_YEAR, mo);
+}
+buildPeriodOptions();
 
-  function monthRange(m) {
-    const [y, mo] = m.split('-').map(Number);
-    return { start: new Date(y, mo - 1, 1), end: new Date(y, mo, 1) };
+// Set splash screen current month label
+const splashLabel = document.getElementById('currentMonthLabel');
+if (splashLabel) splashLabel.textContent = MONTH_NAMES[now.getMonth()] + ' ' + CUR_YEAR;
+
+// ── TOP NAV ───────────────────────────────────────────────────
+document.querySelectorAll('.topnav a').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('.topnav a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    const t = document.getElementById(a.getAttribute('href').slice(1));
+    if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// ── REFRESH ───────────────────────────────────────────────────
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  // Clear cache for current period so refresh forces re-fetch
+  const periodVal = document.getElementById('periodSelect').value;
+  if (periodVal.startsWith('ytd:') || periodVal.startsWith('multi:')) {
+    const months = periodVal.split(':')[1].split(',');
+    months.forEach(mo => { delete dataCache[mo]; delete dataCache[mo + '|' + prevMonthOf(mo)]; });
+  } else {
+    delete dataCache[periodVal];
+    delete dataCache[periodVal + '|' + prevMonthOf(periodVal)];
   }
+  loadAll();
+});
+
+// Auto-switch on dropdown change — use cache if available, else show hint
+document.getElementById('periodSelect').addEventListener('change', () => {
+  const periodVal = document.getElementById('periodSelect').value;
+  const isYTD     = periodVal.startsWith('ytd:');
+  const isMulti   = periodVal.startsWith('multi:');
+
+  if (isYTD || isMulti) {
+    const months   = periodVal.split(':')[1].split(',');
+    const allCached = months.every(mo => dataCache[mo] || dataCache[mo + '|' + prevMonthOf(mo)]);
+    if (allCached) { loadAll(); return; }
+  } else {
+    const key     = periodVal;
+    const keyPrev = periodVal + '|' + prevMonthOf(periodVal);
+    if (dataCache[key] || dataCache[keyPrev]) { loadAll(); return; }
+  }
+  // Not cached — show hint to refresh
+  document.getElementById('lastRefreshed').textContent = 'Hit Refresh to load this period';
+});
+
+async function loadCurrentMonth() {
+  const sel = document.getElementById('periodSelect');
+  // Select current month (first individual month option)
+  const curMo = monthStr(CUR_YEAR, now.getMonth() + 1);
+  const opt   = Array.from(sel.options).find(o => o.value === curMo);
+  if (opt) { sel.value = curMo; loadAll(); }
+}
+
+async function loadAllYTD() {
+  const sel    = document.getElementById('periodSelect');
+  const ytdOpt = Array.from(sel.options).find(o => o.value.startsWith('ytd:'));
+  if (ytdOpt) { sel.value = ytdOpt.value; loadAll(); }
+}
+
+async function loadAll() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('loading'); btn.disabled = true;
+  document.getElementById('emptyState').style.display    = 'none';
+  document.getElementById('dashSections').style.display  = 'none';
+  document.getElementById('ytdOverview').style.display   = 'none';
+
+  const periodVal = document.getElementById('periodSelect').value;
+  const label     = document.getElementById('periodSelect').selectedOptions[0].textContent;
+  const isYTD     = periodVal.startsWith('ytd:');
+
+  const spinner = mkLoading(isYTD ? 'Loading all 2026 data… this may take 20–30s' : 'Fetching data from Monday &amp; Google Ads…');
+  if (isYTD) showYTDLoader();
+  document.getElementById('dashContent').appendChild(spinner);
 
   try {
-    const [leadsItems, bookingsItems] = await Promise.all([
-      fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'formula11', 'people98'], true, true)
-    ]);
-
-    const cur  = monthRange(month);
-    const prev = prevMonth && /^\d{4}-\d{2}$/.test(prevMonth) ? monthRange(prevMonth) : null;
-
-    const result = { month, current: processMonth(leadsItems, bookingsItems, cur.start, cur.end) };
-    if (prev) {
-      result.prevMonth = prevMonth;
-      result.previous  = processMonth(leadsItems, bookingsItems, prev.start, prev.end);
-    }
-
-    return res.status(200).json(result);
-  } catch (err) {
-    console.error('Dashboard Monday error:', err.message);
-    return res.status(500).json({ error: err.message });
-  }
-};
-
-function processMonth(leadsItems, bookingsItems, startDate, endDate) {
-  return {
-    leads:    processLeads(leadsItems, startDate, endDate),
-    bookings: processBookings(bookingsItems, startDate, endDate)
-  };
-}
-
-async function mondayQuery(query) {
-  const r = await fetch(MONDAY_API, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
-    body:    JSON.stringify({ query })
-  });
-  const data = await r.json();
-  if (data.errors) throw new Error('Monday API: ' + JSON.stringify(data.errors));
-  return data;
-}
-
-async function fetchAllItems(boardId, columnIds, includeGroup = false, includeLinked = false) {
-  const cols = columnIds.map(c => `"${c}"`).join(', ');
-  const groupField = includeGroup ? 'group { title }' : '';
-  let allItems = [], cursor = null;
-  do {
-    const cursorArg = cursor ? `, cursor: "${cursor}"` : '';
-    const query = `query {
-      boards(ids: [${boardId}]) {
-        items_page(limit: 500${cursorArg}) {
-          cursor
-          items {
-            id name created_at ${groupField}
-            column_values(ids: [${cols}]) { id text value }
-            ${includeLinked ? `relation: column_values(ids: ["link_to_leads26"]) {
-              id
-              ... on BoardRelationValue {
-                linked_items {
-                  id
-                  column_values(ids: ["color_mkxk8y67", "dropdown_mkxkfbff", "text8", "text_mm1c3b5w"]) {
-                    id text
-                  }
-                }
-              }
-            }` : ''}
-          }
-        }
+    if (isYTD) {
+      const months  = periodVal.split(':')[1].split(',');
+      // Fetch in batches of 3 to balance speed vs API limits
+      const results = [];
+      for (let i = 0; i < months.length; i += 3) {
+        const batch = months.slice(i, i + 3);
+        const batchResults = await Promise.all(batch.map(mo => fetchMonth(mo)));
+        results.push(...batchResults);
       }
-    }`;
-    const data = await mondayQuery(query);
-    const page = data?.data?.boards?.[0]?.items_page;
-    allItems = allItems.concat(page?.items || []);
-    cursor = page?.cursor || null;
-  } while (cursor);
-  return allItems;
-}
-
-function colMap(item) {
-  const map = {};
-  (item.column_values || []).forEach(c => {
-    // Person columns store name in text, formula columns store result in text
-    // Use text first, fall back to parsing value JSON
-    if (c.text) {
-      map[c.id] = c.text;
-    } else if (c.value && c.value !== 'null') {
-      try {
-        const parsed = JSON.parse(c.value);
-        // Person column value: { personsAndTeams: [{ id, kind }] } — name is in text
-        map[c.id] = parsed?.name || parsed?.text || String(parsed) || '';
-      } catch {
-        map[c.id] = c.value;
-      }
+      spinner.remove();
+      hideYTDLoader();
+      renderYTD(months, results);
+      document.getElementById('lastRefreshed').textContent =
+        `Last refreshed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · ${label}`;
+      loadComments();
     } else {
-      map[c.id] = '';
+      let monday, gads;
+      if (periodVal.startsWith('multi:')) {
+        const months  = periodVal.split(':')[1].split(',');
+        const results = await Promise.all(months.map(mo => fetchMonth(mo)));
+        monday = mergeMonday(results.map(r => r.monday));
+        gads   = mergeGads(results.map(r => r.gads));
+      } else {
+        const prev = prevMonthOf(periodVal);
+        const res  = await fetchMonth(periodVal, prev);
+        monday = res.monday; gads = res.gads;
+      }
+      spinner.remove();
+      renderDash(monday, gads);
+      document.getElementById('lastRefreshed').textContent =
+        `Last refreshed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · ${label}`;
+      loadComments();
     }
-  });
-  return map;
+  } catch(err) {
+    spinner.remove();
+    hideYTDLoader();
+    document.getElementById('dashContent').innerHTML = `<div class="error-banner">Failed to load: ${err.message}</div>`;
+  } finally {
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
 }
 
-const CITY_DISPLAY = {
-  'london':'London','new-york':'New York','new york':'New York',
-  'paris':'Paris','cambridge':'Cambridge','madrid':'Madrid',
-  'edinburgh':'Edinburgh','milan':'Milan','amsterdam':'Amsterdam',
-  'barcelona':'Barcelona','lisbon':'Lisbon','boston':'Boston',
-  'chicago':'Chicago','washington':'Washington DC','philadelphia':'Philadelphia'
-};
-function normaliseCity(raw) {
-  if (!raw) return 'Unknown';
-  const key = raw.toLowerCase().trim();
-  return CITY_DISPLAY[key] || raw;
+// ── YTD OVERVIEW ──────────────────────────────────────────────
+function renderYTD(months, results) {
+  document.getElementById('ytdOverview').style.display = 'block';
+
+  // Aggregate YTD totals
+  let ytdRevenue=0, ytdPpcRevenue=0, ytdBookings=0, ytdPpcBookings=0, ytdLeads=0, ytdSpend=0;
+  results.forEach(r => {
+    const b = r.monday.current.bookings;
+    const l = r.monday.current.leads;
+    const g = r.gads.accountSummary;
+    ytdRevenue     += b.totalRevenue || 0;
+    ytdPpcRevenue  += b.ppcRevenue   || 0;
+    ytdBookings    += b.total        || 0;
+    ytdPpcBookings += b.ppcCount     || 0;
+    ytdLeads       += l.total        || 0;
+    ytdSpend       += g?.spend       || 0;
+  });
+
+  const ytdRoas = ytdSpend > 0 && ytdPpcRevenue > 0 ? (ytdPpcRevenue / ytdSpend).toFixed(2) + '×' : '—';
+
+  document.getElementById('ytdTotals').innerHTML = [
+    statCard('Total Revenue',    '£'+fmt(ytdRevenue),    null),
+    statCard('PPC Revenue',      '£'+fmt(ytdPpcRevenue), null),
+    statCard('Total Bookings',   ytdBookings,             null),
+    statCard('PPC Bookings',     ytdPpcBookings,          null),
+    statCard('Total Leads',      ytdLeads,                null),
+    statCard('PPC Spend',        '£'+fmt(ytdSpend),       null),
+    statCard('Overall ROAS',     ytdRoas,                 null),
+  ].join('');
+
+  // Monthly cards
+  document.getElementById('ytdMonthCards').innerHTML = months.map((mo, i) => {
+    const r = results[i];
+    const b = r.monday.current.bookings;
+    const l = r.monday.current.leads;
+    const g = r.gads.accountSummary;
+    const [y, m] = mo.split('-').map(Number);
+    const monthLabel = MONTH_NAMES[m-1] + ' ' + y;
+
+    const top5 = (b.top5Bookings || []);
+    const top5Html = top5.length ? top5.map(bk =>
+      `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:0.5px solid var(--border);font-size:12px;">
+        <span style="color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px;" title="${bk.name}">${bk.name}</span>
+        <span style="color:var(--gold);font-weight:500;flex-shrink:0;margin-left:8px;">£${fmt(bk.revenue)}</span>
+      </div>`
+    ).join('') : '<div style="font-size:11px;color:var(--hint);padding:4px 0;">No bookings</div>';
+
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+      <div style="background:var(--navy);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:18px;font-weight:400;color:#fff;letter-spacing:-0.03em;">${monthLabel}</span>
+        <span style="font-size:11px;color:rgba(255,255,255,0.4);">${b.total} bookings · ${l.total} leads</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr) 1fr;gap:0;">
+        <div style="padding:16px 18px;border-right:1px solid var(--border);">
+          <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);margin-bottom:6px;">Total Revenue</div>
+          <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:22px;color:var(--navy);letter-spacing:-0.03em;">£${fmt(b.totalRevenue)}</div>
+          <div style="font-size:11px;color:var(--hint);margin-top:4px;">PPC £${fmt(b.ppcRevenue)}</div>
+        </div>
+        <div style="padding:16px 18px;border-right:1px solid var(--border);">
+          <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);margin-bottom:6px;">Bookings</div>
+          <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:22px;color:var(--navy);letter-spacing:-0.03em;">${b.total}</div>
+          <div style="font-size:11px;color:var(--hint);margin-top:4px;">PPC ${b.ppcCount}</div>
+        </div>
+        <div style="padding:16px 18px;border-right:1px solid var(--border);">
+          <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);margin-bottom:6px;">Leads</div>
+          <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:22px;color:var(--navy);letter-spacing:-0.03em;">${l.total}</div>
+          <div style="font-size:11px;color:var(--hint);margin-top:4px;">PPC Spend £${fmt(g?.spend||0)}</div>
+        </div>
+        <div style="padding:16px 18px;">
+          <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);margin-bottom:8px;">Top Bookings</div>
+          ${top5Html}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
+async function fetchMonth(mo, prev) {
+  // Check cache with prev first, then without (YTD cache)
+  const keyWithPrev = mo + (prev ? '|' + prev : '');
+  const keyNoPrev   = mo;
 
-const EXCLUDED_BOOKING_GROUPS = ['Pending Bookings', 'Cancelled Bookings', 'Lost Bookings'];
+  if (dataCache[keyWithPrev]) { console.log('Cache hit:', keyWithPrev); return dataCache[keyWithPrev]; }
+  if (!prev && dataCache[keyNoPrev]) { console.log('Cache hit (no-prev):', keyNoPrev); return dataCache[keyNoPrev]; }
+  // If we have the month cached without prev but need prev, fetch prev separately
+  if (prev && dataCache[keyNoPrev]) {
+    const prevData = dataCache[keyNoPrev + '|'] || await fetchMonth(prev);
+    const result = { monday: dataCache[keyNoPrev].monday, gads: dataCache[keyNoPrev].gads };
+    // Attach previous month data
+    result.monday = { ...result.monday, prevMonth: prev, previous: prevData.monday.current };
+    result.gads   = { ...result.gads, prevMonth: prev, prevAccountSummary: prevData.gads.accountSummary };
+    dataCache[keyWithPrev] = result;
+    return result;
+  }
 
-function processLeads(items, startDate, endDate) {
-  const filtered = items.filter(item => {
-    const d = new Date(item.created_at);
-    return d >= startDate && d < endDate;
-  });
-
-  const nonSpam = filtered.filter(item => {
-    const cols = colMap(item);
-    return (cols['status'] || '').trim() !== 'Spam!';
-  });
-
-  // Unqualified leads
-  const unqualified = filtered.filter(item => {
-    const s = (colMap(item)['status'] || '').trim();
-    return s === 'Unqualified Lead';
-  });
-
-  const bySource = {}, byChannel = {}, byCity = {}, byCampaign = {};
-  const byCitySource = {};
-
-  filtered.forEach(item => {
-    const cols     = colMap(item);
-    const source   = cols['color_mkxk8y67']   || 'Unknown';
-    const channel  = cols['dropdown_mkxkfbff'] || 'Unknown';
-    const city     = normaliseCity(cols['text8']);
-    const campaign = cols['text_mm1c3b5w']     || 'Unknown';
-
-    bySource[source]     = (bySource[source]     || 0) + 1;
-    byChannel[channel]   = (byChannel[channel]   || 0) + 1;
-    byCity[city]         = (byCity[city]         || 0) + 1;
-    byCampaign[campaign] = (byCampaign[campaign] || 0) + 1;
-
-    if (!byCitySource[city]) byCitySource[city] = { PPC:0, SEO:0, Other:0 };
-    const bucket = source === 'PPC' ? 'PPC' : source === 'SEO' ? 'SEO' : 'Other';
-    byCitySource[city][bucket]++;
-  });
-
-  return {
-    total:            filtered.length,
-    nonSpamTotal:     nonSpam.length,
-    unqualifiedTotal: unqualified.length,
-    bySource:     sortDesc(bySource),
-    byChannel:    sortDesc(byChannel),
-    byCity:       sortDesc(byCity),
-    byCampaign:   sortDesc(byCampaign),
-    byCitySource
-  };
-}
-
-function processBookings(items, startDate, endDate) {
-  const eligible = items.filter(item => {
-    const groupTitle = item.group?.title || '';
-    return !EXCLUDED_BOOKING_GROUPS.includes(groupTitle);
-  });
-
-  const filtered = eligible.filter(item => {
-    const cols = colMap(item);
-    const d    = new Date(cols['date9']);
-    return !isNaN(d) && d >= startDate && d < endDate;
-  });
-
-  let totalRevenue = 0, ppcCount = 0, ppcRevenue = 0;
-  const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
-  const byCitySource = {};
-
-  filtered.forEach(item => {
-    const cols = colMap(item);
-    const rev  = parseFloat(cols['numeric_mm1ge9h4']) || 0;
-
-    const relationCol = (item.relation || []).find(cv => cv.id === 'link_to_leads26');
-    const linkedItems = relationCol?.linked_items || [];
-    const lead        = linkedItems[0];
-
-    let source = 'Unknown', channel = 'Unknown', city = 'Unknown', campaign = 'Unknown';
-    if (lead) {
-      const lc   = {};
-      (lead.column_values || []).forEach(c => { lc[c.id] = c.text || ''; });
-      source   = lc['color_mkxk8y67']   || 'Unknown';
-      channel  = lc['dropdown_mkxkfbff'] || 'Unknown';
-      city     = normaliseCity(lc['text8']);
-      campaign = lc['text_mm1c3b5w']    || 'Unknown';
-    }
-
-    const isPPC = source === 'PPC';
-    const isSEO = source === 'SEO';
-    if (isPPC) { ppcCount++; ppcRevenue += rev; }
-
-    if (!byCitySource[city]) byCitySource[city] = {};
-    if (!byCitySource[city][source]) byCitySource[city][source] = { count:0, revenue:0 };
-    byCitySource[city][source].count++;
-    byCitySource[city][source].revenue += rev;
-
-    if (!byCitySource[city]._PPC)   byCitySource[city]._PPC   = { count:0, revenue:0 };
-    if (!byCitySource[city]._SEO)   byCitySource[city]._SEO   = { count:0, revenue:0 };
-    if (!byCitySource[city]._Other) byCitySource[city]._Other = { count:0, revenue:0 };
-    const bucket = isPPC ? '_PPC' : isSEO ? '_SEO' : '_Other';
-    byCitySource[city][bucket].count++;
-    byCitySource[city][bucket].revenue += rev;
-
-    [byChannel, byCity, bySource].forEach((obj, i) => {
-      const key = [channel, city, source][i];
-      if (!obj[key]) obj[key] = { count:0, revenue:0 };
-      obj[key].count++;
-      obj[key].revenue += rev;
-    });
-
-    if (isPPC && campaign !== 'Unknown') {
-      if (!byCampaign[campaign]) byCampaign[campaign] = { count:0, revenue:0 };
-      byCampaign[campaign].count++;
-      byCampaign[campaign].revenue += rev;
-    }
-
-    totalRevenue += rev;
-  });
-
-  const top5Bookings = filtered
-    .map(item => {
-      const cols = colMap(item);
-      return { name: item.name, revenue: parseFloat(cols['numeric_mm1ge9h4']) || 0 };
+  const pp = prev ? `&prevMonth=${prev}` : '';
+  const [monday, gads] = await Promise.all([
+    fetch(`${API_BASE}/dashboard-monday?month=${mo}${pp}`).then(async r => {
+      const json = await r.json();
+      if (!r.ok || json.error) throw new Error('Monday API: ' + (json.error || r.status));
+      if (!json.current) throw new Error('Monday API unexpected: ' + JSON.stringify(json).substring(0,200));
+      return json;
+    }),
+    fetch(`${API_BASE}/dashboard-gads?month=${mo}${pp}`).then(async r => {
+      const json = await r.json();
+      if (!r.ok || json.error) throw new Error('Google Ads API: ' + (json.error || r.status));
+      return json;
     })
-    .filter(b => b.revenue > 0)
-    .sort((a,b) => b.revenue - a.revenue)
-    .slice(0, 5);
+  ]);
+  dataCache[keyWithPrev] = { monday, gads };
+  dataCache[keyNoPrev]   = { monday, gads }; // also cache without prev key
+  return dataCache[keyWithPrev];
+}
 
-  const nightsValues = filtered
-    .map(item => parseFloat(colMap(item)['formula11']) || 0)
-    .filter(n => n > 0);
-  const avgNights = nightsValues.length > 0
-    ? Math.round(nightsValues.reduce((a,b) => a+b, 0) / nightsValues.length)
-    : null;
+function mergeMonday(arr) {
+  function mergeLeads(a) {
+    const o = { total:0, nonSpamTotal:0, unqualifiedTotal:0, bySource:{}, byChannel:{}, byCity:{}, byCampaign:{}, byCitySource:{} };
+    a.forEach(m => {
+      const l = m.current.leads;
+      o.total += l.total; o.nonSpamTotal += l.nonSpamTotal;
+      o.unqualifiedTotal += l.unqualifiedTotal || 0;
+      mc(o.bySource, l.bySource); mc(o.byChannel, l.byChannel);
+      mc(o.byCity, l.byCity);     mc(o.byCampaign, l.byCampaign);
+      Object.entries(l.byCitySource||{}).forEach(([c,s]) => {
+        if (!o.byCitySource[c]) o.byCitySource[c] = {PPC:0,SEO:0,Other:0};
+        ['PPC','SEO','Other'].forEach(b => { o.byCitySource[c][b] += s[b]||0; });
+      });
+    });
+    return o;
+  }
+  function mergeBookings(a) {
+    const o = { total:0, totalRevenue:0, ppcCount:0, ppcRevenue:0, top5Bookings:[], avgNights:null, topSalesperson:null, byChannel:{}, byCity:{}, bySource:{}, byCampaign:{}, byCitySource:{} };
+    const allNights = [], salesRev = {};
+    a.forEach(m => {
+      const b = m.current.bookings;
+      o.total += b.total; o.totalRevenue += b.totalRevenue;
+      o.ppcCount += b.ppcCount; o.ppcRevenue += b.ppcRevenue;
+      (b.top5Bookings || []).forEach(bk => o.top5Bookings.push(bk));
+      if (b.avgNights) allNights.push(b.avgNights);
+      if (b.topSalesperson) {
+        const [name, rev] = b.topSalesperson;
+        salesRev[name] = (salesRev[name] || 0) + rev;
+      }
+      mrc(o.byChannel, b.byChannel); mrc(o.byCity, b.byCity);
+      mrc(o.bySource, b.bySource);   mrc(o.byCampaign, b.byCampaign);
+      Object.entries(b.byCitySource||{}).forEach(([c,s]) => {
+        if (!o.byCitySource[c]) o.byCitySource[c] = {PPC:{count:0,revenue:0},SEO:{count:0,revenue:0},Other:{count:0,revenue:0}};
+        ['PPC','SEO','Other'].forEach(b2 => {
+          o.byCitySource[c][b2].count   += s[b2]?.count||0;
+          o.byCitySource[c][b2].revenue += s[b2]?.revenue||0;
+        });
+      });
+    });
+    o.top5Bookings  = o.top5Bookings.sort((a,b) => b.revenue - a.revenue).slice(0, 5);
+    o.avgNights     = allNights.length > 0 ? Math.round(allNights.reduce((a,b) => a+b, 0) / allNights.length) : null;
+    o.topSalesperson = Object.keys(salesRev).length > 0 ? Object.entries(salesRev).sort((a,b) => b[1]-a[1])[0] : null;
+    return o;
+  }
+  return { month: arr[arr.length-1].month, current: { leads: mergeLeads(arr), bookings: mergeBookings(arr) }, previous: null };
+}
 
-  // Top salesperson by revenue (people98 column)
-  const salesRev = {};
-  filtered.forEach(item => {
-    const cols = colMap(item);
-    const name = (cols['people98'] || '').trim();
-    const rev  = parseFloat(cols['numeric_mm1ge9h4']) || 0;
-    if (name) salesRev[name] = (salesRev[name] || 0) + rev;
+
+function mergeGads(arr) {
+  const o = { accountSummary:{spend:0,clicks:0,impressions:0,conversions:0,conversionsValue:0}, campaigns:[], budget:null };
+  const cm = {};
+  arr.forEach(g => {
+    const a = g.accountSummary||{};
+    o.accountSummary.spend            += a.spend||0;
+    o.accountSummary.clicks           += a.clicks||0;
+    o.accountSummary.impressions      += a.impressions||0;
+    o.accountSummary.conversions      += a.conversions||0;
+    o.accountSummary.conversionsValue += a.conversionsValue||0;
+    if (g.budget) o.budget = (o.budget||0) + g.budget;
+    (g.campaigns||[]).forEach(c => {
+      if (!cm[c.name]) cm[c.name] = {...c, spend:0, clicks:0, impressions:0, conversions:0, conversionsValue:0};
+      cm[c.name].spend            += c.spend;
+      cm[c.name].clicks           += Math.round(c.clicks || 0);
+      cm[c.name].impressions      += c.impressions;
+      cm[c.name].conversions      += c.conversions;
+      cm[c.name].conversionsValue += c.conversionsValue||0;
+    });
   });
-  const topSalesperson = Object.keys(salesRev).length > 0
-    ? Object.entries(salesRev).sort((a,b) => b[1]-a[1])[0]
-    : null; // [name, totalRevenue]
+  const a = o.accountSummary;
+  a.ctr  = a.impressions>0 ? Math.round(a.clicks/a.impressions*10000)/100 : 0;
+  a.cpl  = a.conversions>0 ? Math.round(a.spend/a.conversions*100)/100 : 0;
+  a.roas = a.spend>0 ? Math.round(a.conversionsValue/a.spend*100)/100 : 0;
+  o.campaigns = Object.values(cm).map(c => ({
+    ...c,
+    ctr:  c.impressions>0 ? Math.round(c.clicks/c.impressions*10000)/100 : 0,
+    cpc:  c.clicks>0 ? Math.round(c.spend/c.clicks*100)/100 : null,
+    roas: c.spend>0 && c.conversionsValue>0 ? Math.round(c.conversionsValue/c.spend*100)/100 : null
+  })).sort((a,b) => b.spend-a.spend);
+  o.prevAccountSummary = null; // suppress MoM deltas for multi-month periods
+  return o;
+}
 
-  return {
-    total:          filtered.length,
-    totalRevenue:   Math.round(totalRevenue),
-    ppcCount,
-    ppcRevenue:     Math.round(ppcRevenue),
-    top5Bookings,
-    avgNights,
-    topSalesperson,
-    byChannel:      sortByRevDesc(byChannel),
-    byCity:         sortByRevDesc(byCity),
-    bySource:       sortByRevDesc(bySource),
-    byCampaign:     sortByRevDesc(byCampaign),
-    byCitySource
+function mc(t,s)  { Object.entries(s||{}).forEach(([k,v])=>{ t[k]=(t[k]||0)+v; }); }
+function mrc(t,s) { Object.entries(s||{}).forEach(([k,v])=>{ if(!t[k])t[k]={count:0,revenue:0}; t[k].count+=v.count||0; t[k].revenue+=v.revenue||0; }); }
+
+// ── RENDER ────────────────────────────────────────────────────
+function renderDash(monday, gads) {
+  try {
+  document.getElementById('dashSections').style.display = 'block';
+  const cur  = monday.current;
+  const prev = monday.previous;
+  const leads    = cur.leads;
+  const bookings = cur.bookings;
+  const acct     = gads.accountSummary;
+  const budget   = gads.budget;
+  const campaigns = gads.campaigns || [];
+
+  // Multi-month periods (YTD, quarters) suppress MoM deltas and budget bar
+  const isMulti = !prev;
+
+  // ── ALL-SOURCE METRICS ──
+  const totalLeads     = leads.total || 0;
+  const prevTotalLeads = prev?.leads?.total || 0;
+  const totalBookings  = bookings.total || 0;
+  const totalRevenue   = bookings.totalRevenue || 0;
+  const allAvgBooking  = totalBookings > 0 && totalRevenue > 0 ? (totalRevenue / totalBookings) : null;
+  const allConvRate    = totalLeads > 0 ? (totalBookings / totalLeads * 100).toFixed(1) + '%' : '—';
+  const unqualLeads    = leads.unqualifiedTotal || 0;
+  const avgNights      = bookings.avgNights || null;
+  const topSales       = bookings.topSalesperson; // [name, revenue] or null
+
+  // ── PPC METRICS ──
+  const ppcLeads        = leads.bySource?.['PPC'] || 0;
+  const prevPpcLeads    = prev?.leads?.bySource?.['PPC'] || 0;
+  const ppcBookingCount = bookings.ppcCount || 0;
+  const ppcRevenue      = bookings.ppcRevenue || 0;
+  const ppcSpend        = acct?.spend || 0;
+  const ppcProfit       = ppcRevenue > 0 && ppcSpend > 0 ? ppcRevenue - ppcSpend : null;
+  const cpl             = ppcLeads > 0 && ppcSpend > 0 ? (ppcSpend / ppcLeads) : null;
+  const cac             = ppcBookingCount > 0 && ppcSpend > 0 ? (ppcSpend / ppcBookingCount) : null;
+  const avgPpcBooking   = ppcBookingCount > 0 && ppcRevenue > 0 ? (ppcRevenue / ppcBookingCount) : null;
+  const ppcConvRate     = ppcLeads > 0 ? (ppcBookingCount / ppcLeads * 100).toFixed(1) + '%' : '—';
+  const roasVal         = ppcSpend > 0 && ppcRevenue > 0 ? ppcRevenue / ppcSpend : (acct?.roas != null ? Number(acct.roas) : null);
+  const prevRoasVal     = !isMulti && gads.prevAccountSummary?.roas != null ? Number(gads.prevAccountSummary.roas) : null;
+  const roasDisplay     = roasVal != null ? roasVal.toFixed(2) + '×' : '—';
+  const roasDelta       = !isMulti && roasVal != null && prevRoasVal != null ? deltaNum(roasVal, prevRoasVal, false, true) : null;
+
+  // GAds discrepancy — Step 4 all conv. value from Google Ads API
+  const gadsStep4Val  = (gads && gads.step4ConvValue != null) ? gads.step4ConvValue : null;
+  const discrepancy   = gadsStep4Val !== null && ppcRevenue > 0
+    ? gadsStep4Val - ppcRevenue : null;
+  const discrepHtml   = gadsStep4Val !== null
+    ? `<div style="font-size:10px;color:var(--hint);margin-top:4px;">GAds Step 4: £${fmt(gadsStep4Val)}${discrepancy !== null ? ` <span style="color:${Math.abs(discrepancy)<500?'var(--green)':'var(--gold)'};">(${discrepancy>=0?'+':''}£${fmt(discrepancy)} vs Monday)</span>` : ''}</div>`
+    : '';
+
+  const prevBook = prev?.bookings;
+
+  // ── SECTION 1: Bookings & No. of Leads ──
+  document.getElementById('bookingStats').innerHTML = [
+    statCard('Total Revenue',      '£'+fmt(totalRevenue),   !isMulti && prevBook ? delta(totalRevenue, prevBook.totalRevenue, true) : null),
+    statCard('Confirmed Bookings', totalBookings,            !isMulti && prevBook ? delta(totalBookings, prevBook.total) : null),
+    statCard('No. of Leads',       totalLeads,               !isMulti ? delta(totalLeads, prevTotalLeads) : null),
+    statCard('Unqualified Leads',  unqualLeads,              null, null, 'Leads marked as unqualified this period'),
+    statCard('Avg Booking Value',  allAvgBooking ? '£'+fmt(allAvgBooking) : '—', null, null, 'Total revenue ÷ all bookings'),
+    statCard('Conv. Rate',         allConvRate, null, null, 'All bookings ÷ all leads × 100'),
+    statCard('Avg. Nights',        avgNights != null ? avgNights + ' nights' : '—', null, null, 'Average stay length from formula11 column'),
+    statCard('Top Salesperson',    topSales ? String(topSales[0]) : '—', null,
+      topSales ? `<div style="font-size:11px;color:var(--gold);margin-top:2px;">£${fmt(topSales[1])} revenue</div>` : null,
+      'Salesperson with highest revenue this period'),
+  ].join('');
+
+  // ── SECTION 2: PPC Performance ──
+  // PPC Revenue card gets GAds discrepancy note injected
+  const ppcRevDelta = !isMulti && prevBook ? delta(ppcRevenue, prevBook.ppcRevenue, true) : null;
+  const ppcRevCard  = statCard('PPC Revenue', ppcRevenue > 0 ? '£'+fmt(ppcRevenue) : '—', ppcRevDelta, discrepHtml, 'Revenue from PPC bookings (Monday)');
+
+  document.getElementById('leadsPpcStats').innerHTML = [
+    ppcRevCard,
+    statCard('PPC Bookings',   ppcBookingCount, !isMulti && prevBook ? delta(ppcBookingCount, prevBook.ppcCount) : null),
+    statCard('PPC Leads',      ppcLeads, !isMulti ? delta(ppcLeads, prevPpcLeads) : null,
+      !isMulti && prevPpcLeads > 0 ? leadsBar(ppcLeads, prevPpcLeads) : null),
+    statCard('PPC CPL',        cpl ? '£'+fmt(cpl) : '—', null, null, 'PPC spend ÷ PPC leads'),
+    statCard('PPC CAC',        cac ? '£'+fmt(cac) : '—', null, null, 'PPC spend ÷ PPC bookings'),
+    statCard('Avg PPC Booking',avgPpcBooking ? '£'+fmt(avgPpcBooking) : '—', null, null, 'PPC revenue ÷ PPC bookings'),
+    statCard('PPC Conv. Rate', ppcConvRate, null, null, 'PPC bookings ÷ PPC leads × 100'),
+    statCard('PPC ROAS',       roasDisplay, roasDelta, null, 'PPC revenue ÷ PPC spend'),
+    statCard('PPC Profit',     ppcProfit !== null ? (ppcProfit >= 0 ? '£' : '−£') + fmt(Math.abs(ppcProfit)) : '—', null, null, 'PPC revenue − PPC spend'),
+    statCard('PPC Spend',      ppcSpend > 0 ? '£'+fmt(ppcSpend) : '—',
+      !isMulti && gads.prevAccountSummary ? delta(ppcSpend, gads.prevAccountSummary.spend, true) : null,
+      !isMulti && budget ? budgetBar(ppcSpend, budget) : null),
+  ].join('');
+
+  // ── REVENUE BY SOURCE / CHANNEL / CAMPAIGN ──
+  renderRevTable('revBySource',   bookings.bySource);
+  renderRevTable('revByChannel',  bookings.byChannel);
+  renderRevTable('revByCampaign', bookings.byCampaign);
+
+  // ── CITY PERFORMANCE ──
+  // ── CITY PERFORMANCE ──
+  // Named cities always shown; any other city with ≥1 booking gets its own card
+  const NAMED_CITIES = ['London','New York','Paris','Cambridge'];
+  const namedCitySet = new Set(NAMED_CITIES);
+
+  // Find extra cities that have at least 1 booking
+  const extraCities = Object.entries(bookings.byCity || {})
+    .filter(([city, d]) => !namedCitySet.has(city) && d.count > 0 && city !== 'Unknown')
+    .sort((a,b) => b[1].count - a[1].count)
+    .map(([city]) => city);
+
+  const ALL_CITIES = [...NAMED_CITIES, ...extraCities];
+
+  const SOURCE_COLOURS_PIE = {
+    'PPC':'#B8966E','SEO':'#639922','Rebooking':'#4285F4',
+    'Referral':'#F4A028','Portals':'#9B59B6','Stay Luxe':'#25D366',
+    'Partnerships':'#E1306C','Socials':'#E91E63','Extension':'#00BCD4',
+    'Agent':'#795548','Unknown':'#c0c0c0'
   };
+
+  const cityGrid = document.getElementById('cityGrid');
+  // Make grid responsive to number of cards
+  cityGrid.style.gridTemplateColumns = `repeat(${Math.min(ALL_CITIES.length, 5)}, 1fr)`;
+
+  cityGrid.innerHTML = ALL_CITIES.map(city => {
+    const totalLeads = leads.byCity?.[city] || 0;
+    const bookData   = bookings.byCity?.[city] || { count:0, revenue:0 };
+    const citySpend  = campaigns.filter(c=>c.city===city).reduce((s,c)=>s+c.spend,0);
+    const convRate   = totalLeads > 0 ? (bookData.count/totalLeads*100).toFixed(1)+'%' : '—';
+
+    const citySrcData = bookings.byCitySource?.[city] || {};
+    const pieSegments = Object.entries(citySrcData)
+      .filter(([k]) => !k.startsWith('_'))
+      .map(([k, v]) => ({ value: v.count||0, colour: SOURCE_COLOURS_PIE[k]||'#aaa', label: k }))
+      .filter(s => s.value > 0)
+      .sort((a,b) => b.value - a.value);
+    const pieTotal = pieSegments.reduce((s,x) => s + x.value, 0);
+    const pieHtml  = buildPie(pieTotal, pieSegments);
+
+    return `<div class="city-card">
+      <div class="city-name">${city}</div>
+      ${pieHtml}
+      <div style="height:0.5px;background:var(--border);margin:8px 0 6px;"></div>
+      <div class="city-metric"><span class="city-metric-label">No. of Leads</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${totalLeads}</span></div>
+      <div class="city-metric"><span class="city-metric-label">No. of Bookings</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.count}</span></div>
+      <div class="city-metric"><span class="city-metric-label">Total Revenue</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.revenue>0?'£'+fmt(bookData.revenue):'—'}</span></div>
+      <div class="city-metric"><span class="city-metric-label">Conv. Rate</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${convRate}</span></div>
+    </div>`;
+  }).join('');
+
+
+
+
+  // ── CAMPAIGNS — unified table ──
+  // Normalise campaign names — strip test suffixes and merge into base name
+  // e.g. "jf8_search_... - £150 tCPA Test" → "jf8_search_..."
+  function normCamp(name) {
+    if (!name) return name;
+    return name
+      .replace(/\s*[-–]\s*£[\d,]+\s*(tCPA\s*Test|Test|Experiment|Exp\.?)?$/i, '')
+      .replace(/\s*_Experiment\s*$/i, '')
+      .trim();
+  }
+
+  // Re-key leadByCampaign and bookByCampaign using normalised names
+  function rekey(obj) {
+    const out = {};
+    Object.entries(obj).forEach(([k, v]) => {
+      const nk = normCamp(k);
+      if (!out[nk]) out[nk] = typeof v === 'number' ? 0 : { count:0, revenue:0 };
+      if (typeof v === 'number') out[nk] += v;
+      else { out[nk].count += v.count; out[nk].revenue += v.revenue; }
+    });
+    return out;
+  }
+
+  const bookByCampaign = rekey(bookings.byCampaign || {});
+  const leadByCampaign = rekey(leads.byCampaign    || {});
+
+  function isJack(name) {
+    const n = (name || '').toLowerCase();
+    return n.startsWith('jf') || n.includes('experiment');
+  }
+
+  // Merge Google Ads campaigns that normalise to the same base name
+  const mergedCampaigns = {};
+  campaigns.forEach(c => {
+    const key = normCamp(c.name);
+    if (!mergedCampaigns[key]) {
+      mergedCampaigns[key] = { ...c, name: key }; // use clean base name
+    } else {
+      const m = mergedCampaigns[key];
+      m.spend            += c.spend || 0;
+      m.clicks           += Math.round(c.clicks || 0);
+      m.conversions      += c.conversions || 0;
+      m.conversionsValue += c.conversionsValue || 0;
+      // Recalculate CTR and CPC from totals
+      const totalImpressions = (m.impressions || 0) + (c.impressions || 0);
+      m.impressions = totalImpressions;
+      m.ctr = totalImpressions > 0 ? ((m.clicks / totalImpressions) * 100).toFixed(2) : 0;
+      m.cpc = m.clicks > 0 ? m.spend / m.clicks : null;
+    }
+  });
+
+  window._allCampRows = Object.values(mergedCampaigns).map(c => {
+    const baseName = c.name; // already normalised
+    const bl = bookByCampaign[baseName] || { count:0, revenue:0 };
+    const ll = leadByCampaign[baseName] || 0;
+    const hasRevenue = bl.revenue > 0;
+    const profit     = hasRevenue ? bl.revenue - c.spend : null;
+    const roasNum    = c.spend > 0
+      ? (hasRevenue ? bl.revenue / c.spend : (c.conversionsValue > 0 ? c.conversionsValue / c.spend : null))
+      : null;
+    const avgBooking = bl.count > 0 && bl.revenue > 0 ? bl.revenue / bl.count : null;
+    const owner = isJack(c.name) ? 'Jack' : 'Alex';
+    return {
+      name: c.name, city: c.city, owner,
+      spend: c.spend, clicks: Math.round(c.clicks || 0), ctr: c.ctr || 0, cpc: c.cpc || null,
+      leads: ll, bookings: bl.count, revenue: bl.revenue,
+      avgBooking: avgBooking ?? -Infinity,
+      profit: profit ?? -Infinity, roas: roasNum ?? -Infinity,
+      hasRevenue,
+      avgBookingHtml: avgBooking !== null ? `£${fmt(avgBooking)}` : '—',
+      profitHtml: profit !== null
+        ? `<span style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:500">${profit>=0?'':'−'}£${fmt(Math.abs(profit))}</span>`
+        : '—',
+      roasHtml: roasNum !== null
+        ? `<span style="color:${roasNum>=1?'var(--green)':roasNum>0?'inherit':'var(--red)'}">${roasNum.toFixed(2)}×</span>`
+        : '—'
+    };
+  });
+
+  window._campFilter = window._campFilter || 'all';
+  window._campSort   = window._campSort   || { key: 'spend', dir: 'desc' };
+  drawCampTable();
+  } catch(err) {
+    console.error('renderDash error:', err.message, err.stack);
+    document.getElementById('dashSections').style.display = 'block';
+  }
 }
 
-function sortDesc(obj) {
-  return Object.entries(obj).sort((a,b)=>b[1]-a[1]).reduce((acc,[k,v])=>{acc[k]=v;return acc;},{});
+// ── WHAT MOVED (Claude API) ───────────────────────────────────
+// ── COMMENTS SYSTEM ──────────────────────────────────────────
+let _currentPeriodKey = '';
+
+function getPeriodKey() {
+  return document.getElementById('periodSelect')?.value || '';
 }
-function sortByRevDesc(obj) {
-  return Object.entries(obj).sort((a,b)=>b[1].revenue-a[1].revenue).reduce((acc,[k,v])=>{acc[k]=v;return acc;},{});
+
+async function loadComments() {
+  const key = getPeriodKey();
+  _currentPeriodKey = key;
+
+  const label = document.getElementById('periodSelect')?.selectedOptions[0]?.textContent || '';
+  const badge = document.getElementById('commentsMonthBadge');
+  if (badge) badge.textContent = label;
+
+  const el = document.getElementById('commentsList');
+  if (el) el.innerHTML = '<div style="color:var(--hint);font-size:12px;text-align:center;padding:16px 0;">Loading comments…</div>';
+
+  try {
+    const r = await fetch(`${API_BASE}/dashboard-comments?period=${encodeURIComponent(key)}`);
+    const data = await r.json();
+    renderComments(data.comments || []);
+  } catch(err) {
+    if (el) el.innerHTML = `<div style="color:var(--hint);font-size:12px;text-align:center;padding:16px 0;">Could not load comments</div>`;
+  }
 }
+
+function renderComments(comments) {
+  const el = document.getElementById('commentsList');
+  if (!el) return;
+  if (!comments.length) {
+    el.innerHTML = '<div style="color:var(--hint);font-size:12px;text-align:center;padding:20px 0;">No comments yet for this period</div>';
+    return;
+  }
+  const COLOURS = { AO:'#B8966E', JD:'#4285F4', AW:'#639922', AK:'#9B59B6', AB:'#E1306C' };
+  el.innerHTML = [...comments].reverse().map(c => {
+    const colour = COLOURS[c.author] || 'var(--hint)';
+    const ts = new Date(c.timestamp);
+    const label = ts.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) + ' ' +
+                  ts.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    return `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:0.5px solid var(--border);">
+      <div style="width:32px;height:32px;border-radius:50%;background:${colour};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0;">${c.author}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:12px;font-weight:600;color:var(--ink);">${c.author}</span>
+          <span style="font-size:11px;color:var(--hint);">${label}</span>
+        </div>
+        <div style="font-size:13px;color:var(--ink);line-height:1.6;">${escHtml(c.text)}</div>
+      </div>
+      <button onclick="deleteComment('${c.id}')" title="Delete" style="background:none;border:none;color:var(--hint);cursor:pointer;font-size:16px;flex-shrink:0;padding:2px 6px;opacity:0.4;line-height:1;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'">×</button>
+    </div>`;
+  }).join('');
+  // Remove border from last item
+  const items = el.querySelectorAll('div[style*="border-bottom"]');
+  if (items.length) items[items.length-1].style.borderBottom = 'none';
+}
+
+async function postComment() {
+  const author = document.getElementById('commentAuthor').value.trim();
+  const text   = document.getElementById('commentInput').value.trim();
+  if (!author) { alert('Please select your name'); return; }
+  if (!text)   { alert('Please enter a comment'); return; }
+  if (!_currentPeriodKey) { alert('Please load a month first'); return; }
+
+  const btn = document.querySelector('[onclick="postComment()"]');
+  if (btn) { btn.textContent = 'Posting…'; btn.disabled = true; }
+
+  try {
+    const r = await fetch(`${API_BASE}/dashboard-comments`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ period: _currentPeriodKey, author, text })
+    });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error);
+    document.getElementById('commentInput').value = '';
+    document.getElementById('commentInput').style.height = '40px';
+    await loadComments();
+  } catch(err) {
+    alert('Failed to post comment: ' + err.message);
+  } finally {
+    if (btn) { btn.textContent = 'Post'; btn.disabled = false; }
+  }
+}
+
+async function deleteComment(id) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    await fetch(`${API_BASE}/dashboard-comments`, {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ period: _currentPeriodKey, id })
+    });
+    await loadComments();
+  } catch(err) {
+    alert('Failed to delete: ' + err.message);
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if (document.activeElement === document.getElementById('commentInput')) postComment();
+  }
+});
+
+// ── HELPERS ───────────────────────────────────────────────────
+function statCard(label, value, deltaHtml, extra, tooltip) {
+  const tip = tooltip
+    ? `<span class="info-icon" data-tip="${tooltip}">i</span>`
+    : '';
+  return `<div class="stat-card">
+    <div class="stat-card-label">${label}${tip}</div>
+    <div class="stat-card-value">${value}</div>
+    ${deltaHtml ? `<div class="stat-card-sub">${deltaHtml}</div>` : ''}
+    ${extra || ''}
+  </div>`;
+}
+
+function budgetBar(spend, budget) {
+  const pct     = Math.min(Math.round(spend/budget*100), 120);
+  const over    = spend > budget;
+  const remaining = budget - spend;
+  return `<div class="budget-bar-wrap"><div class="budget-bar ${over?'over':''}" style="width:${Math.min(pct,100)}%"></div></div>
+  <div class="budget-label">${over
+    ? `<span class="down">£${fmt(Math.abs(remaining))} over budget</span>`
+    : `£${fmt(remaining)} remaining of £${fmt(budget)} budget`}</div>`;
+}
+
+function leadsBar(current, prevTotal) {
+  // Show current leads as % of last month's total
+  const pct  = Math.min(Math.round(current / prevTotal * 100), 120);
+  const diff = current - prevTotal;
+  const over = current > prevTotal;
+  return `<div class="budget-bar-wrap"><div class="budget-bar ${over?'':''}\" style="width:${Math.min(pct,100)}%;background:${over?'var(--green)':'var(--gold)'}"></div></div>
+  <div class="budget-label">${over
+    ? `<span class="up">+${diff} leads vs last month total (${prevTotal})</span>`
+    : `${Math.abs(diff)} leads behind last month total (${prevTotal})`}</div>`;
+}
+
+function deltaNum(cur, prev, isCurrency, isDecimal) {
+  if (prev === null || prev === undefined || prev === 0) return '';
+  const diff = cur - prev;
+  const pct  = Math.abs(diff / prev * 100).toFixed(1);
+  const sign = diff >= 0 ? '↑' : '↓';
+  const cls  = diff >= 0 ? 'up' : 'down';
+  const val  = isCurrency ? '£'+fmt(Math.abs(diff)) : (isDecimal ? Math.abs(diff).toFixed(2) : Math.abs(diff));
+  return `<span class="${cls}">${sign} ${val}</span> vs prev month (${pct}%)`;
+}
+
+function delta(cur, prev, isCurrency) {
+  if (prev === null || prev === undefined || prev === 0) return '';
+  const diff = cur - prev;
+  const pct  = Math.abs(diff / prev * 100).toFixed(1);
+  const sign = diff >= 0 ? '↑' : '↓';
+  const cls  = diff >= 0 ? 'up' : 'down';
+  const val  = isCurrency ? '£'+fmt(Math.abs(diff)) : Math.abs(diff);
+  return `<span class="${cls}">${sign} ${val}</span> vs prev month (${pct}%)`;
+}
+
+function renderBarList(elId, data, total) {
+  const el = document.getElementById(elId);
+  const entries = Object.entries(data || {});
+  if (!entries.length) { el.innerHTML = '<div style="padding:16px;color:var(--hint);font-size:12px;text-align:center;">No data</div>'; return; }
+  const max = entries[0][1];
+  el.innerHTML = entries.map(([label, count]) => `
+    <div class="bar-row">
+      <div class="bar-label"><span class="src-dot" style="background:${srcColour(label)}"></span>${label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${max>0?Math.round(count/max*100):0}%;background:${srcColour(label)};"></div></div>
+      <div class="bar-value">${count}</div>
+    </div>`).join('');
+}
+
+// Store rev table data for re-sorting
+const revTableData = {};
+const revTableSort = {};
+
+function renderRevTable(elId, data) {
+  revTableData[elId] = data;
+  revTableSort[elId] = revTableSort[elId] || { key: 'revenue', dir: 'desc' };
+  _drawRevTable(elId);
+}
+
+function sortRevTable(elId, key) {
+  const cur = revTableSort[elId] || { key: 'revenue', dir: 'desc' };
+  revTableSort[elId] = { key, dir: cur.key === key && cur.dir === 'desc' ? 'asc' : 'desc' };
+  // Update header indicators
+  ['count','revenue'].forEach(k => {
+    const th = document.getElementById(`${elId}_${k}`);
+    if (th) {
+      th.classList.remove('sort-active');
+      th.querySelector('.sort-icon').textContent = '↕';
+    }
+  });
+  const activeTh = document.getElementById(`${elId}_${key}`);
+  if (activeTh) {
+    activeTh.classList.add('sort-active');
+    activeTh.querySelector('.sort-icon').textContent = revTableSort[elId].dir === 'desc' ? '↓' : '↑';
+  }
+  _drawRevTable(elId);
+}
+
+function _drawRevTable(elId) {
+  const el   = document.getElementById(elId);
+  const data = revTableData[elId] || {};
+  const { key, dir } = revTableSort[elId] || { key: 'revenue', dir: 'desc' };
+  const entries = Object.entries(data);
+  if (!entries.length) { el.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--hint);padding:16px;">No data</td></tr>'; return; }
+
+  entries.sort((a,b) => {
+    const va = a[1][key] || 0, vb = b[1][key] || 0;
+    return dir === 'desc' ? vb - va : va - vb;
+  });
+
+  el.innerHTML = entries.map(([k, v]) => `<tr>
+    <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${k}">
+      <span class="src-dot" style="background:${srcColour(k)}"></span>${k}
+    </td>
+    <td style="width:70px;">${v.count}</td>
+    <td style="width:90px;">£${fmt(v.revenue)}</td>
+  </tr>`).join('');
+
+  // Totals footer
+  const totBookings = entries.reduce((s,[,v]) => s + (v.count||0), 0);
+  const totRevenue  = entries.reduce((s,[,v]) => s + (v.revenue||0), 0);
+  const foot = document.getElementById(elId + '_foot');
+  if (foot) foot.innerHTML = `
+    <td style="font-weight:600;font-size:12px;color:var(--navy);">Total</td>
+    <td style="font-weight:600;font-size:12px;color:var(--navy);">${totBookings}</td>
+    <td style="font-weight:600;font-size:12px;color:var(--navy);">£${fmt(totRevenue)}</td>`;
+}
+
+function srcColour(label) {
+  const l = (label||'').toLowerCase();
+  if (l.includes('ppc') || l.includes('google advert')) return '#4285F4';
+  if (l.includes('seo') || l.includes('organic'))       return '#4a8c1c';
+  if (l.includes('social')||l.includes('instagram')||l.includes('meta')) return '#E1306C';
+  if (l.includes('whatsapp'))  return '#25D366';
+  if (l.includes('direct'))    return '#9b9b9b';
+  if (l.includes('referral'))  return '#F4A028';
+  if (l.includes('email'))     return '#7C3AED';
+  return '#B8966E';
+}
+
+
+function showYTDLoader() {
+  const existing = document.getElementById('ytdLoader');
+  if (existing) existing.remove();
+
+  const messages = [
+    "Waking up Monday.com…",
+    "Bribing the Google Ads API…",
+    "Counting all those leads…",
+    "Slow loading, mo bookings 🤌",
+    "Still going, this is the good stuff…",
+    "Almost there, promise…",
+    "Calculating your ROAS…",
+    "Worth the wait 💰",
+  ];
+
+  let msgIndex = 0;
+  const el = document.createElement('div');
+  el.id = 'ytdLoader';
+  el.innerHTML = `
+    <div style="position:fixed;inset:0;z-index:9998;background:rgba(13,26,46,0.75);backdrop-filter:blur(6px);
+      display:flex;align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border:1px solid var(--border-str);border-radius:20px;
+        padding:44px 52px;text-align:center;max-width:360px;width:90%;
+        box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <img src="https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?format=1500w"
+          style="height:16px;width:auto;margin-bottom:28px;filter:invert(1) sepia(1) saturate(0.3) hue-rotate(5deg) brightness(0.5);">
+        <div style="display:flex;justify-content:center;gap:6px;margin-bottom:24px;">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--gold);animation:ytdBounce 1.2s ease-in-out infinite;"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--gold);animation:ytdBounce 1.2s ease-in-out 0.2s infinite;"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--gold);animation:ytdBounce 1.2s ease-in-out 0.4s infinite;"></div>
+        </div>
+        <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:20px;
+          font-weight:400;color:var(--navy);letter-spacing:-0.02em;margin-bottom:8px;">
+          Loading 2026
+        </div>
+        <div id="ytdLoaderMsg" style="font-size:13px;color:var(--hint);min-height:20px;transition:opacity 0.3s;">
+          ${messages[0]}
+        </div>
+        <div style="margin-top:20px;height:3px;background:var(--gold-mid);border-radius:2px;overflow:hidden;">
+          <div id="ytdLoaderBar" style="height:100%;width:0%;background:var(--gold);border-radius:2px;transition:width 1.5s ease;"></div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  // Cycle messages
+  el._interval = setInterval(() => {
+    msgIndex = (msgIndex + 1) % messages.length;
+    const msgEl = document.getElementById('ytdLoaderMsg');
+    if (msgEl) {
+      msgEl.style.opacity = '0';
+      setTimeout(() => {
+        msgEl.textContent = messages[msgIndex];
+        msgEl.style.opacity = '1';
+      }, 300);
+    }
+  }, 2500);
+
+  // Stagger progress bar — YTD ~5min, single month ~90s
+  const bar = document.getElementById('ytdLoaderBar');
+  if (bar) {
+    const steps = [
+      [500,    5],
+      [15000,  15],
+      [30000,  28],
+      [60000,  42],
+      [90000,  55],
+      [120000, 67],
+      [180000, 78],
+      [240000, 87],
+      [280000, 93],
+    ];
+    steps.forEach(([delay, pct]) => {
+      setTimeout(() => {
+        if (bar.parentElement) bar.style.width = pct + '%';
+      }, delay);
+    });
+  }
+}
+
+function hideYTDLoader() {
+  const el = document.getElementById('ytdLoader');
+  if (!el) return;
+  clearInterval(el._interval);
+  el.style.opacity = '0';
+  el.style.transition = 'opacity 0.3s';
+  setTimeout(() => el.remove(), 300);
+}
+
+function buildPie(total, segments) {
+  if (!total) return '<div style="text-align:center;padding:12px 0;color:var(--hint);font-size:11px;">No bookings</div>';
+  const size = 80, cx = 40, cy = 40, r = 32;
+  const circ = 2 * Math.PI * r;
+  let offset = 0, paths = '';
+  segments.forEach(seg => {
+    const dash = (seg.value / total) * circ;
+    if (!dash) return;
+    paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.colour}" stroke-width="14" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    offset += dash;
+  });
+  const legend = segments.filter(s=>s.value>0).map(s =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);"><span style="width:7px;height:7px;border-radius:50%;background:${s.colour};display:inline-block;"></span>${s.label} ${s.value}</span>`
+  ).join('');
+  return `<div style="display:flex;flex-direction:column;align-items:center;padding:10px 0 4px;">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--gold-mid)" stroke-width="14"/>
+      ${paths}
+      <text x="${cx}" y="${cy+1}" text-anchor="middle" dominant-baseline="middle" style="font-size:13px;font-weight:600;fill:var(--navy);font-family:'DM Sans',sans-serif;">${total}</text>
+      <text x="${cx}" y="${cy+13}" text-anchor="middle" dominant-baseline="middle" style="font-size:7px;fill:var(--hint);font-family:'DM Sans',sans-serif;letter-spacing:0.05em;">BOOKINGS</text>
+    </svg>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px;">${legend}</div>
+  </div>`;
+}
+
+function filterCamps(filter) {
+  window._campFilter = filter;
+  window._campSort   = { key: 'spend', dir: 'desc' };
+  document.querySelectorAll('.camp-filter-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('campFilter_' + filter);
+  if (btn) btn.classList.add('active');
+  drawCampTable();
+}
+
+function sortMainCamp(key) {
+  const cur = window._campSort || { key: 'spend', dir: 'desc' };
+  window._campSort = { key, dir: cur.key === key && cur.dir === 'desc' ? 'asc' : 'desc' };
+  drawCampTable();
+}
+
+function drawCampTable() {
+  const filter = window._campFilter || 'all';
+  const { key, dir } = window._campSort || { key: 'spend', dir: 'desc' };
+  let rows = [...(window._allCampRows || [])];
+
+  if (filter === 'jack') rows = rows.filter(r => r.owner === 'Jack');
+  if (filter === 'alex') rows = rows.filter(r => r.owner === 'Alex');
+
+  rows.sort((a, b) => {
+    const va = a[key] ?? -Infinity, vb = b[key] ?? -Infinity;
+    return dir === 'desc' ? vb - va : va - vb;
+  });
+
+  const table = document.getElementById('campMainTable');
+  if (table) {
+    table.querySelectorAll('th.sortable').forEach(th => {
+      th.classList.remove('sort-active');
+      const si = th.querySelector('.sort-icon');
+      if (si) si.textContent = '↕';
+    });
+    const cols = ['spend','clicks','ctr','cpc','leads','bookings','revenue','profit','roas'];
+    const idx  = cols.indexOf(key);
+    const ths  = table.querySelectorAll('th.sortable');
+    if (ths[idx]) {
+      ths[idx].classList.add('sort-active');
+      const si = ths[idx].querySelector('.sort-icon');
+      if (si) si.textContent = dir === 'desc' ? '↓' : '↑';
+    }
+  }
+
+  let tSpend=0, tClicks=0, tLeads=0, tBookings=0, tRevenue=0, tHasRev=false;
+  rows.forEach(r => {
+    tSpend    += r.spend    || 0;
+    tClicks   += r.clicks   || 0;
+    tLeads    += r.leads    || 0;
+    tBookings += r.bookings || 0;
+    if (r.hasRevenue) { tRevenue += r.revenue; tHasRev = true; }
+  });
+  const totProfit = tHasRev ? tRevenue - tSpend : null;
+  const tRoas     = tSpend > 0 && tRevenue > 0 ? tRevenue / tSpend : null;
+
+  const body = document.getElementById('campMainBody');
+  if (body) body.innerHTML = rows.map(r => `<tr>
+    <td style="min-width:180px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.name}">${r.name}</td>
+    <td><span style="font-size:11px;font-weight:500;color:${r.owner==='Jack'?'#4285F4':'var(--gold)'};">${r.owner}</span></td>
+    <td><span class="pill pill-gold" style="font-size:10px;">${r.city}</span></td>
+    <td>£${fmt(r.spend)}</td>
+    <td>${fmt(r.clicks)}</td>
+    <td>${r.ctr}%</td>
+    <td>${r.cpc ? '£'+fmt(r.cpc) : '—'}</td>
+    <td>${r.leads}</td>
+    <td>${r.bookings}</td>
+    <td>${r.hasRevenue?'£'+fmt(r.revenue):'—'}</td>
+    <td>${r.avgBookingHtml}</td>
+    <td>${r.profitHtml}</td>
+    <td>${r.roasHtml}</td>
+  </tr>`).join('');
+
+  const totPHtml = totProfit !== null
+    ? `<span style="color:${totProfit>=0?'var(--green)':'var(--red)'};font-weight:600">${totProfit>=0?'':'−'}£${fmt(Math.abs(totProfit))}</span>`
+    : '—';
+  const totRHtml = tRoas !== null
+    ? `<span style="color:${tRoas>=1?'var(--green)':tRoas>0?'inherit':'var(--red)'};font-weight:600">${tRoas.toFixed(2)}×</span>`
+    : '—';
+  const totals = document.getElementById('campMainTotals');
+  if (totals) totals.innerHTML = `
+    <td style="font-weight:600;">Totals</td><td></td><td></td>
+    <td style="font-weight:600;">£${fmt(tSpend)}</td>
+    <td style="font-weight:600;">${fmt(tClicks)}</td>
+    <td></td><td></td>
+    <td style="font-weight:600;">${tLeads}</td>
+    <td style="font-weight:600;">${tBookings}</td>
+    <td style="font-weight:600;">${tRevenue>0?'£'+fmt(tRevenue):'—'}</td>
+    <td style="font-weight:600;">${tBookings>0&&tRevenue>0?'£'+fmt(tRevenue/tBookings):'—'}</td>
+    <td>${totPHtml}</td>
+    <td>${totRHtml}</td>`;
+}
+
+
+function fmt(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('en-GB', {maximumFractionDigits: 0});
+}
+
+function mkLoading(msg) {
+  const d = document.createElement('div');
+  d.className = 'loading-state';
+  d.id = 'loadingState';
+  d.innerHTML = `<div class="ld"></div><div class="ld"></div><div class="ld"></div><span>${msg}</span>`;
+  return d;
+}
+</script>
+
+</div><!-- end mainContent -->
+
+<script>
+const DASHBOARD_PASSWORD = 'luxe2026';
+
+function checkPassword() {
+  const val = document.getElementById('pwInput').value;
+  if (val === DASHBOARD_PASSWORD) {
+    document.getElementById('passwordGate').style.display = 'none';
+    document.getElementById('mainContent').style.display  = 'block';
+    sessionStorage.setItem('sl_dash_auth', '1');
+  } else {
+    document.getElementById('pwError').textContent = 'Incorrect password. Please try again.';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwInput').focus();
+  }
+}
+
+// Allow Enter key
+document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPassword();
+});
+
+// Persist within session
+if (sessionStorage.getItem('sl_dash_auth') === '1') {
+  document.getElementById('passwordGate').style.display = 'none';
+  document.getElementById('mainContent').style.display  = 'block';
+}
+</script>
+</body>
+</html>
