@@ -26,7 +26,7 @@ module.exports = async function handler(req, res) {
   try {
     const [leadsItems, bookingsItems] = await Promise.all([
       fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4'], true, true)
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'formula1', 'people_1'], true, true)
     ]);
 
     const cur  = monthRange(month);
@@ -131,6 +131,12 @@ function processLeads(items, startDate, endDate) {
     return (cols['status'] || '').trim() !== 'Spam!';
   });
 
+  // Unqualified leads
+  const unqualified = filtered.filter(item => {
+    const s = (colMap(item)['status'] || '').trim();
+    return s === 'Unqualified Lead';
+  });
+
   const bySource = {}, byChannel = {}, byCity = {}, byCampaign = {};
   const byCitySource = {};
 
@@ -152,8 +158,9 @@ function processLeads(items, startDate, endDate) {
   });
 
   return {
-    total:        filtered.length,
-    nonSpamTotal: nonSpam.length,
+    total:            filtered.length,
+    nonSpamTotal:     nonSpam.length,
+    unqualifiedTotal: unqualified.length,
     bySource:     sortDesc(bySource),
     byChannel:    sortDesc(byChannel),
     byCity:       sortDesc(byCity),
@@ -237,16 +244,38 @@ function processBookings(items, startDate, endDate) {
     .sort((a,b) => b.revenue - a.revenue)
     .slice(0, 5);
 
+  // Avg nights (formula1 column)
+  const nightsValues = filtered
+    .map(item => parseFloat(colMap(item)['formula1']) || 0)
+    .filter(n => n > 0);
+  const avgNights = nightsValues.length > 0
+    ? Math.round(nightsValues.reduce((a,b) => a+b, 0) / nightsValues.length)
+    : null;
+
+  // Top salesperson by revenue (people_1 column)
+  const salesRev = {};
+  filtered.forEach(item => {
+    const cols = colMap(item);
+    const name = (cols['people_1'] || '').trim();
+    const rev  = parseFloat(cols['numeric_mm1ge9h4']) || 0;
+    if (name) salesRev[name] = (salesRev[name] || 0) + rev;
+  });
+  const topSalesperson = Object.keys(salesRev).length > 0
+    ? Object.entries(salesRev).sort((a,b) => b[1]-a[1])[0]
+    : null; // [name, totalRevenue]
+
   return {
-    total:        filtered.length,
-    totalRevenue: Math.round(totalRevenue),
+    total:          filtered.length,
+    totalRevenue:   Math.round(totalRevenue),
     ppcCount,
-    ppcRevenue:   Math.round(ppcRevenue),
+    ppcRevenue:     Math.round(ppcRevenue),
     top5Bookings,
-    byChannel:    sortByRevDesc(byChannel),
-    byCity:       sortByRevDesc(byCity),
-    bySource:     sortByRevDesc(bySource),
-    byCampaign:   sortByRevDesc(byCampaign),
+    avgNights,
+    topSalesperson,
+    byChannel:      sortByRevDesc(byChannel),
+    byCity:         sortByRevDesc(byCity),
+    bySource:       sortByRevDesc(bySource),
+    byCampaign:     sortByRevDesc(byCampaign),
     byCitySource
   };
 }
