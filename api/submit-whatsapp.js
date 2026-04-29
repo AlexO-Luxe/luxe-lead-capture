@@ -7,7 +7,7 @@
 //
 //  Environment variables required:
 //    RESEND_API_KEY
-//    TEAM_EMAIL (alex@studentluxe.co.uk)
+//    TEAM_EMAIL_2 (alex@studentluxe.co.uk)
 // ============================================================
 
 const RESEND_API = 'https://api.resend.com/emails';
