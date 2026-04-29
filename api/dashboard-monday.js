@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const [leadsItems, bookingsItems] = await Promise.all([
-      fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status']),
+      fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status', 'color_mkt29g1r']),
       fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4'], true, true)
     ]);
 
@@ -173,6 +173,14 @@ function processLeads(items, startDate, endDate) {
     return (colMap(item)['status'] || '').trim() === 'Unqualified Lead';
   });
 
+  const highPotential = filtered.filter(item => {
+    return (colMap(item)['color_mkt29g1r'] || '').trim().toLowerCase() === 'high potential';
+  });
+
+  const moderatePotential = filtered.filter(item => {
+    return (colMap(item)['color_mkt29g1r'] || '').trim().toLowerCase() === 'moderate potential';
+  });
+
   const bySource = {}, byChannel = {}, byCity = {}, byCampaign = {};
   const byCitySource = {};
 
@@ -194,9 +202,11 @@ function processLeads(items, startDate, endDate) {
   });
 
   return {
-    total:            filtered.length,
-    nonSpamTotal:     nonSpam.length,
-    unqualifiedTotal: unqualified.length,
+    total:              filtered.length,
+    nonSpamTotal:       nonSpam.length,
+    unqualifiedTotal:   unqualified.length,
+    highPotentialTotal: highPotential.length,
+    modPotentialTotal:  moderatePotential.length,
     bySource:     sortDesc(bySource),
     byChannel:    sortDesc(byChannel),
     byCity:       sortDesc(byCity),
@@ -281,33 +291,12 @@ function processBookings(items, startDate, endDate) {
     .sort((a,b) => b.revenue - a.revenue)
     .slice(0, 5);
 
-  // Avg nights from extra cols (formula11)
-  const nightsValues = filtered
-    .map(item => 0) // formula11 — fetched separately when needed
-    .filter(n => n > 0);
-  const avgNights = nightsValues.length > 0
-    ? Math.round(nightsValues.reduce((a,b) => a+b, 0) / nightsValues.length)
-    : null;
-
-  // Top salesperson from extra cols (people98)
-  const salesRev = {};
-  filtered.forEach(item => {
-    const name = ''; // people98 — fetched separately when needed
-    const rev  = parseFloat(colMap(item)['numeric_mm1ge9h4']) || 0;
-    if (name) salesRev[name] = (salesRev[name] || 0) + rev;
-  });
-  const topSalesperson = Object.keys(salesRev).length > 0
-    ? Object.entries(salesRev).sort((a,b) => b[1]-a[1])[0]
-    : null;
-
   return {
     total:          filtered.length,
     totalRevenue:   Math.round(totalRevenue),
     ppcCount,
     ppcRevenue:     Math.round(ppcRevenue),
     top5Bookings,
-    avgNights,
-    topSalesperson,
     byChannel:      sortByRevDesc(byChannel),
     byCity:         sortByRevDesc(byCity),
     bySource:       sortByRevDesc(bySource),
