@@ -1104,17 +1104,60 @@ function renderDash(monday, gads) {
 
 
   // ── CAMPAIGNS — unified table ──
-  const bookByCampaign = bookings.byCampaign || {};
-  const leadByCampaign = leads.byCampaign    || {};
+  // Normalise campaign names — strip test suffixes and merge into base name
+  // e.g. "jf8_search_... - £150 tCPA Test" → "jf8_search_..."
+  function normCamp(name) {
+    if (!name) return name;
+    return name
+      .replace(/\s*[-–]\s*£[\d,]+\s*(tCPA\s*Test|Test|Experiment|Exp\.?)?$/i, '')
+      .replace(/\s*_Experiment\s*$/i, '')
+      .trim();
+  }
+
+  // Re-key leadByCampaign and bookByCampaign using normalised names
+  function rekey(obj) {
+    const out = {};
+    Object.entries(obj).forEach(([k, v]) => {
+      const nk = normCamp(k);
+      if (!out[nk]) out[nk] = typeof v === 'number' ? 0 : { count:0, revenue:0 };
+      if (typeof v === 'number') out[nk] += v;
+      else { out[nk].count += v.count; out[nk].revenue += v.revenue; }
+    });
+    return out;
+  }
+
+  const bookByCampaign = rekey(bookings.byCampaign || {});
+  const leadByCampaign = rekey(leads.byCampaign    || {});
 
   function isJack(name) {
     const n = (name || '').toLowerCase();
     return n.startsWith('jf') || n.includes('experiment');
   }
 
-  window._allCampRows = campaigns.map(c => {
-    const bl = bookByCampaign[c.name] || { count:0, revenue:0 };
-    const ll = leadByCampaign[c.name] || 0;
+  // Merge Google Ads campaigns that normalise to the same base name
+  const mergedCampaigns = {};
+  campaigns.forEach(c => {
+    const key = normCamp(c.name);
+    if (!mergedCampaigns[key]) {
+      mergedCampaigns[key] = { ...c, name: key }; // use clean base name
+    } else {
+      const m = mergedCampaigns[key];
+      m.spend            += c.spend || 0;
+      m.clicks           += Math.round(c.clicks || 0);
+      m.conversions      += c.conversions || 0;
+      m.conversionsValue += c.conversionsValue || 0;
+      // Recalculate CTR and CPC from totals
+      const totalImpressions = (m.impressions || 0) + (c.impressions || 0);
+      m.impressions = totalImpressions;
+      m.ctr = totalImpressions > 0 ? ((m.clicks / totalImpressions) * 100).toFixed(2) : 0;
+      m.cpc = m.clicks > 0 ? m.spend / m.clicks : null;
+    }
+  });
+
+  window._allCampRows = Object.values(mergedCampaigns).map(c => {
+    const baseName = c.name; // already normalised
+    const bl = bookByCampaign[baseName] || { count:0, revenue:0 };
+    const ll = leadByCampaign[baseName] || 0;
     const hasRevenue = bl.revenue > 0;
     const profit     = hasRevenue ? bl.revenue - c.spend : null;
     const roasNum    = c.spend > 0
