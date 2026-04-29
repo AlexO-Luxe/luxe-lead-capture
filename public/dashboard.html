@@ -512,17 +512,17 @@ body {
 
       <div id="dashSections" style="display:none">
 
-        <!-- LEADS -->
+        <!-- BOOKINGS & LEADS -->
         <div id="leads">
-          <div class="section-heading">Leads — PPC Performance</div>
-          <div class="stat-grid stat-grid-5" id="leadsPpcStats"></div>
-          </div>
+          <div class="section-heading">Bookings &amp; No. of Leads</div>
+          <div class="stat-grid stat-grid-6" id="bookingStats"></div>
+
+          <div class="section-heading" style="margin-top:24px;">PPC Performance</div>
+          <div class="stat-grid stat-grid-6" id="leadsPpcStats"></div>
         </div>
 
-        <!-- BOOKINGS -->
+        <!-- BOOKINGS TABLES -->
         <div id="bookings">
-          <div class="section-heading">Bookings & Revenue</div>
-          <div class="stat-grid" id="bookingStats"></div>
           <div class="three-col">
             <div class="table-card">
               <div class="table-card-header"><span class="table-card-title">Bookings / Source</span></div>
@@ -1002,46 +1002,63 @@ function renderDash(monday, gads) {
   // Multi-month periods (YTD, quarters) suppress MoM deltas and budget bar
   const isMulti = !prev;
 
-  // ── LEADS PPC STATS ──
-  const prevLeads  = prev?.leads;
-  const ppcLeads     = leads.bySource?.['PPC'] || 0;
-  const prevPpcLeads = prev?.leads?.bySource?.['PPC'] || 0;
-  const cpl = ppcLeads > 0 && acct ? (acct.spend / ppcLeads) : null;
-  const ppcBookingCount = bookings.ppcCount || 0;
-  const ppcRevenue      = bookings.ppcRevenue || 0;
-  const avgPpcBookingVal = ppcBookingCount > 0 ? (ppcRevenue / ppcBookingCount) : null;
+  // ── ALL-SOURCE METRICS ──
+  const totalLeads    = leads.total || 0;
+  const prevTotalLeads = prev?.leads?.total || 0;
+  const totalBookings = bookings.total || 0;
+  const totalRevenue  = bookings.totalRevenue || 0;
+  const allCpl        = totalLeads > 0 && acct?.spend > 0 ? (acct.spend / totalLeads) : null;
+  const allCac        = totalBookings > 0 && acct?.spend > 0 ? (acct.spend / totalBookings) : null;
+  const allAvgBooking = totalBookings > 0 && totalRevenue > 0 ? (totalRevenue / totalBookings) : null;
+  const allConvRate   = totalLeads > 0 ? (totalBookings / totalLeads * 100).toFixed(1) + '%' : '—';
 
-  const cac = ppcBookingCount > 0 && acct?.spend > 0 ? (acct.spend / ppcBookingCount) : null;
+  // ── PPC METRICS ──
+  const ppcLeads         = leads.bySource?.['PPC'] || 0;
+  const prevPpcLeads     = prev?.leads?.bySource?.['PPC'] || 0;
+  const ppcBookingCount  = bookings.ppcCount || 0;
+  const ppcRevenue       = bookings.ppcRevenue || 0;
+  const ppcSpend         = acct?.spend || 0;
+  const ppcProfit        = ppcRevenue > 0 && ppcSpend > 0 ? ppcRevenue - ppcSpend : null;
+  const cpl              = ppcLeads > 0 && ppcSpend > 0 ? (ppcSpend / ppcLeads) : null;
+  const cac              = ppcBookingCount > 0 && ppcSpend > 0 ? (ppcSpend / ppcBookingCount) : null;
+  const avgPpcBookingVal = ppcBookingCount > 0 && ppcRevenue > 0 ? (ppcRevenue / ppcBookingCount) : null;
+  const ppcConvRate      = ppcLeads > 0 ? (ppcBookingCount / ppcLeads * 100).toFixed(1) + '%' : '—';
 
-  // ROAS: use Monday PPC revenue ÷ actual spend (more accurate than Google Ads conversions_value)
-  const ppcRevenueForRoas = bookings.ppcRevenue || 0;
-  const roasVal     = acct?.spend > 0 && ppcRevenueForRoas > 0 ? ppcRevenueForRoas / acct.spend : (acct?.roas != null ? Number(acct.roas) : null);
+  // ROAS
+  const roasVal     = ppcSpend > 0 && ppcRevenue > 0 ? ppcRevenue / ppcSpend : (acct?.roas != null ? Number(acct.roas) : null);
   const prevRoasVal = !isMulti && gads.prevAccountSummary?.roas != null ? Number(gads.prevAccountSummary.roas) : null;
   const roasDisplay = roasVal != null ? roasVal.toFixed(2) + '×' : '—';
   const roasDelta   = !isMulti && roasVal != null && prevRoasVal != null ? deltaNum(roasVal, prevRoasVal, false, true) : null;
 
-  document.getElementById('leadsPpcStats').innerHTML = [
-    statCard('PPC Leads', ppcLeads,
-      !isMulti && prevLeads ? delta(ppcLeads, prevPpcLeads) : null,
-      !isMulti && prevPpcLeads > 0 ? leadsBar(ppcLeads, prevPpcLeads) : null
-    ),
-    statCard('PPC Spend',    acct ? '£'+fmt(acct.spend) : '—',
-      !isMulti && gads.prevAccountSummary ? delta(acct.spend, gads.prevAccountSummary.spend, true) : null,
-      !isMulti && budget ? budgetBar(acct?.spend||0, budget) : null),
-    statCard('Overall ROAS', roasDisplay, roasDelta, null, 'PPC revenue (Monday) ÷ PPC spend'),
-    statCard('CPL',          cpl ? '£'+fmt(cpl) : '—', null, null, 'PPC spend ÷ PPC leads'),
-    statCard('PPC CAC', cac ? '£'+fmt(cac) : '—', null, null, 'PPC spend ÷ no. of PPC bookings'),
-    statCard('Avg. PPC Booking', avgPpcBookingVal ? '£'+fmt(avgPpcBookingVal) : '—', null, null, 'PPC revenue ÷ no. of PPC bookings'),
+  const prevBook = prev?.bookings;
+
+  // ── SECTION 1: Bookings & No. of Leads ──
+  document.getElementById('bookingStats').innerHTML = [
+    statCard('Total Revenue',      '£'+fmt(totalRevenue),   !isMulti && prevBook ? delta(totalRevenue, prevBook.totalRevenue, true) : null),
+    statCard('Confirmed Bookings', totalBookings,            !isMulti && prevBook ? delta(totalBookings, prevBook.total) : null),
+    statCard('No. of Leads',       totalLeads,               !isMulti ? delta(totalLeads, prevTotalLeads) : null),
+    statCard('CPL',                allCpl ? '£'+fmt(allCpl) : '—', null, null, 'PPC spend ÷ all leads'),
+    statCard('CAC',                allCac ? '£'+fmt(allCac) : '—', null, null, 'PPC spend ÷ all bookings'),
+    statCard('Avg Booking Value',  allAvgBooking ? '£'+fmt(allAvgBooking) : '—', null, null, 'Total revenue ÷ all bookings'),
+    statCard('Conv. Rate',         allConvRate, null, null, 'All bookings ÷ all leads × 100'),
   ].join('');
 
-  // ── BOOKING STATS ──
-  const prevBook = prev?.bookings;
-  document.getElementById('bookingStats').innerHTML = [
-    statCard('Confirmed Bookings', bookings.total, !isMulti && prevBook ? delta(bookings.total, prevBook.total) : null),
-    statCard('Total Revenue', '£'+fmt(bookings.totalRevenue), !isMulti && prevBook ? delta(bookings.totalRevenue, prevBook.totalRevenue, true) : null),
-    statCard('Avg Booking Value', bookings.total > 0 ? '£'+fmt(Math.round(bookings.totalRevenue/bookings.total)) : '—'),
-    statCard('Lead → Booking', leads.nonSpamTotal > 0 ? (bookings.total/leads.nonSpamTotal*100).toFixed(1)+'%' : '—',
-      null, null, 'Non-spam leads vs confirmed bookings'),
+  // ── SECTION 2: PPC Performance ──
+  document.getElementById('leadsPpcStats').innerHTML = [
+    statCard('PPC Revenue',    ppcRevenue > 0 ? '£'+fmt(ppcRevenue) : '—',
+      !isMulti && prevBook ? delta(ppcRevenue, prevBook.ppcRevenue, true) : null),
+    statCard('PPC Spend',      ppcSpend > 0 ? '£'+fmt(ppcSpend) : '—',
+      !isMulti && gads.prevAccountSummary ? delta(ppcSpend, gads.prevAccountSummary.spend, true) : null,
+      !isMulti && budget ? budgetBar(ppcSpend, budget) : null),
+    statCard('PPC ROAS',       roasDisplay, roasDelta, null, 'PPC revenue ÷ PPC spend'),
+    statCard('PPC Profit',     ppcProfit !== null ? (ppcProfit >= 0 ? '£' : '−£') + fmt(Math.abs(ppcProfit)) : '—', null, null, 'PPC revenue − PPC spend'),
+    statCard('PPC CPL',        cpl ? '£'+fmt(cpl) : '—', null, null, 'PPC spend ÷ PPC leads'),
+    statCard('PPC CAC',        cac ? '£'+fmt(cac) : '—', null, null, 'PPC spend ÷ PPC bookings'),
+    statCard('Avg PPC Booking',avgPpcBookingVal ? '£'+fmt(avgPpcBookingVal) : '—', null, null, 'PPC revenue ÷ PPC bookings'),
+    statCard('PPC Conv. Rate', ppcConvRate, null, null, 'PPC bookings ÷ PPC leads × 100'),
+    statCard('PPC Leads',      ppcLeads,
+      !isMulti ? delta(ppcLeads, prevPpcLeads) : null,
+      !isMulti && prevPpcLeads > 0 ? leadsBar(ppcLeads, prevPpcLeads) : null),
   ].join('');
 
   // ── REVENUE BY SOURCE / CHANNEL / CAMPAIGN ──
