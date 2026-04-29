@@ -93,7 +93,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         from:    'Student Luxe <reservations@studentluxe.co.uk>',
-        to:      [process.env.TEAM_EMAIL || 'alex@studentluxe.co.uk'],
+        to:      [process.env.TEAM_EMAIL_2 || 'alex@studentluxe.co.uk'],
         subject: `Potential WA Lead — ${timeStr}`,
         html
       })
