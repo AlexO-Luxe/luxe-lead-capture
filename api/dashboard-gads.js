@@ -11,12 +11,12 @@ const MCC_ID      = '6046238343';
 const CAMPAIGN_CITY = {
   'new-york-os':          'New York',
   'paris-os':             'Paris',
-  'PARIS - from OS _Experiment': 'Paris',
+  'paris-os-exp': 'Paris',
   'cambridge-os':         'Cambridge',
   'lse-summer-uni-campus':'London',
   'lse-summer-all-us':    'London',
   'lse-summer-perf-max':  'London',
-  'LSE SUMMER - All US _Experiment': 'London',
+  'lse-summer-all-us-exp': 'London',
 };
 function cityFromCampaign(name) {
   if (!name) return 'London';
@@ -65,15 +65,16 @@ module.exports = async function handler(req, res) {
     }
 
     const cur = dateRange(month);
-    const [accountSummary, campaigns] = await Promise.all([
+    const [accountSummary, campaigns, step4Value] = await Promise.all([
       queryAccountSummary(token, cur.start, cur.end),
-      queryCampaigns(token, cur.start, cur.end)
+      queryCampaigns(token, cur.start, cur.end),
+      queryConversionActionValue(token, cur.start, cur.end, process.env.GOOGLE_ADS_BOOKING_ACTION_ID || '7579921391')
     ]);
 
     const monStr = month.split('-')[1];
     const budget = MONTHLY_BUDGETS[monStr] || null;
 
-    const result = { month, budget, accountSummary, campaigns };
+    const result = { month, budget, accountSummary, campaigns, step4ConvValue: step4Value };
 
     if (prevMonth && /^\d{4}-\d{2}$/.test(prevMonth)) {
       const prev = dateRange(prevMonth);
@@ -126,6 +127,25 @@ async function gadsQuery(token, gaql) {
   const data = JSON.parse(text);
   if (data.error) throw new Error('GAds: ' + JSON.stringify(data.error));
   return data.results || [];
+}
+
+async function queryConversionActionValue(token, startStr, endStr, actionId) {
+  try {
+    const results = await gadsQuery(token, `
+      SELECT
+        conversion_action.id,
+        metrics.all_conversions_value
+      FROM conversion_action
+      WHERE conversion_action.id = ${actionId}
+        AND segments.date BETWEEN '${startStr}' AND '${endStr}'
+    `);
+    let total = 0;
+    results.forEach(r => { total += r.metrics?.allConversionsValue || 0; });
+    return r2(total);
+  } catch(e) {
+    console.log('Step4 conv query failed (non-fatal):', e.message);
+    return null;
+  }
 }
 
 async function queryAccountSummary(token, startStr, endStr) {
