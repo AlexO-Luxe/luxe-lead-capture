@@ -855,11 +855,31 @@ function renderYTD(months, results) {
       </tr>`
     ).join('');
 
-    // City breakdown
-    const cityEntries = Object.entries(b.byCity || {}).filter(([,v]) => v.count > 0).sort((a,b) => b[1].revenue - a[1].revenue);
+    // City breakdown — group non-primary cities into Other
+    const PRIMARY_CITIES = ['London', 'New York', 'Paris'];
+    const cityRaw = b.byCity || {};
+    const cityGrouped = {};
+    Object.entries(cityRaw).forEach(([city, v]) => {
+      const key = PRIMARY_CITIES.includes(city) ? city : 'Other';
+      if (!cityGrouped[key]) cityGrouped[key] = { count:0, revenue:0 };
+      cityGrouped[key].count   += v.count;
+      cityGrouped[key].revenue += v.revenue;
+    });
+    // Sort: primary cities first in order, then Other
+    const cityOrder = [...PRIMARY_CITIES, 'Other'];
+    const cityEntries = cityOrder
+      .filter(c => cityGrouped[c]?.count > 0)
+      .map(c => [c, cityGrouped[c]]);
     const cityRows = cityEntries.map(([city, v]) => {
-      const cityLeads = l.byCity?.[city] || 0;
-      const cityConv  = cityLeads > 0 ? (v.count / cityLeads * 100).toFixed(1) + '%' : '—';
+      let cityLeads = 0;
+      if (city === 'Other') {
+        Object.entries(l.byCity || {}).forEach(([c, n]) => {
+          if (!PRIMARY_CITIES.includes(c)) cityLeads += n;
+        });
+      } else {
+        cityLeads = l.byCity?.[city] || 0;
+      }
+      const cityConv = cityLeads > 0 ? (v.count / cityLeads * 100).toFixed(1) + '%' : '—';
       return `<div style="margin-bottom:10px;">
         <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);margin-bottom:4px;">${city}</div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:1px;"><span style="color:var(--muted);">Revenue</span><span style="font-weight:500;">£${fmt(v.revenue)}</span></div>
