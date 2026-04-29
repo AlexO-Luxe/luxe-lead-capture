@@ -917,11 +917,13 @@ async function fetchMonth(mo, prev) {
 
 function mergeMonday(arr) {
   function mergeLeads(a) {
-    const o = { total:0, nonSpamTotal:0, unqualifiedTotal:0, bySource:{}, byChannel:{}, byCity:{}, byCampaign:{}, byCitySource:{} };
+    const o = { total:0, nonSpamTotal:0, unqualifiedTotal:0, highPotentialTotal:0, modPotentialTotal:0, bySource:{}, byChannel:{}, byCity:{}, byCampaign:{}, byCitySource:{} };
     a.forEach(m => {
       const l = m.current.leads;
       o.total += l.total; o.nonSpamTotal += l.nonSpamTotal;
-      o.unqualifiedTotal += l.unqualifiedTotal || 0;
+      o.unqualifiedTotal   += l.unqualifiedTotal   || 0;
+      o.highPotentialTotal += l.highPotentialTotal || 0;
+      o.modPotentialTotal  += l.modPotentialTotal  || 0;
       mc(o.bySource, l.bySource); mc(o.byChannel, l.byChannel);
       mc(o.byCity, l.byCity);     mc(o.byCampaign, l.byCampaign);
       Object.entries(l.byCitySource||{}).forEach(([c,s]) => {
@@ -932,18 +934,12 @@ function mergeMonday(arr) {
     return o;
   }
   function mergeBookings(a) {
-    const o = { total:0, totalRevenue:0, ppcCount:0, ppcRevenue:0, top5Bookings:[], avgNights:null, topSalesperson:null, byChannel:{}, byCity:{}, bySource:{}, byCampaign:{}, byCitySource:{} };
-    const allNights = [], salesRev = {};
+    const o = { total:0, totalRevenue:0, ppcCount:0, ppcRevenue:0, top5Bookings:[], byChannel:{}, byCity:{}, bySource:{}, byCampaign:{}, byCitySource:{} };
     a.forEach(m => {
       const b = m.current.bookings;
       o.total += b.total; o.totalRevenue += b.totalRevenue;
       o.ppcCount += b.ppcCount; o.ppcRevenue += b.ppcRevenue;
       (b.top5Bookings || []).forEach(bk => o.top5Bookings.push(bk));
-      if (b.avgNights) allNights.push(b.avgNights);
-      if (b.topSalesperson) {
-        const [name, rev] = b.topSalesperson;
-        salesRev[name] = (salesRev[name] || 0) + rev;
-      }
       mrc(o.byChannel, b.byChannel); mrc(o.byCity, b.byCity);
       mrc(o.bySource, b.bySource);   mrc(o.byCampaign, b.byCampaign);
       Object.entries(b.byCitySource||{}).forEach(([c,s]) => {
@@ -954,9 +950,7 @@ function mergeMonday(arr) {
         });
       });
     });
-    o.top5Bookings  = o.top5Bookings.sort((a,b) => b.revenue - a.revenue).slice(0, 5);
-    o.avgNights     = allNights.length > 0 ? Math.round(allNights.reduce((a,b) => a+b, 0) / allNights.length) : null;
-    o.topSalesperson = Object.keys(salesRev).length > 0 ? Object.entries(salesRev).sort((a,b) => b[1]-a[1])[0] : null;
+    o.top5Bookings = o.top5Bookings.sort((a,b) => b.revenue - a.revenue).slice(0, 5);
     return o;
   }
   return { month: arr[arr.length-1].month, current: { leads: mergeLeads(arr), bookings: mergeBookings(arr) }, previous: null };
@@ -1022,9 +1016,13 @@ function renderDash(monday, gads) {
   const totalRevenue   = bookings.totalRevenue || 0;
   const allAvgBooking  = totalBookings > 0 && totalRevenue > 0 ? (totalRevenue / totalBookings) : null;
   const allConvRate    = totalLeads > 0 ? (totalBookings / totalLeads * 100).toFixed(1) + '%' : '—';
-  const unqualLeads    = leads.unqualifiedTotal || 0;
-  const avgNights      = bookings.avgNights || null;
-  const topSales       = bookings.topSalesperson; // [name, revenue] or null
+  const unqualLeads    = leads.unqualifiedTotal   || 0;
+  const highPotLeads   = leads.highPotentialTotal || 0;
+  const modPotLeads    = leads.modPotentialTotal  || 0;
+  // Lead Quality: 10 - (unqualified / total * 10), clamped 0-10
+  const leadQuality    = totalLeads > 0
+    ? Math.max(0, (10 - (unqualLeads / totalLeads * 10))).toFixed(1)
+    : null;
 
   // ── PPC METRICS ──
   const ppcLeads        = leads.bySource?.['PPC'] || 0;
@@ -1060,10 +1058,10 @@ function renderDash(monday, gads) {
     statCard('Unqualified Leads',  unqualLeads,              null, null, 'Leads marked as unqualified this period'),
     statCard('Avg Booking Value',  allAvgBooking ? '£'+fmt(allAvgBooking) : '—', null, null, 'Total revenue ÷ all bookings'),
     statCard('Conv. Rate',         allConvRate, null, null, 'All bookings ÷ all leads × 100'),
-    statCard('Avg. Nights',        avgNights != null ? avgNights + ' nights' : '—', null, null, 'Average stay length from formula11 column'),
-    statCard('Top Salesperson',    topSales ? String(topSales[0]) : '—', null,
-      topSales ? `<div style="font-size:11px;color:var(--gold);margin-top:2px;">£${fmt(topSales[1])} revenue</div>` : null,
-      'Salesperson with highest revenue this period'),
+    statCard('Lead Quality',       leadQuality != null ? leadQuality + ' / 10' : '—', null, null, '10 minus (unqualified leads ÷ total leads × 10)'),
+    statCard('Unqualified Leads',  unqualLeads, null, null, 'Leads marked as Unqualified Lead'),
+    statCard('High Potential',     highPotLeads, null, null, 'Leads marked as High Potential'),
+    statCard('Moderate Potential', modPotLeads, null, null, 'Leads marked as Moderate Potential'),
   ].join('');
 
   // ── SECTION 2: PPC Performance ──
