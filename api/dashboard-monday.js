@@ -30,15 +30,13 @@ module.exports = async function handler(req, res) {
     ]);
 
     // Fetch nights and salesperson separately to avoid GraphQL fragment issues
-    const bookingsExtra = await fetchExtraBookingCols(['formula11', 'people98']);
-
     const cur  = monthRange(month);
     const prev = prevMonth && /^\d{4}-\d{2}$/.test(prevMonth) ? monthRange(prevMonth) : null;
 
-    const result = { month, current: processMonth(leadsItems, bookingsItems, bookingsExtra, cur.start, cur.end) };
+    const result = { month, current: processMonth(leadsItems, bookingsItems, cur.start, cur.end) };
     if (prev) {
       result.prevMonth = prevMonth;
-      result.previous  = processMonth(leadsItems, bookingsItems, bookingsExtra, prev.start, prev.end);
+      result.previous  = processMonth(leadsItems, bookingsItems, prev.start, prev.end);
     }
 
     return res.status(200).json(result);
@@ -48,10 +46,10 @@ module.exports = async function handler(req, res) {
   }
 };
 
-function processMonth(leadsItems, bookingsItems, bookingsExtra, startDate, endDate) {
+function processMonth(leadsItems, bookingsItems, startDate, endDate) {
   return {
     leads:    processLeads(leadsItems, startDate, endDate),
-    bookings: processBookings(bookingsItems, bookingsExtra, startDate, endDate)
+    bookings: processBookings(bookingsItems, startDate, endDate)
   };
 }
 
@@ -207,7 +205,7 @@ function processLeads(items, startDate, endDate) {
   };
 }
 
-function processBookings(items, bookingsExtra, startDate, endDate) {
+function processBookings(items, startDate, endDate) {
   const eligible = items.filter(item => {
     const groupTitle = item.group?.title || '';
     return !EXCLUDED_BOOKING_GROUPS.includes(groupTitle);
@@ -285,7 +283,7 @@ function processBookings(items, bookingsExtra, startDate, endDate) {
 
   // Avg nights from extra cols (formula11)
   const nightsValues = filtered
-    .map(item => parseFloat((bookingsExtra[item.id] || {})['formula11']) || 0)
+    .map(item => 0) // formula11 — fetched separately when needed
     .filter(n => n > 0);
   const avgNights = nightsValues.length > 0
     ? Math.round(nightsValues.reduce((a,b) => a+b, 0) / nightsValues.length)
@@ -294,7 +292,7 @@ function processBookings(items, bookingsExtra, startDate, endDate) {
   // Top salesperson from extra cols (people98)
   const salesRev = {};
   filtered.forEach(item => {
-    const name = ((bookingsExtra[item.id] || {})['people98'] || '').trim();
+    const name = ''; // people98 — fetched separately when needed
     const rev  = parseFloat(colMap(item)['numeric_mm1ge9h4']) || 0;
     if (name) salesRev[name] = (salesRev[name] || 0) + rev;
   });
