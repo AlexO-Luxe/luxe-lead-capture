@@ -10,6 +10,7 @@
 //    FROM_NAME                   = Student Luxe Apartments
 //    SITE_URL                    = https://www.studentluxe.co.uk
 //    MONDAY_API_KEY              = (your Monday API key)
+//    MONDAY_ADD_LEAD_SECRET      = (any random string, e.g. openssl rand -hex 32)
 //    GOOGLE_ADS_CLIENT_ID        = (from Google Cloud OAuth client)
 //    GOOGLE_ADS_CLIENT_SECRET    = (from Google Cloud OAuth client)
 //    GOOGLE_ADS_REFRESH_TOKEN    = (from OAuth playground)
@@ -32,18 +33,45 @@ module.exports = async function handler(req, res) {
 
   const p = req.body;
 
-  // Push to Monday first so we get the pulse ID for the team email link
+  // ── Get submitter IP ──────────────────────────────────────
+  const submitterIp =
+    (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+    req.socket?.remoteAddress ||
+    '';
+
+  // ── Duplicate check — query Monday for matching email ─────
+  let duplicateOf = null;
+  try {
+    duplicateOf = await findExistingLead(p.email, submitterIp);
+  } catch(err) {
+    console.warn('Duplicate check failed (non-fatal):', err.message);
+  }
+
+  if (duplicateOf) {
+    // ── DUPLICATE PATH: send alert email only, do NOT create Monday item ──
+    console.log('Duplicate detected — existing lead ID:', duplicateOf.id);
+    try {
+      await sendDuplicateAlert(p, duplicateOf, submitterIp);
+      console.log('Duplicate alert email sent');
+    } catch(err) {
+      console.error('Duplicate alert email failed:', err.message);
+    }
+    // Still fire Google Ads conversion (the intent is real)
+    try { await uploadGoogleAdsConversion(p); } catch(e) { console.warn('GA conversion (dup):', e.message); }
+    return res.status(200).json({ success: true, duplicate: true });
+  }
+
+  // ── NORMAL PATH ───────────────────────────────────────────
   let mondayId    = null;
   let mondayError = null;
   try {
-    mondayId = await pushToMonday(p);
+    mondayId = await pushToMonday(p, submitterIp);
     console.log('Monday OK — pulse ID:', mondayId);
   } catch(err) {
     mondayError = err.message || 'Unknown error';
     console.error('Monday failed:', mondayError);
   }
 
-  // Fire both emails in parallel
   const results = await Promise.allSettled([
     sendGuestConfirmation(p),
     sendTeamNotification(p, mondayId, mondayError)
@@ -55,14 +83,10 @@ module.exports = async function handler(req, res) {
     else console.log(`${label} OK`);
   });
 
-  // ── GOOGLE ADS SERVER-SIDE CONVERSION ─────────────────────────
-  // Fires for all enquiries (not just GCLID) so Google can match via hashed email/phone.
-  // Runs after Monday + emails so a failure here never affects the lead capture.
   try {
     await uploadGoogleAdsConversion(p);
     console.log('Google Ads conversion uploaded OK');
   } catch(err) {
-    // Log but never fail the request — lead is already in Monday
     console.error('Google Ads conversion failed (non-fatal):', err.message);
   }
 
@@ -70,11 +94,321 @@ module.exports = async function handler(req, res) {
 };
 
 // ──────────────────────────────────────────────────────────────
+//  DUPLICATE DETECTION — query Monday for existing email match
+// ──────────────────────────────────────────────────────────────
+async function findExistingLead(email, ip) {
+  if (!email) return null;
+
+  const query = `
+    query {
+      items_page_by_column_values(
+        board_id: ${MONDAY_BOARD},
+        limit: 5,
+        columns: [{ column_id: "email", column_values: ["${email.toLowerCase().trim()}"] }]
+      ) {
+        items {
+          id
+          name
+          created_at
+          column_values(ids: ["people_1", "text_mm1d87rp"]) {
+            id
+            text
+            value
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await fetch(MONDAY_API, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': process.env.MONDAY_API_KEY
+    },
+    body: JSON.stringify({ query })
+  });
+
+  const data = await response.json();
+  if (data.errors) {
+    console.error('Monday duplicate query errors:', JSON.stringify(data.errors));
+    return null;
+  }
+
+  const items = data?.data?.items_page_by_column_values?.items || [];
+  if (items.length === 0) return null;
+
+  // Take the most recent matching item
+  const match = items[0];
+
+  // Extract assignees from people_1 column
+  let assignees = [];
+  const peopleCol = match.column_values?.find(c => c.id === 'people_1');
+  if (peopleCol?.value) {
+    try {
+      const val = JSON.parse(peopleCol.value);
+      const personsArr = val?.personsAndTeams || [];
+      // Monday people column gives IDs — we store display names from .text
+      const textVal = peopleCol.text || '';
+      if (textVal) {
+        assignees = textVal.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    } catch(e) {
+      if (peopleCol.text) assignees = [peopleCol.text];
+    }
+  }
+
+  // Extract stored IP from text_mm1d87rp (we'll store it going forward)
+  const ipCol = match.column_values?.find(c => c.id === 'text_mm1d87rp');
+  const originalIp = ipCol?.text || '';
+
+  return {
+    id:          match.id,
+    name:        match.name,
+    created_at:  match.created_at,
+    assignees,
+    originalIp,
+    ipMatch:     originalIp && ip && originalIp === ip
+  };
+}
+
+// ──────────────────────────────────────────────────────────────
+//  DUPLICATE ALERT EMAIL
+// ──────────────────────────────────────────────────────────────
+async function sendDuplicateAlert(p, existing, submitterIp) {
+  const guestName     = p.full_name || 'Unknown';
+  const nightCount    = nights(p);
+  const isTypeA       = p.enquiry_type === 'A';
+  const siteUrl       = process.env.SITE_URL || 'https://www.studentluxe.co.uk';
+
+  const submittedFormatted = p.submitted_at
+    ? new Date(p.submitted_at).toLocaleString('en-GB', {
+        day:'numeric', month:'long', year:'numeric',
+        hour:'numeric', minute:'2-digit', hour12:true,
+        timeZone:'Europe/London'
+      })
+    : new Date().toLocaleString('en-GB', {
+        day:'numeric', month:'long', year:'numeric',
+        hour:'numeric', minute:'2-digit', hour12:true,
+        timeZone:'Europe/London'
+      });
+
+  const originalFormatted = existing.created_at
+    ? new Date(existing.created_at).toLocaleString('en-GB', {
+        day:'numeric', month:'long', year:'numeric',
+        hour:'numeric', minute:'2-digit', hour12:true,
+        timeZone:'Europe/London'
+      })
+    : '—';
+
+  const crmUrl = `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/pulses/${existing.id}`;
+
+  // Build "Add to Leads Board" one-click URL
+  // This hits /api/add-lead with a signed payload
+  const addPayload = Buffer.from(JSON.stringify({
+    p,
+    ip: submitterIp,
+    ts: Date.now()
+  })).toString('base64url');
+
+  const secret    = process.env.MONDAY_ADD_LEAD_SECRET || 'changeme';
+  const crypto    = require('crypto');
+  const sig       = crypto.createHmac('sha256', secret).update(addPayload).digest('hex');
+  const addLeadUrl = `${siteUrl}/api/add-lead?payload=${addPayload}&sig=${sig}`;
+
+  // Assignee pills HTML
+  const assigneePills = existing.assignees.length > 0
+    ? existing.assignees.map(name => {
+        const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+        return `<span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#1a1a1a;margin-right:8px;">
+          <span style="width:28px;height:28px;border-radius:50%;background:#B8966E;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;flex-shrink:0;">${initials}</span>
+          ${escHtml(name)}
+        </span>`;
+      }).join('')
+    : '<span style="font-size:13px;color:#9b9b9b;">Unassigned</span>';
+
+  // IP row styling
+  const ipMatchTag = existing.ipMatch
+    ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
+    : '';
+
+  const compareRow = (label, origVal, newVal, isMatch) => {
+    const matchTag = isMatch
+      ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
+      : '';
+    return `
+      <tr>
+        <td style="padding:14px 20px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;width:50%;">
+          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(origVal)}</p>
+        </td>
+        <td style="padding:14px 20px;border-top:0.5px solid #e8e4de;vertical-align:top;width:50%;">
+          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+          <p style="margin:0;font-size:14px;color:${isMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(newVal)}${matchTag}</p>
+        </td>
+      </tr>`;
+  };
+
+  const newSubmissionFields = [
+    p.apartment_ref  && ['Apartment', p.apartment_ref],
+    p.city && p.enquiry_type !== 'A' && ['City', formatCity(p.city)],
+    p.apartment_type && ['Apartment type', formatAptType(p.apartment_type)],
+    p.check_in       && ['Check-in', formatDate(p.check_in)],
+    p.check_out      && ['Check-out', formatDate(p.check_out)],
+    nightCount       && ['Nights', String(nightCount)],
+    p.budget && p.enquiry_type !== 'A' && ['Budget', formatBudget(p.budget)],
+    p.response_methods && ['Respond via', p.response_methods],
+    p.nationality    && ['Nationality', p.nationality],
+  ].filter(Boolean);
+
+  const detailRows = newSubmissionFields.map(([label, value]) => `
+    <tr>
+      <td style="padding:8px 0;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#9b9b9b;width:140px;vertical-align:top;">${label}</td>
+      <td style="padding:8px 0;font-size:14px;color:#1a1a1a;">${escHtml(value)}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>New Guest Enquiry — Possible Duplicate</title></head>
+<body style="margin:0;padding:0;background:#f0ece6;font-family:'DM Sans',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0ece6;padding:32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
+
+  <!-- HEADER -->
+  <tr><td style="background:#B8966E;padding:28px 40px;">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="vertical-align:middle;">
+        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,0.15);border:0.5px solid rgba(255,255,255,0.3);border-radius:20px;padding:4px 12px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#fff;margin-bottom:10px;">
+          <span style="width:6px;height:6px;border-radius:50%;background:#f5d376;display:inline-block;"></span>&nbsp;Possible duplicate
+        </div>
+        <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:26px;font-weight:400;color:#fff;letter-spacing:-0.02em;">${escHtml(guestName)}</p>
+        <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.7);">${submittedFormatted}</p>
+      </td>
+      <td style="text-align:right;vertical-align:middle;">
+        <div style="width:56px;height:56px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.6);display:inline-flex;align-items:center;justify-content:center;">
+          <span style="font-family:Georgia,serif;font-style:italic;font-size:15px;color:rgba(255,255,255,0.9);letter-spacing:0.05em;">luxe</span>
+        </div>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <!-- INTRO BAND -->
+  <tr><td style="background:#fffcf2;border-top:3px solid #e8c96b;padding:16px 40px;font-size:13px;color:#5a4310;line-height:1.7;">
+    Hi Sales &amp; Reservations heroes — we've spotted a potential duplicate. Please check below, and if it's not — add it to the Leads Board. Cheers!
+  </td></tr>
+
+  <!-- COMPARISON -->
+  <tr><td style="background:#ffffff;padding:28px 40px 20px;">
+    <p style="margin:0 0 20px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#B8966E;">Original vs. new submission</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0;">
+      <tr>
+        <td width="50%" style="padding:10px 20px;background:#f7f2eb;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original lead</td>
+        <td width="50%" style="padding:10px 20px;background:#0d1a2e;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.6);border-bottom:0.5px solid #e8e4de;border-left:0.5px solid #e8e4de;">New submission</td>
+      </tr>
+      ${compareRow('Name', existing.name, p.full_name || '', existing.name.toLowerCase().trim() === (p.full_name || '').toLowerCase().trim())}
+      ${compareRow('Email', p.email || '', p.email || '', true)}
+      ${compareRow('Lead created', originalFormatted, submittedFormatted, false)}
+      <tr>
+        <td style="padding:14px 20px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;">
+          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
+          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(existing.originalIp || '—')}</p>
+        </td>
+        <td style="padding:14px 20px;border-top:0.5px solid #e8e4de;vertical-align:top;">
+          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
+          <p style="margin:0;font-size:14px;color:${existing.ipMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(submitterIp || '—')}${ipMatchTag}</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- ASSIGNED TO -->
+  <tr><td style="background:#ffffff;padding:0 40px 20px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;padding:16px 20px;">
+      <tr>
+        <td style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;vertical-align:middle;">Assigned to</td>
+        <td style="text-align:right;vertical-align:middle;">${assigneePills}</td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- ACTION BAND -->
+  <tr><td style="background:#f7f2eb;padding:16px 40px;border-top:0.5px solid #e8e4de;border-bottom:0.5px solid #e8e4de;">
+    <p style="margin:0 0 12px;font-size:12px;color:#6b6b6b;line-height:1.5;">Not a duplicate? Use the button below to add it to the Leads Board.</p>
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:8px;"><a href="${addLeadUrl}" style="display:inline-block;padding:11px 22px;background:#0d1a2e;border-radius:8px;font-size:12px;font-weight:500;color:#fff;text-decoration:none;">Add to Leads Board</a></td>
+      <td style="padding-right:8px;"><a href="mailto:${p.email}" style="display:inline-block;padding:11px 22px;background:#B8966E;border-radius:8px;font-size:12px;font-weight:500;color:#fff;text-decoration:none;">Reply by email</a></td>
+      <td><a href="${crmUrl}" style="display:inline-block;padding:11px 22px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View original lead</a></td>
+    </tr></table>
+  </td></tr>
+
+  <!-- NEW SUBMISSION DETAILS -->
+  <tr><td style="background:#ffffff;padding:28px 40px 8px;">
+    <p style="margin:0 0 20px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#B8966E;">New submission details</p>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:0 0 18px;vertical-align:top;width:50%;">
+          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">Name</p>
+          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(p.full_name || '—')}</p>
+        </td>
+        <td style="padding:0 0 18px;vertical-align:top;width:50%;">
+          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">Email</p>
+          <p style="margin:0;font-size:14px;color:#185FA5;">${escHtml(p.email || '—')}</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 18px;vertical-align:top;">
+          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">Phone</p>
+          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(p.phone || '—')}</p>
+        </td>
+        <td style="padding:0 0 18px;vertical-align:top;">
+          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">Respond via</p>
+          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(p.response_methods || '—')}</p>
+        </td>
+      </tr>
+    </table>
+    <hr style="border:none;border-top:0.5px solid #e8e4de;margin:4px 0 20px;">
+    <table width="100%" cellpadding="0" cellspacing="0">${detailRows}</table>
+  </td></tr>
+
+  <!-- TRACKING -->
+  <tr><td style="background:#ffffff;padding:0 40px 28px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 18px;">
+      <tr><td style="padding:4px 0;font-size:11px;color:#9b9b9b;width:100px;">Source</td><td style="padding:4px 0;font-size:11px;font-weight:500;color:#1a1a1a;">${escHtml(p.utm_source || '—')}</td></tr>
+      <tr><td style="padding:4px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:4px 0;font-size:11px;font-weight:500;color:#1a1a1a;">${escHtml(bestCampaign(p) || '—')}</td></tr>
+      <tr><td style="padding:4px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:4px 0;font-size:11px;font-weight:500;color:#1a1a1a;">${escHtml(p.utm_term || '—')}</td></tr>
+      <tr><td style="padding:4px 0;font-size:11px;color:#9b9b9b;">IP address</td><td style="padding:4px 0;font-size:11px;font-weight:500;color:#1a1a1a;">${escHtml(submitterIp || '—')}</td></tr>
+    </table>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td style="background:#f7f2eb;padding:16px 40px;border-top:0.5px solid rgba(184,150,110,0.2);text-align:center;">
+    <p style="margin:0;font-size:11px;color:#9b9b9b;line-height:1.9;">
+      This submission was <strong>not</strong> automatically added to the Leads Board.<br>
+      Student Luxe Apartments · Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>
+      © 2026 Student Luxe Apartments. All rights reserved.
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+
+  return resendSend({
+    from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
+    to:      [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
+    replyTo: p.email,
+    subject: `New Guest Enquiry — Possible Duplicate · ${guestName}`,
+    html
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
 //  GOOGLE ADS — Server-side conversion upload
 // ──────────────────────────────────────────────────────────────
 async function uploadGoogleAdsConversion(p) {
-
-  // Step 1 — Get a fresh access token using the stored refresh token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -87,12 +421,8 @@ async function uploadGoogleAdsConversion(p) {
   });
 
   const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) {
-    throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
-  }
+  if (!tokenData.access_token) throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
 
-  // Step 2 — Hash email and phone for enhanced matching
-  // Google requires SHA-256, lowercase, trimmed
   async function sha256(str) {
     const encoder    = new TextEncoder();
     const data       = encoder.encode(str.toLowerCase().trim());
@@ -105,38 +435,24 @@ async function uploadGoogleAdsConversion(p) {
   const cleanPhone  = p.phone ? p.phone.replace(/[\s\-().]/g, '') : null;
   const hashedPhone = cleanPhone ? await sha256(cleanPhone) : null;
 
-  // Step 3 — Format conversion timestamp
-  // Google Ads API requires: 'yyyy-mm-dd hh:mm:ss+00:00'
   const rawTime        = p.submitted_at ? new Date(p.submitted_at) : new Date();
-  const conversionTime = rawTime.toISOString()
-    .replace('T', ' ')
-    .replace(/\.\d{3}Z$/, '+00:00');
+  const conversionTime = rawTime.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '+00:00');
 
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
-  console.log('Google Ads customer ID:', customerId);
-  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`);
   const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
 
-  // Step 4 — Build payload
   const conversion = {
-    conversionAction:   conversionAction,
+    conversionAction,
     conversionDateTime: conversionTime,
     conversionValue:    1.0,
     currencyCode:       'GBP',
     userIdentifiers: [
-      ...(hashedEmail ? [{ hashedEmail:       hashedEmail }] : []),
+      ...(hashedEmail ? [{ hashedEmail }] : []),
       ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
     ]
   };
-  // Only include gclid when present — without it Google matches via email/phone
   if (p.gclid) conversion.gclid = p.gclid;
 
-  const payload = {
-    conversions: [ conversion ],
-    partialFailure: true
-  };
-
-  // Step 5 — POST to Google Ads Conversions API
   const gadsRes = await fetch(
     `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`,
     {
@@ -147,27 +463,17 @@ async function uploadGoogleAdsConversion(p) {
         'login-customer-id': '6046238343',
         'Content-Type':      'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ conversions: [conversion], partialFailure: true })
     }
   );
 
   const rawText = await gadsRes.text();
-  console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 500));
-
-  if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
-    throw new Error('Google Ads returned non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
-  }
+  if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('['))
+    throw new Error('Google Ads non-JSON (' + gadsRes.status + '): ' + rawText.substring(0, 200));
 
   const gadsData = JSON.parse(rawText);
-
-  if (gadsData.partialFailureError) {
-    throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
-  }
-  if (gadsData.error) {
-    throw new Error('API error: ' + JSON.stringify(gadsData.error));
-  }
-
-  console.log('Google Ads conversion uploaded successfully');
+  if (gadsData.partialFailureError) throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
+  if (gadsData.error) throw new Error('API error: ' + JSON.stringify(gadsData.error));
   return gadsData;
 }
 
@@ -186,7 +492,7 @@ async function sendGuestConfirmation(p) {
     p.check_in       && ['Check-in',       formatDate(p.check_in)],
     p.check_out      && ['Check-out',      formatDate(p.check_out)],
     nights(p)        && ['Stay length',    nights(p) + ' nights'],
-    p.budget         && p.enquiry_type !== 'A' && ['Budget / week', formatBudget(p.budget)],
+    p.budget && p.enquiry_type !== 'A' && ['Budget / week', formatBudget(p.budget)],
     p.response_methods && ['We will respond via', p.response_methods],
   ].filter(Boolean);
 
@@ -214,7 +520,7 @@ async function sendGuestConfirmation(p) {
     <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">A member of our Reservations team will be in touch within 24 hours to confirm these details, and discuss any other options that might suit your needs.</p>
     <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
     ` : `
-    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your ${escHtml(formatCity(p.city))} apartment enquiry. A member of our Reservations team will be in touch within 24 hours to discuss this further. We'll send over a selection of apartments based on your initial details, and then take time to understand your needs in more depth.</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your ${escHtml(formatCity(p.city) || '')} apartment enquiry. A member of our Reservations team will be in touch within 24 hours to discuss this further. We'll send over a selection of apartments based on your initial details, and then take time to understand your needs in more depth.</p>
     <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
     `}
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;padding:4px 20px;margin:0 0 24px;">
@@ -239,16 +545,16 @@ async function sendGuestConfirmation(p) {
         <p style="margin:0 0 12px;font-size:12px;color:#6b6b6b;line-height:1.75;">We combine premium apartments with exceptional service to make student and professional living effortless.</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid #ede9e3;padding-top:10px;margin-top:4px;">
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Fully-furnished</td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>All bills included</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;">✓</span>Fully-furnished</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;">✓</span>All bills included</td>
           </tr>
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Hotel-style amenities</td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Weekly housekeeping</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;">✓</span>Hotel-style amenities</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;">✓</span>Weekly housekeeping</td>
           </tr>
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Dedicated support</td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Flexible booking policy</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;">✓</span>Dedicated support</td>
+            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;"><span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;">✓</span>Flexible booking policy</td>
           </tr>
         </table>
       </td></tr>
@@ -337,7 +643,9 @@ async function sendTeamNotification(p, mondayId, mondayError) {
         <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);">${submittedFormatted}</p>
       </td>
       <td style="text-align:right;vertical-align:middle;">
-        <img src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng" alt="Student Luxe" style="height:44px;width:auto;display:block;margin-left:auto;">
+        <div style="width:52px;height:52px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.6);display:inline-flex;align-items:center;justify-content:center;">
+          <span style="font-family:Georgia,serif;font-style:italic;font-size:14px;color:rgba(255,255,255,0.9);letter-spacing:0.05em;">luxe</span>
+        </div>
       </td>
     </tr></table>
   </td></tr>
@@ -367,7 +675,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       <tr>${field('Check-in', formatDate(p.check_in))}${field('Check-out', formatDate(p.check_out))}</tr>
       <tr>${field('Nights', nightCount)}${field('Budget / week', p.enquiry_type !== 'A' ? formatBudget(p.budget) : '')}</tr>
       <tr>${field('Areas', p.areas)}${field('Type of stay', formatStayType(p.stay_type, p.university))}</tr>
-      <tr>${field('Country of residence', p.nationality)}${field('Lived in city before', p.lived_before)}</tr>
+      <tr>${field('Nationality', p.nationality)}${field('Lived in city before', p.lived_before)}</tr>
     </table>
   </td></tr>
   ${p.message ? `
@@ -412,7 +720,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Currency detection by city
+//  MONDAY — Push lead to board (now includes IP)
 // ──────────────────────────────────────────────────────────────
 function currencyForCity(city, otherCity) {
   const GBP = ['london','edinburgh','glasgow','manchester','cambridge','durham','bristol','birmingham','brighton','liverpool','nottingham'];
@@ -425,9 +733,9 @@ function currencyForCity(city, otherCity) {
   if (c === 'other' && otherCity) {
     const o = otherCity.toLowerCase();
     const currencyKeywords = {
-      '£':['uk','united kingdom','england','scotland','wales','london','manchester','birmingham','edinburgh'],
-      '€':['france','paris','germany','berlin','spain','madrid','barcelona','italy','rome','milan','netherlands','amsterdam','portugal','lisbon'],
-      '$':['usa','united states','america','new york','los angeles','chicago','boston','washington'],
+      '£':['uk','united kingdom','england','scotland','wales'],
+      '€':['france','paris','germany','spain','italy','netherlands','portugal'],
+      '$':['usa','united states','america','new york'],
     };
     for (const [symbol, keywords] of Object.entries(currencyKeywords)) {
       if (keywords.some(k => o.includes(k))) return symbol;
@@ -436,73 +744,19 @@ function currencyForCity(city, otherCity) {
   return '';
 }
 
-// ──────────────────────────────────────────────────────────────
-//  MONDAY.COM — Push lead to board
-// ──────────────────────────────────────────────────────────────
-
-// ── Google Ads campaign ID → name map ────────────────────────
 const CAMPAIGN_MAP = {
-  '23593406109': 'jf17_search_generic_os_tablet_phrase_in_row_destination_london',
-  '23676288424': 'jf14_search_generic_os_tablet_broad_in_us_destination_london - £150 tCPA Test',
-  '23671659281': 'jf3_search_generic_os_desktop_broad_in_us_destination_london - £150 tCPA Test',
-  '23598174873': 'jf19_search_brand_global_exact',
-  '21918787893': 'rentals-short-stay-os',
-  '23512016561': 'cambridge-os',
-  '20356089756': 'london-student-os',
-  '23603515408': 'jf10_search_generic_os_mobile_exact_in_us_destination_london',
-  '23593407051': 'jf9_search_generic_os_mobile_exact_in_row_destination_london',
-  '22561087901': 'core-luxe-perf-max',
-  '23392672745': 'new-york-os',
-  '21429830124': 'lse-summer-uni-campus',
-  '23676301570': 'jf9_search_generic_os_mobile_exact_in_row_destination_london - £150 tCPA Test',
-  '21973944922': 'core-luxe-os',
-  '23671673024': 'jf4_search_generic_os_desktop_exact_in_row_destination_london - £150 tCPA Test',
-  '23593406838': 'jf12_search_generic_os_mobile_phrase_in_us_destination_london',
-  '23666278518': 'jf13_search_generic_os_tablet_broad_in_row_destination_london - £150 tCPA Test',
-  '21902352633': 'lse-summer-all-us',
-  '21499603565': 'paris-os',
-  '23676319627': 'jf15_search_generic_os_tablet_exact_in_row_destination_london - £150 tCPA Test',
-  '23593627429': 'jf16_search_generic_os_tablet_exact_in_us_destination_london',
-  '23452513132': 'lse-summer-perf-max',
-  '23642461894': 'paris-os-exp',
-  '23666244384': 'jf8_search_generic_os_mobile_broad_in_us_destination_london - £150 tCPA Test',
-  '23666254497': 'jf5_search_generic_os_desktop_exact_in_us_destination_london - £150 tCPA Test',
-  '22082273952': 'rentals-os',
-  '22120262100': 'hnwi-pb-zip-os',
-  '23588980553': 'jf3_search_generic_os_desktop_broad_in_us_destination_london',
-  '23671661003': 'jf6_search_generic_os_desktop_phrase_in_us_destination_london - £150 tCPA Test',
-  '23593627561': 'jf18_search_generic_os_tablet_phrase_in_us_destination_london',
-  '23676326599': 'jf17_search_generic_os_tablet_phrase_in_row_destination_london - £150 tCPA Test',
-  '23588981654': 'jf14_search_generic_os_tablet_broad_in_us_destination_london',
-  '23671688303': 'jf18_search_generic_os_tablet_phrase_in_us_destination_london - £150 tCPA Test',
-  '23666271564': 'jf10_search_generic_os_mobile_exact_in_us_destination_london - £150 tCPA Test',
-  '23593406301': 'jf7_search_generic_os_mobile_broad_in_row_destination_london',
-  '23598893477': 'jf2_search_generic_os_desktop_broad_in_row_destination_london',
-  '23676311422': 'jf2_search_generic_os_desktop_broad_in_row_destination_london - £150 tCPA Test',
-  '23666273505': 'jf12_search_generic_os_mobile_phrase_in_us_destination_london - £150 tCPA Test',
-  '23666255946': 'jf11_search_generic_os_mobile_phrase_in_row_destination_london - £150 tCPA Test',
-  '23603514478': 'jf13_search_generic_os_tablet_broad_in_row_destination_london',
-  '23598893927': 'jf11_search_generic_os_mobile_phrase_in_row_destination_london',
-  '23598893684': 'jf1_search_generic_os_desktop_phrase_in_row_destination_london',
-  '23642456119': 'lse-summer-all-us-exp',
-  '23593406142': 'jf15_search_generic_os_tablet_exact_in_row_destination_london',
-  '23671689740': 'jf16_search_generic_os_tablet_exact_in_us_destination_london - £150 tCPA Test',
-  '23593406559': 'jf8_search_generic_os_mobile_broad_in_us_destination_london',
+  '23593406109':'jf17_search_generic_os_tablet_phrase_in_row_destination_london','23676288424':'jf14_search_generic_os_tablet_broad_in_us_destination_london','23671659281':'jf3_search_generic_os_desktop_broad_in_us_destination_london','23598174873':'jf19_search_brand_global_exact','21918787893':'rentals-short-stay-os','23512016561':'cambridge-os','20356089756':'london-student-os','23603515408':'jf10_search_generic_os_mobile_exact_in_us_destination_london','23593407051':'jf9_search_generic_os_mobile_exact_in_row_destination_london','22561087901':'core-luxe-perf-max','23392672745':'new-york-os','21429830124':'lse-summer-uni-campus','23676301570':'jf9_search_generic_os_mobile_exact_in_row_destination_london','21973944922':'core-luxe-os','23671673024':'jf4_search_generic_os_desktop_exact_in_row_destination_london','23593406838':'jf12_search_generic_os_mobile_phrase_in_us_destination_london','23666278518':'jf13_search_generic_os_tablet_broad_in_row_destination_london','21902352633':'lse-summer-all-us','21499603565':'paris-os','23676319627':'jf15_search_generic_os_tablet_exact_in_row_destination_london','23593627429':'jf16_search_generic_os_tablet_exact_in_us_destination_london','23452513132':'lse-summer-perf-max','23642461894':'paris-os-exp','23666244384':'jf8_search_generic_os_mobile_broad_in_us_destination_london','23666254497':'jf5_search_generic_os_desktop_exact_in_us_destination_london','22082273952':'rentals-os','22120262100':'hnwi-pb-zip-os','23588980553':'jf3_search_generic_os_desktop_broad_in_us_destination_london','23671661003':'jf6_search_generic_os_desktop_phrase_in_us_destination_london','23593627561':'jf18_search_generic_os_tablet_phrase_in_us_destination_london','23676326599':'jf17_search_generic_os_tablet_phrase_in_row_destination_london','23588981654':'jf14_search_generic_os_tablet_broad_in_us_destination_london','23671688303':'jf18_search_generic_os_tablet_phrase_in_us_destination_london','23666271564':'jf10_search_generic_os_mobile_exact_in_us_destination_london','23593406301':'jf7_search_generic_os_mobile_broad_in_row_destination_london','23598893477':'jf2_search_generic_os_desktop_broad_in_row_destination_london','23676311422':'jf2_search_generic_os_desktop_broad_in_row_destination_london','23666273505':'jf12_search_generic_os_mobile_phrase_in_us_destination_london','23666255946':'jf11_search_generic_os_mobile_phrase_in_row_destination_london','23603514478':'jf13_search_generic_os_tablet_broad_in_row_destination_london','23598893927':'jf11_search_generic_os_mobile_phrase_in_row_destination_london','23598893684':'jf1_search_generic_os_desktop_phrase_in_row_destination_london','23642456119':'lse-summer-all-us-exp','23593406142':'jf15_search_generic_os_tablet_exact_in_row_destination_london','23671689740':'jf16_search_generic_os_tablet_exact_in_us_destination_london',
 };
 
 function resolveCampaign(val) {
   if (!val) return '';
   const trimmed = val.trim();
-  // If numeric ID → resolve to name, otherwise pass through as-is
   return /^\d+$/.test(trimmed) ? (CAMPAIGN_MAP[trimmed] || trimmed) : trimmed;
 }
 
-// Extract utm_campaign from visited_paths string (first URL entry which contains full UTM params)
-// e.g. "Google Ads 👉 www.studentluxe.co.uk/lse-summer?utm_campaign=23452513132&... 👉 /page2"
 function extractCampaignFromPaths(visitedPaths) {
   if (!visitedPaths) return '';
   try {
-    // Find the first segment that contains a URL with utm_campaign
     const segments = visitedPaths.split('👉');
     for (const seg of segments) {
       const match = seg.match(/utm_campaign=([^&\s]+)/);
@@ -512,30 +766,18 @@ function extractCampaignFromPaths(visitedPaths) {
   return '';
 }
 
-// Best campaign value: cookie → visited_paths fallback, always resolved to name
 function bestCampaign(p) {
   const fromCookie = (p.utm_campaign || '').trim();
   const fromPaths  = extractCampaignFromPaths(p.visited_paths);
-
-  // If cookie value resolves to a known name, use it
   if (fromCookie) {
     const resolved = resolveCampaign(fromCookie);
-    // If resolved differs from input (i.e. it was a numeric ID we know), it's good
-    // If it's already a name (not numeric), also good
-    // Only fall back if cookie is numeric but NOT in our map (unknown ID)
-    if (!/^\d+$/.test(fromCookie) || CAMPAIGN_MAP[fromCookie]) {
-      return resolved;
-    }
+    if (!/^\d+$/.test(fromCookie) || CAMPAIGN_MAP[fromCookie]) return resolved;
   }
-
-  // Fall back to visited_paths campaign if cookie was missing or unresolvable
   if (fromPaths) return resolveCampaign(fromPaths);
-
-  // Last resort — return whatever the cookie had even if unresolved
   return resolveCampaign(fromCookie);
 }
 
-async function pushToMonday(p) {
+async function pushToMonday(p, submitterIp) {
   const nameParts = (p.full_name || '').trim().split(' ');
   const firstname = nameParts[0] || '';
   const lastname  = nameParts.slice(1).join(' ') || '';
@@ -562,9 +804,9 @@ async function pushToMonday(p) {
 
   let leadSource  = '';
   let leadChannel = '';
-  if(hasGclid)       { leadSource = 'PPC';    leadChannel = 'Google Advert'; }
-  else if(hasFbclid) { leadSource = 'Socials'; leadChannel = extractChannel(p.referrer) || 'Instagram'; }
-  else if(hasVisited){ leadSource = 'SEO';     leadChannel = extractChannel(p.referrer); }
+  if(hasGclid)        { leadSource = 'PPC';     leadChannel = 'Google Advert'; }
+  else if(hasFbclid)  { leadSource = 'Socials'; leadChannel = extractChannel(p.referrer) || 'Instagram'; }
+  else if(hasVisited) { leadSource = 'SEO';     leadChannel = extractChannel(p.referrer); }
 
   const columnValues = {
     text37:           firstname,
@@ -572,14 +814,7 @@ async function pushToMonday(p) {
     email:            p.email ? { email: p.email, text: p.email } : {},
     phone_1: p.phone ? (function(){
       const raw = p.phone.replace(/[\s\-().]/g, '');
-      const dialMap = {
-        '+44':'GB','+1':'US','+33':'FR','+49':'DE','+39':'IT','+34':'ES','+351':'PT',
-        '+31':'NL','+32':'BE','+41':'CH','+43':'AT','+46':'SE','+47':'NO','+45':'DK',
-        '+358':'FI','+48':'PL','+420':'CZ','+36':'HU','+40':'RO','+380':'UA','+7':'RU',
-        '+86':'CN','+81':'JP','+82':'KR','+91':'IN','+61':'AU','+64':'NZ','+27':'ZA',
-        '+55':'BR','+52':'MX','+971':'AE','+966':'SA','+974':'QA','+852':'HK','+65':'SG',
-        '+60':'MY','+66':'TH','+62':'ID'
-      };
+      const dialMap = {'+44':'GB','+1':'US','+33':'FR','+49':'DE','+39':'IT','+34':'ES','+351':'PT','+31':'NL','+32':'BE','+41':'CH','+43':'AT','+46':'SE','+47':'NO','+45':'DK','+358':'FI','+48':'PL','+420':'CZ','+36':'HU','+40':'RO','+380':'UA','+7':'RU','+86':'CN','+81':'JP','+82':'KR','+91':'IN','+61':'AU','+64':'NZ','+27':'ZA','+55':'BR','+52':'MX','+971':'AE','+966':'SA','+974':'QA','+852':'HK','+65':'SG','+60':'MY','+66':'TH','+62':'ID'};
       let countryShortName = 'GB';
       for (const [prefix, code] of Object.entries(dialMap)) {
         if (raw.startsWith(prefix)) { countryShortName = code; break; }
@@ -603,13 +838,9 @@ async function pushToMonday(p) {
       })
     } : {},
     color_mktcnwyb: p.stay_type ? { label: {
-      'student':             'Student',
-      'parent':              'Parent or guardian (on behalf of student)',
-      'working-professional':'Working professional',
-      'corporate':           'Corporate',
-      'medical':             'Medical',
-      'tourism':             'Tourism',
-      'agent':               'Agent (on behalf of client)'
+      'student':'Student','parent':'Parent or guardian (on behalf of student)',
+      'working-professional':'Working professional','corporate':'Corporate',
+      'medical':'Medical','tourism':'Tourism','agent':'Agent (on behalf of client)'
     }[p.stay_type] || p.stay_type } : {},
     text_mknfnmsb:    p.university  || '',
     text9__1:         p.nationality || '',
@@ -617,7 +848,7 @@ async function pushToMonday(p) {
     text_mm1c3b5w:    bestCampaign(p),
     text43__1:        p.utm_adgroup   || '',
     text3__1:         p.utm_term      || '',
-    text_mm1d87rp:    p.utm_matchtype || '',
+    text_mm1d87rp:    submitterIp     || '',   // ← IP stored here for future duplicate checks
     text4__1:         p.gclid || p.fbclid || '',
     text_mm1jhhe7:    p.landing_page  || '',
     long_text__1:     p.visited_paths || '',
@@ -633,27 +864,19 @@ async function pushToMonday(p) {
         board_id: ${MONDAY_BOARD},
         item_name: ${JSON.stringify(itemName)},
         column_values: ${JSON.stringify(JSON.stringify(columnValues))}
-      ) {
-        id
-      }
+      ) { id }
     }
   `;
 
   const response = await fetch(MONDAY_API, {
     method:  'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': process.env.MONDAY_API_KEY
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
     body: JSON.stringify({ query: mutation })
   });
 
   const data = await response.json();
   if (!response.ok) throw new Error('Monday HTTP ' + response.status);
-  if (data.errors) {
-    console.error('Monday API errors:', JSON.stringify(data.errors, null, 2));
-    throw new Error('Monday API error: ' + JSON.stringify(data.errors));
-  }
+  if (data.errors) throw new Error('Monday API error: ' + JSON.stringify(data.errors));
   return data?.data?.create_item?.id;
 }
 
@@ -663,16 +886,10 @@ async function pushToMonday(p) {
 async function resendSend(payload) {
   const res = await fetch(RESEND_API, {
     method:  'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-      'Content-Type':  'application/json'
-    },
+    headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Resend error ${res.status}: ${err}`);
-  }
+  if (!res.ok) { const err = await res.text(); throw new Error(`Resend error ${res.status}: ${err}`); }
   return res.json();
 }
 
@@ -680,69 +897,35 @@ async function resendSend(payload) {
 //  HELPERS
 // ──────────────────────────────────────────────────────────────
 function escHtml(str) {
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 function formatDate(d) {
   if (!d) return '';
-  try { return new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
-  catch { return d; }
+  try { return new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); } catch { return d; }
 }
-
 function nights(p) {
   if (!p.check_in || !p.check_out) return null;
   const n = Math.round((new Date(p.check_out) - new Date(p.check_in)) / 86400000);
   return n > 0 ? n : null;
 }
-
 function formatCity(city) {
   if (!city) return '';
-  const map = {
-    'london':'London','new-york':'New York','paris':'Paris','edinburgh':'Edinburgh',
-    'glasgow':'Glasgow','manchester':'Manchester','cambridge':'Cambridge','durham':'Durham',
-    'bristol':'Bristol','barcelona':'Barcelona','madrid':'Madrid','lisbon':'Lisbon',
-    'boston':'Boston','chicago':'Chicago','washington':'Washington DC'
-  };
+  const map = {'london':'London','new-york':'New York','paris':'Paris','edinburgh':'Edinburgh','glasgow':'Glasgow','manchester':'Manchester','cambridge':'Cambridge','durham':'Durham','bristol':'Bristol','barcelona':'Barcelona','madrid':'Madrid','lisbon':'Lisbon','boston':'Boston','chicago':'Chicago','washington':'Washington DC','amsterdam':'Amsterdam','milan':'Milan','rome':'Rome','florence':'Florence','helsinki':'Helsinki','porto':'Porto','valencia':'Valencia','birmingham':'Birmingham','brighton':'Brighton','liverpool':'Liverpool','nottingham':'Nottingham','dublin':'Dublin','philadelphia':'Philadelphia'};
   return map[city] || city;
 }
-
 function formatAptType(t) {
   if (!t) return '';
-  const map = {
-    'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom',
-    '3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible'
-  };
+  const map = {'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom','3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible'};
   return map[t] || t;
 }
-
 function formatBudget(b) {
   if (!b) return '';
-  const map = {
-    'under-650':'Under £650','650-1000':'£650 – £1,000',
-    '1000-2000':'£1,000 – £2,000','2000-4000':'£2,000 – £4,000','5000+':'£5,000+',
-    'under-550':'Under £550','550-900':'£550 – £900',
-    '900-1350':'£900 – £1,350','1350-2000':'£1,350 – £2,000','2000+':'£2,000+',
-    '850-1200':'£850 – £1,200','1200-2000':'£1,200 – £2,000',
-    '2000-3500':'£2,000 – £3,500','3500-5000':'£3,500 – £5,000',
-    'under-1250':'Under £1,250','1250-1800':'£1,250 – £1,800',
-    '1800-2500':'£1,800 – £2,500','2500-4000':'£2,500 – £4,000'
-  };
+  const map = {'under-650':'Under £650','650-1000':'£650 – £1,000','1000-2000':'£1,000 – £2,000','2000-4000':'£2,000 – £4,000','5000+':'£5,000+','under-550':'Under £550','550-900':'£550 – £900','900-1350':'£900 – £1,350','1350-2000':'£1,350 – £2,000','2000+':'£2,000+','850-1200':'£850 – £1,200','1200-2000':'£1,200 – £2,000','2000-3500':'£2,000 – £3,500','3500-5000':'£3,500 – £5,000','under-1250':'Under £1,250','1250-1800':'£1,250 – £1,800','1800-2500':'£1,800 – £2,500','2500-4000':'£2,500 – £4,000'};
   return map[b] || b;
 }
-
 function formatStayType(type, university) {
   if (!type) return '';
-  const map = {
-    'student':              'Student',
-    'parent':               'Parent or guardian (on behalf of student)',
-    'working-professional': 'Working professional',
-    'corporate':            'Corporate',
-    'medical':              'Medical',
-    'tourism':              'Tourism',
-    'agent':                'Agent (on behalf of client)'
-  };
+  const map = {'student':'Student','parent':'Parent or guardian (on behalf of student)','working-professional':'Working professional','corporate':'Corporate','medical':'Medical','tourism':'Tourism','agent':'Agent (on behalf of client)'};
   const label = map[type] || type;
   return university ? `${label} · ${university}` : label;
 }
