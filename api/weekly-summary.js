@@ -18,15 +18,22 @@ module.exports = async function handler(req, res) {
     const now        = new Date();
     const lastFriday = getLastFriday9am(now);
 
-    // Start of current month
-    const monthStart = new Date(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    // If we're in first 3 days of month, show previous month's total
+    const dayOfMonth = now.getUTCDate();
+    const monthStart = dayOfMonth <= 3
+      ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
     console.log(`Weekly: ${lastFriday.toISOString()} → ${now.toISOString()}`);
     console.log(`Month: ${monthStart.toISOString()} → ${now.toISOString()}`);
 
+    const monthEnd = dayOfMonth <= 3
+      ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) // end of prev month
+      : now;
+
     const [weekData, monthData] = await Promise.all([
       fetchBookingData(lastFriday, now),
-      fetchBookingData(monthStart, now)
+      fetchBookingData(monthStart, monthEnd)
     ]);
 
     await sendSummaryEmail({
@@ -84,11 +91,13 @@ async function fetchBookingData(since, until) {
       const cols   = colMap(item);
       const rev    = parseFloat(cols['numeric_mm1ge9h4'] || 0);
       const gclid  = cols['mirror21__1'];
-      const date   = new Date(cols['date9']);
       if (!rev || !gclid) return false;
-      // Use booking date (date9) for month filter, updated_at for week filter
+      // For week: use updated_at (when revenue was submitted)
+      // For month: use date9 (booking close date)
       const updated = new Date(item.updated_at);
-      return updated >= since && updated < until;
+      const booked  = new Date(cols['date9']);
+      const useDate = (!isNaN(booked) && cols['date9']) ? booked : updated;
+      return useDate >= since && useDate < until;
     })
     .map(item => {
       const cols = colMap(item);
