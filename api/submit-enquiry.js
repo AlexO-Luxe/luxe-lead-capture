@@ -39,7 +39,7 @@ module.exports = async function handler(req, res) {
     req.socket?.remoteAddress ||
     '';
 
-  // ── Duplicate check — query Monday for matching email ─────
+  // ── Duplicate check — query Monday for matching email/IP ──
   let duplicateOf = null;
   try {
     duplicateOf = await findExistingLead(p.email, submitterIp);
@@ -48,24 +48,14 @@ module.exports = async function handler(req, res) {
   }
 
   if (duplicateOf) {
-    // ── DUPLICATE PATH: send alert email only, do NOT create Monday item ──
     console.log('Duplicate detected — existing lead ID:', duplicateOf.id);
-    try {
-      await sendDuplicateAlert(p, duplicateOf, submitterIp);
-      console.log('Duplicate alert email sent');
-    } catch(err) {
-      console.error('Duplicate alert email failed:', err.message);
-    }
-    // Still fire Google Ads conversion (the intent is real)
-    try { await uploadGoogleAdsConversion(p); } catch(e) { console.warn('GA conversion (dup):', e.message); }
-    return res.status(200).json({ success: true, duplicate: true });
   }
 
-  // ── NORMAL PATH ───────────────────────────────────────────
+  // ── Always push to Monday ─────────────────────────────────
   let mondayId    = null;
   let mondayError = null;
   try {
-    mondayId = await pushToMonday(p, submitterIp);
+    mondayId = await pushToMonday(p, submitterIp, duplicateOf);
     console.log('Monday OK — pulse ID:', mondayId);
   } catch(err) {
     mondayError = err.message || 'Unknown error';
@@ -74,7 +64,7 @@ module.exports = async function handler(req, res) {
 
   const results = await Promise.allSettled([
     sendGuestConfirmation(p),
-    sendTeamNotification(p, mondayId, mondayError)
+    sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp)
   ]);
 
   results.forEach((r, i) => {
@@ -172,238 +162,6 @@ async function findExistingLead(email, ip) {
   };
 }
 
-// ──────────────────────────────────────────────────────────────
-//  DUPLICATE ALERT EMAIL
-// ──────────────────────────────────────────────────────────────
-async function sendDuplicateAlert(p, existing, submitterIp) {
-  const guestName     = p.full_name || 'Unknown';
-  const nightCount    = nights(p);
-  const isTypeA       = p.enquiry_type === 'A';
-  const siteUrl       = process.env.SITE_URL || 'https://www.studentluxe.co.uk';
-
-  const submittedFormatted = p.submitted_at
-    ? new Date(p.submitted_at).toLocaleString('en-GB', {
-        day:'numeric', month:'long', year:'numeric',
-        hour:'numeric', minute:'2-digit', hour12:true,
-        timeZone:'Europe/London'
-      })
-    : new Date().toLocaleString('en-GB', {
-        day:'numeric', month:'long', year:'numeric',
-        hour:'numeric', minute:'2-digit', hour12:true,
-        timeZone:'Europe/London'
-      });
-
-  const originalFormatted = existing.created_at
-    ? new Date(existing.created_at).toLocaleString('en-GB', {
-        day:'numeric', month:'long', year:'numeric',
-        hour:'numeric', minute:'2-digit', hour12:true,
-        timeZone:'Europe/London'
-      })
-    : '—';
-
-  const crmUrl = `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/pulses/${existing.id}`;
-
-  // Build "Add to Leads Board" one-click URL
-  // This hits /api/add-lead with a signed payload
-  const addPayload = Buffer.from(JSON.stringify({
-    p,
-    ip: submitterIp,
-    ts: Date.now()
-  })).toString('base64url');
-
-  const secret    = process.env.MONDAY_ADD_LEAD_SECRET || 'changeme';
-  const crypto    = require('crypto');
-  const sig       = crypto.createHmac('sha256', secret).update(addPayload).digest('hex');
-  const addLeadUrl = `${siteUrl}/api/add-lead?payload=${addPayload}&sig=${sig}`;
-
-  // Assignee pills HTML
-  const assigneePills = existing.assignees.length > 0
-    ? existing.assignees.map(name => {
-        const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
-        return `<span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#1a1a1a;margin-right:8px;">
-          <span style="width:28px;height:28px;border-radius:50%;background:#B8966E;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;flex-shrink:0;">${initials}</span>
-          ${escHtml(name)}
-        </span>`;
-      }).join('')
-    : '<span style="font-size:13px;color:#9b9b9b;">Unassigned</span>';
-
-  // IP row styling
-  const ipMatchTag = existing.ipMatch
-    ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
-    : '';
-
-  const compareRow = (label, origVal, newVal, isMatch) => {
-    const matchTag = isMatch
-      ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
-      : '';
-    return `
-      <tr>
-        <td style="padding:14px 20px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;width:50%;">
-          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
-          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(origVal)}</p>
-        </td>
-        <td style="padding:14px 20px;border-top:0.5px solid #e8e4de;vertical-align:top;width:50%;">
-          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
-          <p style="margin:0;font-size:14px;color:${isMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(newVal)}${matchTag}</p>
-        </td>
-      </tr>`;
-  };
-
-  const newSubmissionFields = [
-    p.apartment_ref  && ['Apartment', p.apartment_ref],
-    p.city && p.enquiry_type !== 'A' && ['City', formatCity(p.city)],
-    p.apartment_type && ['Apartment type', formatAptType(p.apartment_type)],
-    p.check_in       && ['Check-in', formatDate(p.check_in)],
-    p.check_out      && ['Check-out', formatDate(p.check_out)],
-    nightCount       && ['Nights', String(nightCount)],
-    p.budget && p.enquiry_type !== 'A' && ['Budget', formatBudget(p.budget)],
-    p.response_methods && ['Respond via', p.response_methods],
-    p.nationality    && ['Nationality', p.nationality],
-  ].filter(Boolean);
-
-  const detailRows = newSubmissionFields.map(([label, value]) => `
-    <tr>
-      <td style="padding:8px 0;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#9b9b9b;width:140px;vertical-align:top;">${label}</td>
-      <td style="padding:8px 0;font-size:14px;color:#1a1a1a;">${escHtml(value)}</td>
-    </tr>`).join('');
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>New Guest Enquiry — Possible Duplicate</title></head>
-<body style="margin:0;padding:0;background:#f0ece6;font-family:'DM Sans',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0ece6;padding:32px 16px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
-
-  <!-- HEADER -->
-  <tr><td style="background:#B8966E;padding:28px 40px;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="vertical-align:middle;">
-        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,0.15);border:0.5px solid rgba(255,255,255,0.3);border-radius:20px;padding:4px 12px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#fff;margin-bottom:10px;">
-          <span style="width:6px;height:6px;border-radius:50%;background:#f5d376;display:inline-block;"></span>&nbsp;Possible duplicate
-        </div>
-        <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:26px;font-weight:400;color:#fff;letter-spacing:-0.02em;">${escHtml(guestName)}</p>
-        <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.7);">${submittedFormatted}</p>
-      </td>
-      <td style="text-align:right;vertical-align:middle;">
-        <div style="width:56px;height:56px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.6);display:inline-flex;align-items:center;justify-content:center;">
-          <span style="font-family:Georgia,serif;font-style:italic;font-size:15px;color:rgba(255,255,255,0.9);letter-spacing:0.05em;">luxe</span>
-        </div>
-      </td>
-    </tr></table>
-  </td></tr>
-
-  <!-- INTRO BAND -->
-  <tr><td style="background:#fffcf2;border-top:3px solid #e8c96b;padding:16px 40px;font-size:13px;color:#5a4310;line-height:1.7;">
-    Hi Sales &amp; Reservations heroes — we've spotted a potential duplicate. Please check below, and if it's not — add it to the Leads Board. Cheers!
-  </td></tr>
-
-  <!-- COMPARISON -->
-  <tr><td style="background:#ffffff;padding:28px 40px 20px;">
-    <p style="margin:0 0 20px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#B8966E;">Original vs. new submission</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0;">
-      <tr>
-        <td width="50%" style="padding:10px 20px;background:#f7f2eb;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original lead</td>
-        <td width="50%" style="padding:10px 20px;background:#0d1a2e;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.6);border-bottom:0.5px solid #e8e4de;border-left:0.5px solid #e8e4de;">New submission</td>
-      </tr>
-      ${compareRow('Name', existing.name, p.full_name || '', existing.name.toLowerCase().trim() === (p.full_name || '').toLowerCase().trim())}
-      ${compareRow('Email', p.email || '', p.email || '', true)}
-      ${compareRow('Lead created', originalFormatted, submittedFormatted, false)}
-      <tr>
-        <td style="padding:14px 20px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;">
-          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
-          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(existing.originalIp || '—')}</p>
-        </td>
-        <td style="padding:14px 20px;border-top:0.5px solid #e8e4de;vertical-align:top;">
-          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
-          <p style="margin:0;font-size:14px;color:${existing.ipMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(submitterIp || '—')}${ipMatchTag}</p>
-        </td>
-      </tr>
-    </table>
-  </td></tr>
-
-  <!-- ASSIGNED TO -->
-  <tr><td style="background:#ffffff;padding:0 40px 20px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;padding:16px 20px;">
-      <tr>
-        <td style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;vertical-align:middle;">Assigned to</td>
-        <td style="text-align:right;vertical-align:middle;">${assigneePills}</td>
-      </tr>
-    </table>
-  </td></tr>
-
-  <!-- ACTION BAND -->
-  <tr><td style="background:#f7f2eb;padding:16px 40px;border-top:0.5px solid #e8e4de;border-bottom:0.5px solid #e8e4de;">
-    <p style="margin:0 0 12px;font-size:12px;color:#6b6b6b;line-height:1.5;">Not a duplicate? Use the button below to add it to the Leads Board.</p>
-    <table cellpadding="0" cellspacing="0"><tr>
-      <td style="padding-right:8px;"><a href="${addLeadUrl}" style="display:inline-block;padding:11px 22px;background:#0d1a2e;border-radius:8px;font-size:12px;font-weight:500;color:#fff;text-decoration:none;">Add to Leads Board</a></td>
-      <td style="padding-right:8px;"><a href="mailto:${p.email}" style="display:inline-block;padding:11px 22px;background:#B8966E;border-radius:8px;font-size:12px;font-weight:500;color:#fff;text-decoration:none;">Reply by email</a></td>
-      <td><a href="${crmUrl}" style="display:inline-block;padding:11px 22px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View original lead</a></td>
-    </tr></table>
-  </td></tr>
-
-  <!-- NEW SUBMISSION DETAILS -->
-  <tr><td style="background:#ffffff;padding:28px 40px 8px;">
-    <p style="margin:0 0 20px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#B8966E;">New submission details</p>
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>
-        <td style="padding:0 0 18px;vertical-align:top;width:50%;">
-          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">Name</p>
-          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(p.full_name || '—')}</p>
-        </td>
-        <td style="padding:0 0 18px;vertical-align:top;width:50%;">
-          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">Email</p>
-          <p style="margin:0;font-size:14px;color:#185FA5;">${escHtml(p.email || '—')}</p>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:0 0 18px;vertical-align:top;">
-          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">Phone</p>
-          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(p.phone || '—')}</p>
-        </td>
-        <td style="padding:0 0 18px;vertical-align:top;">
-          <p style="margin:0 0 5px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">Respond via</p>
-          <p style="margin:0;font-size:14px;color:#1a1a1a;">${escHtml(p.response_methods || '—')}</p>
-        </td>
-      </tr>
-    </table>
-    <hr style="border:none;border-top:0.5px solid #e8e4de;margin:4px 0 20px;">
-    <table width="100%" cellpadding="0" cellspacing="0">${detailRows}</table>
-  </td></tr>
-
-  <!-- TRACKING -->
-  <tr><td style="background:#ffffff;padding:0 40px 28px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 18px;">
-      <tr><td style="padding:4px 0;font-size:11px;color:#9b9b9b;width:100px;">Source</td><td style="padding:4px 0;font-size:11px;font-weight:500;color:#1a1a1a;">${escHtml(p.utm_source || '—')}</td></tr>
-      <tr><td style="padding:4px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:4px 0;font-size:11px;font-weight:500;color:#1a1a1a;">${escHtml(bestCampaign(p) || '—')}</td></tr>
-      <tr><td style="padding:4px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:4px 0;font-size:11px;font-weight:500;color:#1a1a1a;">${escHtml(p.utm_term || '—')}</td></tr>
-      <tr><td style="padding:4px 0;font-size:11px;color:#9b9b9b;">IP address</td><td style="padding:4px 0;font-size:11px;font-weight:500;color:#1a1a1a;">${escHtml(submitterIp || '—')}</td></tr>
-    </table>
-  </td></tr>
-
-  <!-- FOOTER -->
-  <tr><td style="background:#f7f2eb;padding:16px 40px;border-top:0.5px solid rgba(184,150,110,0.2);text-align:center;">
-    <p style="margin:0;font-size:11px;color:#9b9b9b;line-height:1.9;">
-      This submission was <strong>not</strong> automatically added to the Leads Board.<br>
-      Student Luxe Apartments · Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>
-      © 2026 Student Luxe Apartments. All rights reserved.
-    </p>
-  </td></tr>
-
-</table>
-</td></tr>
-</table>
-</body></html>`;
-
-  return resendSend({
-    from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
-    to:      [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
-    replyTo: p.email,
-    subject: `New Guest Enquiry — Possible Duplicate · ${guestName}`,
-    html
-  });
-}
 
 // ──────────────────────────────────────────────────────────────
 //  GOOGLE ADS — Server-side conversion upload
@@ -592,7 +350,7 @@ async function sendGuestConfirmation(p) {
 // ──────────────────────────────────────────────────────────────
 //  EMAIL 2 — Team notification
 // ──────────────────────────────────────────────────────────────
-async function sendTeamNotification(p, mondayId, mondayError) {
+async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp) {
   const isTypeA    = p.enquiry_type === 'A';
   const guestName  = p.full_name || 'New enquiry';
   const nightCount = nights(p);
@@ -623,6 +381,77 @@ async function sendTeamNotification(p, mondayId, mondayError) {
     </table>
   </td></tr>` : '';
 
+  // ── Duplicate comparison block ──────────────────────────
+  const dupBannerHtml = duplicateOf ? (function() {
+    const originalFormatted = duplicateOf.created_at
+      ? new Date(duplicateOf.created_at).toLocaleString('en-GB', {
+          day:'numeric', month:'long', year:'numeric',
+          hour:'numeric', minute:'2-digit', hour12:true,
+          timeZone:'Europe/London'
+        })
+      : '—';
+
+    const ipMatchTag = duplicateOf.ipMatch
+      ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
+      : '';
+
+    const assigneePills = duplicateOf.assignees && duplicateOf.assignees.length > 0
+      ? duplicateOf.assignees.map(name => {
+          const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+          return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#1a1a1a;margin-right:8px;"><span style="width:24px;height:24px;border-radius:50%;background:#B8966E;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;">${initials}</span>${escHtml(name)}</span>`;
+        }).join('')
+      : '<span style="font-size:12px;color:#9b9b9b;">Unassigned</span>';
+
+    const compareRow = (label, origVal, newVal, isMatch) => {
+      const matchTag = isMatch
+        ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
+        : '';
+      return `<tr>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;width:50%;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(origVal)}</p>
+        </td>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;vertical-align:top;width:50%;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+          <p style="margin:0;font-size:13px;font-weight:500;color:${isMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(newVal)}${matchTag}</p>
+        </td>
+      </tr>`;
+    };
+
+    return `
+  <tr><td style="background:#fffcf2;border-top:3px solid #e8c96b;padding:14px 32px;font-size:13px;color:#5a4310;line-height:1.65;">
+    ⚠️ &nbsp;Possible duplicate — this lead has been added to the board and flagged accordingly.
+  </td></tr>
+  <tr><td style="background:#ffffff;padding:20px 32px 0;">
+    <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Original vs. new submission</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0;margin-bottom:14px;">
+      <tr>
+        <td width="50%" style="padding:8px 16px;background:#f7f2eb;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original lead</td>
+        <td width="50%" style="padding:8px 16px;background:#0d1a2e;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.6);border-bottom:0.5px solid #e8e4de;border-left:0.5px solid #e8e4de;">New submission</td>
+      </tr>
+      ${compareRow('Name', duplicateOf.name, p.full_name || '', duplicateOf.name.toLowerCase().trim() === (p.full_name||'').toLowerCase().trim())}
+      ${compareRow('Email', p.email||'', p.email||'', true)}
+      ${compareRow('Lead created', originalFormatted, submittedFormatted, false)}
+      <tr>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
+          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(duplicateOf.originalIp || '—')}</p>
+        </td>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;vertical-align:top;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
+          <p style="margin:0;font-size:13px;font-weight:500;color:${duplicateOf.ipMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(submitterIp||'—')}${ipMatchTag}</p>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;padding:12px 16px;margin-bottom:20px;">
+      <tr>
+        <td style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;vertical-align:middle;width:120px;">Assigned to</td>
+        <td style="vertical-align:middle;">${assigneePills}</td>
+      </tr>
+    </table>
+  </td></tr>`;
+  })() : '';
+
   const field = (label, value) => value ? `
     <td style="padding:0 20px 14px 0;vertical-align:top;width:50%;">
       <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.1em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
@@ -650,6 +479,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
     </tr></table>
   </td></tr>
   ${mondayErrorBanner}
+  ${dupBannerHtml}
   <tr><td style="background:#ffffff;padding:20px 32px 0;">
     <p style="margin:0 0 10px;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.12)' : 'rgba(184,150,110,0.12)'};color:${isTypeA ? '#0F6E56' : '#8a6540'};border:0.5px solid ${isTypeA ? 'rgba(29,158,117,0.4)' : 'rgba(184,150,110,0.4)'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
     <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.75;">${isTypeA
@@ -777,7 +607,7 @@ function bestCampaign(p) {
   return resolveCampaign(fromCookie);
 }
 
-async function pushToMonday(p, submitterIp) {
+async function pushToMonday(p, submitterIp, duplicateOf) {
   const nameParts = (p.full_name || '').trim().split(' ');
   const firstname = nameParts[0] || '';
   const lastname  = nameParts.slice(1).join(' ') || '';
@@ -848,7 +678,8 @@ async function pushToMonday(p, submitterIp) {
     text_mm1c3b5w:    bestCampaign(p),
     text43__1:        p.utm_adgroup   || '',
     text3__1:         p.utm_term      || '',
-    text_mm1d87rp:    submitterIp     || '',   // ← IP stored here for future duplicate checks
+    text_mm2y2ah2:    submitterIp     || '',   // ← IP stored for duplicate detection
+    ...(duplicateOf && { color_mknqvzde: { label: 'Possible Duplicate' } }),
     text4__1:         p.gclid || p.fbclid || '',
     text_mm1jhhe7:    p.landing_page  || '',
     long_text__1:     p.visited_paths || '',
