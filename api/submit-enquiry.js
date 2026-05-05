@@ -131,14 +131,17 @@ async function findExistingLead(email, ip) {
   // Take the most recent matching item
   const match = items[0];
 
-  // Extract assignees from people_1 column
+  // Extract assignees from people_1 column — names AND ids
   let assignees = [];
+  let assigneeIds = [];
   const peopleCol = match.column_values?.find(c => c.id === 'people_1');
   if (peopleCol?.value) {
     try {
       const val = JSON.parse(peopleCol.value);
       const personsArr = val?.personsAndTeams || [];
-      // Monday people column gives IDs — we store display names from .text
+      assigneeIds = personsArr
+        .filter(pt => pt.kind === 'person')
+        .map(pt => pt.id);
       const textVal = peopleCol.text || '';
       if (textVal) {
         assignees = textVal.split(',').map(s => s.trim()).filter(Boolean);
@@ -157,6 +160,7 @@ async function findExistingLead(email, ip) {
     name:        match.name,
     created_at:  match.created_at,
     assignees,
+    assigneeIds,
     originalIp,
     ipMatch:     originalIp && ip && originalIp === ip
   };
@@ -420,14 +424,14 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 
     return `
   <tr><td style="background:#fffcf2;border-top:3px solid #e8c96b;padding:14px 32px;font-size:13px;color:#5a4310;line-height:1.65;">
-    ⚠️ &nbsp;Possible duplicate — this lead has been added to the board and flagged accordingly.
+    ⚠️ &nbsp;This lead is a possible duplicate. It's been added to the Leads Board with 'Possible Duplicate' tagged — and the salesperson assigned to the original lead has been automatically assigned to it.
   </td></tr>
   <tr><td style="background:#ffffff;padding:20px 32px 0;">
-    <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Original vs. new submission</p>
+    <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Original Lead vs. New Lead</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0;margin-bottom:14px;">
       <tr>
-        <td width="50%" style="padding:8px 16px;background:#f7f2eb;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original lead</td>
-        <td width="50%" style="padding:8px 16px;background:#0d1a2e;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.6);border-bottom:0.5px solid #e8e4de;border-left:0.5px solid #e8e4de;">New submission</td>
+        <td width="50%" style="padding:8px 16px;background:#f7f2eb;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original Lead</td>
+        <td width="50%" style="padding:8px 16px;background:#0d1a2e;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.6);border-bottom:0.5px solid #e8e4de;border-left:0.5px solid #e8e4de;">New Lead</td>
       </tr>
       ${compareRow('Name', duplicateOf.name, p.full_name || '', duplicateOf.name.toLowerCase().trim() === (p.full_name||'').toLowerCase().trim())}
       ${compareRow('Email', p.email||'', p.email||'', true)}
@@ -445,7 +449,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     </table>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;padding:12px 16px;margin-bottom:20px;">
       <tr>
-        <td style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;vertical-align:middle;width:120px;">Assigned to</td>
+        <td style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;vertical-align:middle;width:160px;">Original lead assigned to</td>
         <td style="vertical-align:middle;">${assigneePills}</td>
       </tr>
     </table>
@@ -523,7 +527,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(bestCampaign(p)||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">GCLID</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.gclid||'—')}</td></tr>
+
     </table>
   </td></tr>
   <tr><td style="background:#f7f2eb;padding:16px 32px;">
@@ -680,6 +684,9 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text3__1:         p.utm_term      || '',
     text_mm2y2ah2:    submitterIp     || '',   // ← IP stored for duplicate detection
     ...(duplicateOf && { color_mknqvzde: { label: 'Possible Duplicate' } }),
+    ...(duplicateOf?.assigneeIds?.length > 0 && {
+      people_1: { personsAndTeams: duplicateOf.assigneeIds.map(id => ({ id, kind: 'person' })) }
+    }),
     text4__1:         p.gclid || p.fbclid || '',
     text_mm1jhhe7:    p.landing_page  || '',
     long_text__1:     p.visited_paths || '',
