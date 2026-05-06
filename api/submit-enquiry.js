@@ -100,7 +100,7 @@ async function findExistingLead(email, ip) {
           id
           name
           created_at
-          column_values(ids: ["people_1", "text_mm1d87rp"]) {
+          column_values(ids: ["people_1", "text_mm2y2ah2"]) {
             id
             text
             value
@@ -151,8 +151,8 @@ async function findExistingLead(email, ip) {
     }
   }
 
-  // Extract stored IP from text_mm1d87rp (we'll store it going forward)
-  const ipCol = match.column_values?.find(c => c.id === 'text_mm1d87rp');
+  // Extract stored IP from text_mm2y2ah2
+  const ipCol = match.column_values?.find(c => c.id === 'text_mm2y2ah2');
   const originalIp = ipCol?.text || '';
 
   return {
