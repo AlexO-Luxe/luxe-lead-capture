@@ -1015,10 +1015,10 @@ function mergeMonday(arr) {
     return o;
   }
   function mergeBookings(a) {
-    const o = { total:0, totalRevenue:0, ppcCount:0, ppcRevenue:0, top5Bookings:[], byChannel:{}, byCity:{}, bySource:{}, byCampaign:{}, byCitySource:{} };
+    const o = { total:0, totalRevenue:0, totalUplift:0, ppcCount:0, ppcRevenue:0, top5Bookings:[], byChannel:{}, byCity:{}, bySource:{}, byCampaign:{}, byCitySource:{} };
     a.forEach(m => {
       const b = m.current.bookings;
-      o.total += b.total; o.totalRevenue += b.totalRevenue;
+      o.total += b.total; o.totalRevenue += b.totalRevenue; o.totalUplift += b.totalUplift || 0;
       o.ppcCount += b.ppcCount; o.ppcRevenue += b.ppcRevenue;
       (b.top5Bookings || []).forEach(bk => o.top5Bookings.push(bk));
       mrc(o.byChannel, b.byChannel); mrc(o.byCity, b.byCity);
@@ -1132,17 +1132,20 @@ function renderDash(monday, gads) {
   const prevBook = prev?.bookings;
 
   // ── SECTION 1: Bookings & No. of Leads ──
+  const totalUplift     = bookings.totalUplift || 0;
+  const totalWithUplift = totalRevenue + totalUplift;
+
   document.getElementById('bookingStats').innerHTML = [
-    statCard('Total Revenue',      '£'+fmt(totalRevenue),   !isMulti && prevBook ? delta(totalRevenue, prevBook.totalRevenue, true) : null),
-    statCard('Confirmed Bookings', totalBookings,            !isMulti && prevBook ? delta(totalBookings, prevBook.total) : null),
-    statCard('No. of Leads',       totalLeads,               !isMulti ? delta(totalLeads, prevTotalLeads) : null),
-    statCard('Unqualified Leads',  unqualLeads,              null, null, 'Leads marked as unqualified this period'),
+    statCard('Total Revenue',      '£'+fmt(totalWithUplift), !isMulti && prevBook ? delta(totalWithUplift, (prevBook.totalRevenue||0)+(prevBook.totalUplift||0), true) : null, null, 'Booking revenue + uplift (numeric_mm34wesr)'),
+    statCard('Uplift',             totalUplift > 0 ? '£'+fmt(totalUplift) : '—', null, null, 'Additional revenue from uplift column (numeric_mm34wesr)'),
+    statCard('Confirmed Bookings', totalBookings, !isMulti && prevBook ? delta(totalBookings, prevBook.total) : null),
+    statCard('No. of Leads',       totalLeads,    !isMulti ? delta(totalLeads, prevTotalLeads) : null),
+    statCard('Unqualified Leads',  unqualLeads,   null, null, 'Leads marked as Unqualified Lead'),
+    statCard('High Potential',     highPotLeads,  null, null, 'Leads marked as High Potential'),
+    statCard('Moderate Potential', modPotLeads,   null, null, 'Leads marked as Moderate Potential'),
     statCard('Avg Booking Value',  allAvgBooking ? '£'+fmt(allAvgBooking) : '—', null, null, 'Total revenue ÷ all bookings'),
-    statCard('Conv. Rate',         allConvRate, null, null, 'All bookings ÷ all leads × 100'),
+    statCard('Conv. Rate',         allConvRate,   null, null, 'All bookings ÷ all leads × 100'),
     statCard('Lead Quality',       leadQuality != null ? leadQuality + ' / 10' : '—', null, null, '10 minus (unqualified leads ÷ total leads × 10)'),
-    statCard('Unqualified Leads',  unqualLeads, null, null, 'Leads marked as Unqualified Lead'),
-    statCard('High Potential',     highPotLeads, null, null, 'Leads marked as High Potential'),
-    statCard('Moderate Potential', modPotLeads, null, null, 'Leads marked as Moderate Potential'),
   ].join('');
 
   // ── SECTION 2: PPC Performance ──
