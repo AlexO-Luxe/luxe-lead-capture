@@ -26,7 +26,7 @@ module.exports = async function handler(req, res) {
   try {
     const [leadsItems, bookingsItems] = await Promise.all([
       fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status', 'color_mkt29g1r']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4'], true, true)
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'numeric_mm34wesr'], true, true)
     ]);
 
     // Fetch nights and salesperson separately to avoid GraphQL fragment issues
@@ -227,13 +227,14 @@ function processBookings(items, startDate, endDate) {
     return !isNaN(d) && d >= startDate && d < endDate;
   });
 
-  let totalRevenue = 0, ppcCount = 0, ppcRevenue = 0;
+  let totalRevenue = 0, totalUplift = 0, ppcCount = 0, ppcRevenue = 0;
   const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
   const byCitySource = {};
 
   filtered.forEach(item => {
     const cols = colMap(item);
-    const rev  = parseFloat(cols['numeric_mm1ge9h4']) || 0;
+    const rev    = parseFloat(cols['numeric_mm1ge9h4']) || 0;
+    const uplift = parseFloat(cols['numeric_mm34wesr'])  || 0;
 
     const relationCol = (item.relation || []).find(c => c.id === 'link_to_leads26');
     const linkedItems = relationCol?.linked_items || [];
@@ -279,6 +280,7 @@ function processBookings(items, startDate, endDate) {
     }
 
     totalRevenue += rev;
+    totalUplift  += uplift;
   });
 
   // Top 5 bookings by revenue
@@ -294,6 +296,7 @@ function processBookings(items, startDate, endDate) {
   return {
     total:          filtered.length,
     totalRevenue:   Math.round(totalRevenue),
+    totalUplift:    Math.round(totalUplift),
     ppcCount,
     ppcRevenue:     Math.round(ppcRevenue),
     top5Bookings,
