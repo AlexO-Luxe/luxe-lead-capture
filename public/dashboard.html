@@ -388,6 +388,34 @@ body {
   .stat-grid{grid-template-columns:1fr 1fr;}
   .topbar h1{font-size:15px;}
 }
+/* ── PRINT / PDF ─────────────────────────────────────────── */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body { background: #fff !important; }
+  .topbar, .topnav, #pdfBtn, #refreshBtn, #periodSelect,
+  .comments-section, .splash-screen, .loading-overlay,
+  .ytd-loading { display: none !important; }
+  .main { padding: 0 !important; margin: 0 !important; }
+  .stat-grid { grid-template-columns: repeat(4, 1fr) !important; }
+  .stat-grid-6 { grid-template-columns: repeat(4, 1fr) !important; }
+  .three-col { grid-template-columns: repeat(2, 1fr) !important; }
+  .city-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  .camp-table-wrap { overflow: visible !important; }
+  .table-card, .stat-card, .city-card { break-inside: avoid; }
+  .section-heading { break-after: avoid; }
+  #dashSections { display: block !important; }
+  .print-header { display: block !important; }
+  @page { size: A4; margin: 12mm 12mm 14mm 12mm; }
+}
+.print-header {
+  display: none;
+  font-family: 'DM Sans', sans-serif;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1.5px solid #B8966E;
+}
+.print-header h2 { margin: 0; font-size: 18px; color: #0d1a2e; font-weight: 600; }
+.print-header p  { margin: 3px 0 0; font-size: 11px; color: #9b9b9b; }
 </style>
 </head>
 <body>
@@ -446,6 +474,10 @@ body {
         <button class="refresh-btn" id="refreshBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           Refresh
+        </button>
+        <button class="refresh-btn" id="pdfBtn" style="background:var(--navy);color:#fff;border-color:var(--navy);" onclick="generatePDF()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Save PDF
         </button>
       </div>
     </div>
@@ -511,6 +543,10 @@ body {
       </div>
 
       <div id="dashSections" style="display:none">
+        <div class="print-header" id="printHeader">
+          <h2 id="printTitle">Marketing Performance</h2>
+          <p id="printMeta"></p>
+        </div>
 
         <!-- BOOKINGS & LEADS -->
         <div id="leads">
@@ -1772,6 +1808,21 @@ function drawCampTable() {
     <td>${totRHtml}</td>`;
 }
 
+
+function generatePDF() {
+  // Update print header with current period and snapshot time
+  const sel      = document.getElementById('periodSelect');
+  const label    = sel ? sel.options[sel.selectedIndex]?.text : 'Dashboard';
+  const snapTime = new Date().toLocaleString('en-GB', {
+    day:'numeric', month:'long', year:'numeric',
+    hour:'numeric', minute:'2-digit', hour12:true, timeZone:'Europe/London'
+  });
+  const title = document.getElementById('printTitle');
+  const meta  = document.getElementById('printMeta');
+  if (title) title.textContent = `Student Luxe — ${label}`;
+  if (meta)  meta.textContent  = `PDF snapshot generated ${snapTime} · Data sourced from Monday.com at time of generation`;
+  window.print();
+}
 
 function fmt(n) {
   if (n === null || n === undefined) return '—';
