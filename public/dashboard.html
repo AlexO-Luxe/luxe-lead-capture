@@ -1172,7 +1172,8 @@ function renderDash(monday, gads) {
   const totalWithUplift = totalRevenue + totalUplift;
 
   document.getElementById('bookingStats').innerHTML = [
-    statCard('Total Revenue',      '£'+fmt(totalWithUplift), !isMulti && prevBook ? delta(totalWithUplift, (prevBook.totalRevenue||0)+(prevBook.totalUplift||0), true) : null, null, 'Booking revenue + uplift (numeric_mm34wesr)'),
+    statCard('Month Total',        '£'+fmt(totalWithUplift), !isMulti && prevBook ? delta(totalWithUplift, (prevBook.totalRevenue||0)+(prevBook.totalUplift||0), true) : null, null, 'Total Revenue + Uplift combined'),
+    statCard('Total Revenue',      '£'+fmt(totalRevenue),    !isMulti && prevBook ? delta(totalRevenue, prevBook.totalRevenue||0, true) : null, null, 'Confirmed booking revenue (numeric_mm1ge9h4)'),
     statCard('Uplift',             totalUplift > 0 ? '£'+fmt(totalUplift) : '—', null, null, 'Additional revenue from uplift column (numeric_mm34wesr)'),
     statCard('Confirmed Bookings', totalBookings, !isMulti && prevBook ? delta(totalBookings, prevBook.total) : null),
     statCard('No. of Leads',       totalLeads,    !isMulti ? delta(totalLeads, prevTotalLeads) : null),
