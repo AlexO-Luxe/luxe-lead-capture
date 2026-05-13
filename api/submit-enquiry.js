@@ -62,9 +62,31 @@ module.exports = async function handler(req, res) {
   }
 
   // Fire both emails in parallel
+  // Compute lead source for email (mirrors logic in pushToMonday)
+  const _hasPpcSignal = !!(p.gclid) || !!(p.utm_campaign || '').trim() || !!(p.utm_term || '').trim();
+  const _hasFbclid    = !!p.fbclid;
+  const _visitedPaths = (p.visited_paths || '').trim();
+  const _isDirect     = _visitedPaths.startsWith('Direct');
+  const _isGoogleOrg  = _visitedPaths.startsWith('Google Organic');
+  const _hasVisited   = !!(p.visited_paths || p.landing_page);
+  function _extractChannel(referrer) {
+    if (!referrer) return '';
+    try {
+      const host = new URL(referrer).hostname.replace('www.','').replace('search.','');
+      const m = {'google.com':'Google Advert','google.co.uk':'Google Advert','bing.com':'Bing','instagram.com':'Instagram','facebook.com':'Meta Advert','meta.com':'Meta Advert','linkedin.com':'From a Friend','tiktok.com':'TikTok'};
+      return m[host] || '';
+    } catch(e) { return ''; }
+  }
+  let _leadSource = '', _leadChannel = '';
+  if (_hasPpcSignal)     { _leadSource = 'PPC';      _leadChannel = 'Google Advert'; }
+  else if (_hasFbclid)   { _leadSource = 'Socials';  _leadChannel = _extractChannel(p.referrer) || 'Instagram'; }
+  else if (_isDirect)    { _leadSource = 'Referral'; _leadChannel = 'Direct'; }
+  else if (_isGoogleOrg) { _leadSource = 'SEO';      _leadChannel = 'Google Search (organic)'; }
+  else if (_hasVisited)  { _leadSource = 'SEO';      _leadChannel = _extractChannel(p.referrer); }
+
   const results = await Promise.allSettled([
     sendGuestConfirmation(p),
-    sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp)
+    sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp, _leadSource, _leadChannel)
   ]);
 
   results.forEach((r, i) => {
@@ -360,7 +382,7 @@ async function sendGuestConfirmation(p) {
 // ──────────────────────────────────────────────────────────────
 //  EMAIL 2 — Team notification
 // ──────────────────────────────────────────────────────────────
-async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp) {
+async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp, leadSource, leadChannel) {
   const isTypeA    = p.enquiry_type === 'A';
   const guestName  = p.full_name || 'New enquiry';
   const nightCount = nights(p);
@@ -528,9 +550,8 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
   <tr><td style="background:#ffffff;padding:0 32px 24px;">
     <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
     <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 16px;width:100%;">
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(bestCampaign(p)||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:160px;">Lead Source (Where)</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(leadSource||'—')}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Lead Source (How)</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(leadChannel||'—')}</td></tr>
     </table>
   </td></tr>
   <tr><td style="background:#f7f2eb;padding:16px 32px;">
@@ -662,11 +683,16 @@ function bestCampaign(p) {
   return resolveCampaign(fromCookie);
 }
 
-async function pushToMonday(p, submitterIp, duplicateOf) {
-  const nameParts = (p.full_name || '').trim().split(' ');
-  const firstname = nameParts[0] || '';
-  const lastname  = nameParts.slice(1).join(' ') || '';
-  const itemName  = p.full_name || 'New Enquiry';
+function computeLeadSource(p) {
+  const hasGclid     = !!p.gclid;
+  const hasFbclid    = !!p.fbclid;
+  const hasCampaign  = !!(p.utm_campaign || '').trim();
+  const hasKeyword   = !!(p.utm_term || '').trim();
+  const hasPpcSignal = hasGclid || hasCampaign || hasKeyword;
+  const visitedPaths = (p.visited_paths || '').trim();
+  const isDirect     = visitedPaths.startsWith('Direct');
+  const isGoogleOrg  = visitedPaths.startsWith('Google Organic');
+  const hasVisited   = !!(p.visited_paths || p.landing_page);
 
   function extractChannel(referrer) {
     if(!referrer) return '';
@@ -683,16 +709,6 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     } catch(e) { return 'Unknown'; }
   }
 
-  const hasGclid     = !!p.gclid;
-  const hasFbclid    = !!p.fbclid;
-  const hasCampaign  = !!(p.utm_campaign || '').trim();
-  const hasKeyword   = !!(p.utm_term || '').trim();
-  const hasPpcSignal = hasGclid || hasCampaign || hasKeyword;
-  const visitedPaths = (p.visited_paths || '').trim();
-  const isDirect     = visitedPaths.startsWith('Direct');
-  const isGoogleOrg  = visitedPaths.startsWith('Google Organic');
-  const hasVisited   = !!(p.visited_paths || p.landing_page);
-
   let leadSource  = '';
   let leadChannel = '';
   if (hasPpcSignal)     { leadSource = 'PPC';      leadChannel = 'Google Advert'; }
@@ -700,6 +716,17 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
   else if (isDirect)    { leadSource = 'Referral'; leadChannel = 'Direct'; }
   else if (isGoogleOrg) { leadSource = 'SEO';      leadChannel = 'Google Search (organic)'; }
   else if (hasVisited)  { leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
+
+  return { leadSource, leadChannel };
+}
+
+async function pushToMonday(p, submitterIp, duplicateOf) {
+  const nameParts = (p.full_name || '').trim().split(' ');
+  const firstname = nameParts[0] || '';
+  const lastname  = nameParts.slice(1).join(' ') || '';
+  const itemName  = p.full_name || 'New Enquiry';
+
+  const { leadSource, leadChannel } = computeLeadSource(p);
 
   const columnValues = {
     text37:           firstname,
