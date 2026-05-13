@@ -32,11 +32,29 @@ module.exports = async function handler(req, res) {
 
   const p = req.body;
 
-  // Push to Monday first so we get the pulse ID for the team email link
+  // ── Get submitter IP ──────────────────────────────────────
+  const submitterIp =
+    (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+    req.socket?.remoteAddress ||
+    '';
+
+  // ── Duplicate check — query Monday for matching email ─────
+  let duplicateOf = null;
+  try {
+    duplicateOf = await findExistingLead(p.email, submitterIp);
+  } catch(err) {
+    console.warn('Duplicate check failed (non-fatal):', err.message);
+  }
+
+  if (duplicateOf) {
+    console.log('Duplicate detected — existing lead ID:', duplicateOf.id);
+  }
+
+  // ── Always push to Monday ─────────────────────────────────
   let mondayId    = null;
   let mondayError = null;
   try {
-    mondayId = await pushToMonday(p);
+    mondayId = await pushToMonday(p, submitterIp, duplicateOf);
     console.log('Monday OK — pulse ID:', mondayId);
   } catch(err) {
     mondayError = err.message || 'Unknown error';
@@ -46,7 +64,7 @@ module.exports = async function handler(req, res) {
   // Fire both emails in parallel
   const results = await Promise.allSettled([
     sendGuestConfirmation(p),
-    sendTeamNotification(p, mondayId, mondayError)
+    sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp)
   ]);
 
   results.forEach((r, i) => {
@@ -55,14 +73,11 @@ module.exports = async function handler(req, res) {
     else console.log(`${label} OK`);
   });
 
-  // ── GOOGLE ADS SERVER-SIDE CONVERSION ─────────────────────────
-  // Fires for all enquiries (not just GCLID) so Google can match via hashed email/phone.
-  // Runs after Monday + emails so a failure here never affects the lead capture.
+  // ── GOOGLE ADS SERVER-SIDE CONVERSION ─────────────────────
   try {
     await uploadGoogleAdsConversion(p);
     console.log('Google Ads conversion uploaded OK');
   } catch(err) {
-    // Log but never fail the request — lead is already in Monday
     console.error('Google Ads conversion failed (non-fatal):', err.message);
   }
 
@@ -70,11 +85,85 @@ module.exports = async function handler(req, res) {
 };
 
 // ──────────────────────────────────────────────────────────────
+//  DUPLICATE DETECTION — query Monday for existing email match
+// ──────────────────────────────────────────────────────────────
+async function findExistingLead(email, ip) {
+  if (!email) return null;
+
+  const query = `
+    query {
+      items_page_by_column_values(
+        board_id: ${MONDAY_BOARD},
+        limit: 5,
+        columns: [{ column_id: "email", column_values: ["${email.toLowerCase().trim()}"] }]
+      ) {
+        items {
+          id
+          name
+          created_at
+          column_values(ids: ["people_1", "text_mm2y2ah2"]) {
+            id
+            text
+            value
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await fetch(MONDAY_API, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+    body: JSON.stringify({ query })
+  });
+
+  const data = await response.json();
+  if (data.errors) {
+    console.error('Monday duplicate query errors:', JSON.stringify(data.errors));
+    return null;
+  }
+
+  const items = data?.data?.items_page_by_column_values?.items || [];
+  if (items.length === 0) return null;
+
+  const match = items[0];
+
+  // Extract assignees — names AND IDs
+  let assignees   = [];
+  let assigneeIds = [];
+  const peopleCol = match.column_values?.find(c => c.id === 'people_1');
+  if (peopleCol?.value) {
+    try {
+      const val        = JSON.parse(peopleCol.value);
+      const personsArr = val?.personsAndTeams || [];
+      assigneeIds = personsArr.filter(pt => pt.kind === 'person').map(pt => pt.id);
+      const textVal = peopleCol.text || '';
+      if (textVal) assignees = textVal.split(',').map(s => s.trim()).filter(Boolean);
+    } catch(e) {
+      if (peopleCol.text) assignees = [peopleCol.text];
+    }
+  }
+
+  // Extract stored IP from text_mm2y2ah2
+  const ipCol      = match.column_values?.find(c => c.id === 'text_mm2y2ah2');
+  const originalIp = ipCol?.text || '';
+
+  return {
+    id:          match.id,
+    name:        match.name,
+    created_at:  match.created_at,
+    assignees,
+    assigneeIds,
+    originalIp,
+    ipMatch: !!(originalIp && ip && originalIp === ip)
+  };
+}
+
+// ──────────────────────────────────────────────────────────────
 //  GOOGLE ADS — Server-side conversion upload
 // ──────────────────────────────────────────────────────────────
 async function uploadGoogleAdsConversion(p) {
 
-  // Step 1 — Get a fresh access token using the stored refresh token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -91,8 +180,6 @@ async function uploadGoogleAdsConversion(p) {
     throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
   }
 
-  // Step 2 — Hash email and phone for enhanced matching
-  // Google requires SHA-256, lowercase, trimmed
   async function sha256(str) {
     const encoder    = new TextEncoder();
     const data       = encoder.encode(str.toLowerCase().trim());
@@ -105,8 +192,6 @@ async function uploadGoogleAdsConversion(p) {
   const cleanPhone  = p.phone ? p.phone.replace(/[\s\-().]/g, '') : null;
   const hashedPhone = cleanPhone ? await sha256(cleanPhone) : null;
 
-  // Step 3 — Format conversion timestamp
-  // Google Ads API requires: 'yyyy-mm-dd hh:mm:ss+00:00'
   const rawTime        = p.submitted_at ? new Date(p.submitted_at) : new Date();
   const conversionTime = rawTime.toISOString()
     .replace('T', ' ')
@@ -117,26 +202,20 @@ async function uploadGoogleAdsConversion(p) {
   console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`);
   const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
 
-  // Step 4 — Build payload
   const conversion = {
-    conversionAction:   conversionAction,
+    conversionAction,
     conversionDateTime: conversionTime,
     conversionValue:    1.0,
     currencyCode:       'GBP',
     userIdentifiers: [
-      ...(hashedEmail ? [{ hashedEmail:       hashedEmail }] : []),
+      ...(hashedEmail ? [{ hashedEmail }] : []),
       ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
     ]
   };
-  // Only include gclid when present — without it Google matches via email/phone
   if (p.gclid) conversion.gclid = p.gclid;
 
-  const payload = {
-    conversions: [ conversion ],
-    partialFailure: true
-  };
+  const payload = { conversions: [conversion], partialFailure: true };
 
-  // Step 5 — POST to Google Ads Conversions API
   const gadsRes = await fetch(
     `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`,
     {
@@ -159,13 +238,8 @@ async function uploadGoogleAdsConversion(p) {
   }
 
   const gadsData = JSON.parse(rawText);
-
-  if (gadsData.partialFailureError) {
-    throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
-  }
-  if (gadsData.error) {
-    throw new Error('API error: ' + JSON.stringify(gadsData.error));
-  }
+  if (gadsData.partialFailureError) throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
+  if (gadsData.error) throw new Error('API error: ' + JSON.stringify(gadsData.error));
 
   console.log('Google Ads conversion uploaded successfully');
   return gadsData;
@@ -180,13 +254,13 @@ async function sendGuestConfirmation(p) {
   const isTypeA   = p.enquiry_type === 'A';
 
   const rows = [
-    p.city           && ['City',           formatCity(p.city)],
-    p.apartment_ref  && ['Apartment',      p.apartment_ref],
-    p.apartment_type && ['Apartment type', formatAptType(p.apartment_type)],
-    p.check_in       && ['Check-in',       formatDate(p.check_in)],
-    p.check_out      && ['Check-out',      formatDate(p.check_out)],
-    nights(p)        && ['Stay length',    nights(p) + ' nights'],
-    p.budget         && p.enquiry_type !== 'A' && ['Budget / week', formatBudget(p.budget)],
+    p.city             && ['City',              formatCity(p.city)],
+    p.apartment_ref    && ['Apartment',         p.apartment_ref],
+    p.apartment_type   && ['Apartment type',    formatAptType(p.apartment_type)],
+    p.check_in         && ['Check-in',          formatDate(p.check_in)],
+    p.check_out        && ['Check-out',         formatDate(p.check_out)],
+    nights(p)          && ['Stay length',       nights(p) + ' nights'],
+    p.budget && p.enquiry_type !== 'A' && ['Budget / week', formatBudget(p.budget)],
     p.response_methods && ['We will respond via', p.response_methods],
   ].filter(Boolean);
 
@@ -286,7 +360,7 @@ async function sendGuestConfirmation(p) {
 // ──────────────────────────────────────────────────────────────
 //  EMAIL 2 — Team notification
 // ──────────────────────────────────────────────────────────────
-async function sendTeamNotification(p, mondayId, mondayError) {
+async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp) {
   const isTypeA    = p.enquiry_type === 'A';
   const guestName  = p.full_name || 'New enquiry';
   const nightCount = nights(p);
@@ -317,6 +391,77 @@ async function sendTeamNotification(p, mondayId, mondayError) {
     </table>
   </td></tr>` : '';
 
+  // ── Duplicate comparison block ────────────────────────────
+  const dupBannerHtml = duplicateOf ? (function() {
+    const originalFormatted = duplicateOf.created_at
+      ? new Date(duplicateOf.created_at).toLocaleString('en-GB', {
+          day:'numeric', month:'long', year:'numeric',
+          hour:'numeric', minute:'2-digit', hour12:true,
+          timeZone:'Europe/London'
+        })
+      : '—';
+
+    const ipMatchTag = duplicateOf.ipMatch
+      ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
+      : '';
+
+    const assigneePills = duplicateOf.assignees && duplicateOf.assignees.length > 0
+      ? duplicateOf.assignees.map(name => {
+          const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+          return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#1a1a1a;margin-right:8px;"><span style="width:24px;height:24px;border-radius:50%;background:#B8966E;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;">${initials}</span>${escHtml(name)}</span>`;
+        }).join('')
+      : '<span style="font-size:12px;color:#9b9b9b;">Unassigned</span>';
+
+    const compareRow = (label, origVal, newVal, isMatch) => {
+      const matchTag = isMatch
+        ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
+        : '';
+      return `<tr>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;width:50%;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(origVal)}</p>
+        </td>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;vertical-align:top;width:50%;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+          <p style="margin:0;font-size:13px;font-weight:500;color:${isMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(newVal)}${matchTag}</p>
+        </td>
+      </tr>`;
+    };
+
+    return `
+  <tr><td style="background:#fffcf2;border-top:3px solid #e8c96b;padding:14px 32px;font-size:13px;color:#5a4310;line-height:1.65;">
+    ⚠️ &nbsp;This lead is a possible duplicate. It's been added to the Leads Board with 'Possible Duplicate' tagged — and the salesperson assigned to the original lead has been automatically assigned to it.
+  </td></tr>
+  <tr><td style="background:#ffffff;padding:20px 32px 0;">
+    <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Original Lead vs. New Lead</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0;margin-bottom:14px;">
+      <tr>
+        <td width="50%" style="padding:8px 16px;background:#f7f2eb;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original Lead</td>
+        <td width="50%" style="padding:8px 16px;background:#0d1a2e;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.6);border-bottom:0.5px solid #e8e4de;border-left:0.5px solid #e8e4de;">New Lead</td>
+      </tr>
+      ${compareRow('Name', duplicateOf.name, p.full_name || '', duplicateOf.name.toLowerCase().trim() === (p.full_name||'').toLowerCase().trim())}
+      ${compareRow('Email', p.email||'', p.email||'', true)}
+      ${compareRow('Lead created', originalFormatted, submittedFormatted, false)}
+      <tr>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
+          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(duplicateOf.originalIp || '—')}</p>
+        </td>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;vertical-align:top;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
+          <p style="margin:0;font-size:13px;font-weight:500;color:${duplicateOf.ipMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(submitterIp||'—')}${ipMatchTag}</p>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;padding:12px 16px;margin-bottom:20px;">
+      <tr>
+        <td style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;vertical-align:middle;width:160px;">Original lead assigned to</td>
+        <td style="vertical-align:middle;">${assigneePills}</td>
+      </tr>
+    </table>
+  </td></tr>`;
+  })() : '';
+
   const field = (label, value) => value ? `
     <td style="padding:0 20px 14px 0;vertical-align:top;width:50%;">
       <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.1em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
@@ -342,6 +487,7 @@ async function sendTeamNotification(p, mondayId, mondayError) {
     </tr></table>
   </td></tr>
   ${mondayErrorBanner}
+  ${dupBannerHtml}
   <tr><td style="background:#ffffff;padding:20px 32px 0;">
     <p style="margin:0 0 10px;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.12)' : 'rgba(184,150,110,0.12)'};color:${isTypeA ? '#0F6E56' : '#8a6540'};border:0.5px solid ${isTypeA ? 'rgba(29,158,117,0.4)' : 'rgba(184,150,110,0.4)'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
     <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.75;">${isTypeA
@@ -385,7 +531,6 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:110px;">Source</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_source||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(bestCampaign(p)||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term||'—')}</td></tr>
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">GCLID</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.gclid||'—')}</td></tr>
     </table>
   </td></tr>
   <tr><td style="background:#f7f2eb;padding:16px 32px;">
@@ -439,8 +584,6 @@ function currencyForCity(city, otherCity) {
 // ──────────────────────────────────────────────────────────────
 //  MONDAY.COM — Push lead to board
 // ──────────────────────────────────────────────────────────────
-
-// ── Google Ads campaign ID → name map ────────────────────────
 const CAMPAIGN_MAP = {
   '23593406109': 'jf17_search_generic_os_tablet_phrase_in_row_destination_london',
   '23676288424': 'jf14_search_generic_os_tablet_broad_in_us_destination_london - £150 tCPA Test',
@@ -493,16 +636,12 @@ const CAMPAIGN_MAP = {
 function resolveCampaign(val) {
   if (!val) return '';
   const trimmed = val.trim();
-  // If numeric ID → resolve to name, otherwise pass through as-is
   return /^\d+$/.test(trimmed) ? (CAMPAIGN_MAP[trimmed] || trimmed) : trimmed;
 }
 
-// Extract utm_campaign from visited_paths string (first URL entry which contains full UTM params)
-// e.g. "Google Ads 👉 www.studentluxe.co.uk/lse-summer?utm_campaign=23452513132&... 👉 /page2"
 function extractCampaignFromPaths(visitedPaths) {
   if (!visitedPaths) return '';
   try {
-    // Find the first segment that contains a URL with utm_campaign
     const segments = visitedPaths.split('👉');
     for (const seg of segments) {
       const match = seg.match(/utm_campaign=([^&\s]+)/);
@@ -512,30 +651,18 @@ function extractCampaignFromPaths(visitedPaths) {
   return '';
 }
 
-// Best campaign value: cookie → visited_paths fallback, always resolved to name
 function bestCampaign(p) {
   const fromCookie = (p.utm_campaign || '').trim();
   const fromPaths  = extractCampaignFromPaths(p.visited_paths);
-
-  // If cookie value resolves to a known name, use it
   if (fromCookie) {
     const resolved = resolveCampaign(fromCookie);
-    // If resolved differs from input (i.e. it was a numeric ID we know), it's good
-    // If it's already a name (not numeric), also good
-    // Only fall back if cookie is numeric but NOT in our map (unknown ID)
-    if (!/^\d+$/.test(fromCookie) || CAMPAIGN_MAP[fromCookie]) {
-      return resolved;
-    }
+    if (!/^\d+$/.test(fromCookie) || CAMPAIGN_MAP[fromCookie]) return resolved;
   }
-
-  // Fall back to visited_paths campaign if cookie was missing or unresolvable
   if (fromPaths) return resolveCampaign(fromPaths);
-
-  // Last resort — return whatever the cookie had even if unresolved
   return resolveCampaign(fromCookie);
 }
 
-async function pushToMonday(p) {
+async function pushToMonday(p, submitterIp, duplicateOf) {
   const nameParts = (p.full_name || '').trim().split(' ');
   const firstname = nameParts[0] || '';
   const lastname  = nameParts.slice(1).join(' ') || '';
@@ -556,23 +683,23 @@ async function pushToMonday(p) {
     } catch(e) { return 'Unknown'; }
   }
 
-  const hasGclid      = !!p.gclid;
-  const hasFbclid     = !!p.fbclid;
-  const hasCampaign   = !!(p.utm_campaign || '').trim();
-  const hasKeyword    = !!(p.utm_term || '').trim();
-  const hasPpcSignal  = hasGclid || hasCampaign || hasKeyword;
-  const visitedPaths  = (p.visited_paths || '').trim();
-  const isDirect      = visitedPaths.startsWith('Direct');
-  const isGoogleOrg   = visitedPaths.startsWith('Google Organic');
-  const hasVisited    = !!(p.visited_paths || p.landing_page);
+  const hasGclid     = !!p.gclid;
+  const hasFbclid    = !!p.fbclid;
+  const hasCampaign  = !!(p.utm_campaign || '').trim();
+  const hasKeyword   = !!(p.utm_term || '').trim();
+  const hasPpcSignal = hasGclid || hasCampaign || hasKeyword;
+  const visitedPaths = (p.visited_paths || '').trim();
+  const isDirect     = visitedPaths.startsWith('Direct');
+  const isGoogleOrg  = visitedPaths.startsWith('Google Organic');
+  const hasVisited   = !!(p.visited_paths || p.landing_page);
 
   let leadSource  = '';
   let leadChannel = '';
-  if (hasPpcSignal)       { leadSource = 'PPC';      leadChannel = 'Google Advert'; }
-  else if (hasFbclid)     { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
-  else if (isDirect)      { leadSource = 'Referral'; leadChannel = 'Direct'; }
-  else if (isGoogleOrg)   { leadSource = 'SEO';      leadChannel = 'Google Search (organic)'; }
-  else if (hasVisited)    { leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
+  if (hasPpcSignal)     { leadSource = 'PPC';      leadChannel = 'Google Advert'; }
+  else if (hasFbclid)   { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
+  else if (isDirect)    { leadSource = 'Referral'; leadChannel = 'Direct'; }
+  else if (isGoogleOrg) { leadSource = 'SEO';      leadChannel = 'Google Search (organic)'; }
+  else if (hasVisited)  { leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
 
   const columnValues = {
     text37:           firstname,
@@ -594,13 +721,13 @@ async function pushToMonday(p) {
       }
       return { phone: raw, countryShortName };
     })() : {},
-    date47:              p.check_in  ? { date: p.check_in  } : {},
-    date_1:              p.check_out ? { date: p.check_out } : {},
-    budget_per_week:     p.budget ? formatBudget(p.budget) : '',
-    text8:               p.city === 'other' ? (p.other_city || '') : (formatCity(p.city) || ''),
-    dropdown6:           p.apartment_ref     || '',
-    apt_type_mkmn4bgg:   formatAptType(p.apartment_type) || '',
-    dropdown19:          p.areas || '',
+    date47:            p.check_in  ? { date: p.check_in  } : {},
+    date_1:            p.check_out ? { date: p.check_out } : {},
+    budget_per_week:   p.budget ? formatBudget(p.budget) : '',
+    text8:             p.city === 'other' ? (p.other_city || '') : (formatCity(p.city) || ''),
+    dropdown6:         p.apartment_ref     || '',
+    apt_type_mkmn4bgg: formatAptType(p.apartment_type) || '',
+    dropdown19:        p.areas || '',
     dropdown40: p.response_methods ? {
       labels: p.response_methods.split(',').map(s => {
         const v = s.trim().toLowerCase();
@@ -619,16 +746,21 @@ async function pushToMonday(p) {
       'tourism':             'Tourism',
       'agent':               'Agent (on behalf of client)'
     }[p.stay_type] || p.stay_type } : {},
-    text_mknfnmsb:    p.university  || '',
-    text9__1:         p.nationality || '',
-    long_text7:       p.message     || '',
-    text_mm1c3b5w:    bestCampaign(p),
-    text43__1:        p.utm_adgroup   || '',
-    text3__1:         p.utm_term      || '',
-    text_mm1d87rp:    p.utm_matchtype || '',
-    text4__1:         p.gclid || p.fbclid || '',
-    text_mm1jhhe7:    p.landing_page  || '',
-    long_text__1:     p.visited_paths || '',
+    text_mknfnmsb: p.university  || '',
+    text9__1:      p.nationality || '',
+    long_text7:    p.message     || '',
+    text_mm1c3b5w: bestCampaign(p),
+    text43__1:     p.utm_adgroup   || '',
+    text3__1:      p.utm_term      || '',
+    text_mm1d87rp: p.utm_matchtype || '',
+    text4__1:      p.gclid || p.fbclid || '',
+    text_mm1jhhe7: p.landing_page  || '',
+    long_text__1:  p.visited_paths || '',
+    text_mm2y2ah2: submitterIp     || '',   // ← IP for duplicate detection
+    ...(duplicateOf && { color_mknqvzde: { label: 'Possible Duplicate' } }),
+    ...(duplicateOf?.assigneeIds?.length > 0 && {
+      people_1: { personsAndTeams: duplicateOf.assigneeIds.map(id => ({ id, kind: 'person' })) }
+    }),
     ...(leadSource  && { color_mkxk8y67: { label: leadSource } }),
     ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
     dropdown_mm1v31yb: { labels: ['/Reservations Form'] },
@@ -649,10 +781,7 @@ async function pushToMonday(p) {
 
   const response = await fetch(MONDAY_API, {
     method:  'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': process.env.MONDAY_API_KEY
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
     body: JSON.stringify({ query: mutation })
   });
 
@@ -671,10 +800,7 @@ async function pushToMonday(p) {
 async function resendSend(payload) {
   const res = await fetch(RESEND_API, {
     method:  'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-      'Content-Type':  'application/json'
-    },
+    headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
   if (!res.ok) {
@@ -692,30 +818,30 @@ function escHtml(str) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 function formatDate(d) {
   if (!d) return '';
   try { return new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
   catch { return d; }
 }
-
 function nights(p) {
   if (!p.check_in || !p.check_out) return null;
   const n = Math.round((new Date(p.check_out) - new Date(p.check_in)) / 86400000);
   return n > 0 ? n : null;
 }
-
 function formatCity(city) {
   if (!city) return '';
   const map = {
     'london':'London','new-york':'New York','paris':'Paris','edinburgh':'Edinburgh',
     'glasgow':'Glasgow','manchester':'Manchester','cambridge':'Cambridge','durham':'Durham',
     'bristol':'Bristol','barcelona':'Barcelona','madrid':'Madrid','lisbon':'Lisbon',
-    'boston':'Boston','chicago':'Chicago','washington':'Washington DC'
+    'boston':'Boston','chicago':'Chicago','washington':'Washington DC',
+    'amsterdam':'Amsterdam','milan':'Milan','rome':'Rome','florence':'Florence',
+    'helsinki':'Helsinki','porto':'Porto','valencia':'Valencia','birmingham':'Birmingham',
+    'brighton':'Brighton','liverpool':'Liverpool','nottingham':'Nottingham',
+    'dublin':'Dublin','philadelphia':'Philadelphia'
   };
   return map[city] || city;
 }
-
 function formatAptType(t) {
   if (!t) return '';
   const map = {
@@ -724,7 +850,6 @@ function formatAptType(t) {
   };
   return map[t] || t;
 }
-
 function formatBudget(b) {
   if (!b) return '';
   const map = {
@@ -739,7 +864,6 @@ function formatBudget(b) {
   };
   return map[b] || b;
 }
-
 function formatStayType(type, university) {
   if (!type) return '';
   const map = {
