@@ -402,6 +402,11 @@ async function sendGuestConfirmation(p) {
   const LOGO_WHITE = 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?content-type=image%2Fpng';
   const LOGO_HEADER = 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng';
 
+  const _submittedDate = new Date(p.submitted_at || Date.now()).toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Europe/London'});
+  // Format: "21 May 2026, 4:57 pm" → "on 21 May 2026 at 4:57 pm"
+  const _dateParts = _submittedDate.match(/^(\d+ \w+ \d+),?\s+(.+)$/);
+  const _dateFormatted = _dateParts ? `on ${_dateParts[1]} at ${_dateParts[2]}` : _submittedDate;
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your enquiry with us \u2014 Student Luxe</title>
@@ -410,7 +415,7 @@ async function sendGuestConfirmation(p) {
   .sl-outer-wrap { padding:0 !important; }
   .sl-card { border-radius:0 !important; border-left:none !important; border-right:none !important; }
   .sl-body-cell { padding:22px 20px 0 !important; }
-  .sl-tick-row td { display:block !important; width:100% !important; }
+  .sl-tick-td { display:block !important; width:100% !important; }
 }
 </style>
 </head>
@@ -423,11 +428,11 @@ async function sendGuestConfirmation(p) {
   <tr><td style="background:#B8966E;padding:22px 32px;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="vertical-align:middle;">
-        <p style="margin:0 0 3px;font-family:Georgia,serif;font-size:20px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">Your enquiry with us.</p>
-        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.7);">${new Date(p.submitted_at || Date.now()).toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Europe/London'}).replace(', ',' \u2014 ')}</p>
+        <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">Your enquiry with us.</p>
+        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.7);">${_dateFormatted}</p>
       </td>
       <td style="text-align:right;vertical-align:middle;">
-        <img src="${LOGO_HEADER}" alt="Student Luxe" style="height:30px;width:auto;display:block;margin-left:auto;">
+        <img src="${LOGO_HEADER}" alt="Student Luxe" style="height:34px;width:auto;display:block;margin-left:auto;">
       </td>
     </tr></table>
   </td></tr>
@@ -449,19 +454,25 @@ async function sendGuestConfirmation(p) {
       <tr><td style="padding:18px 20px;">
         <p style="margin:0 0 12px;font-family:Georgia,serif;font-size:15px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em;">Simply unpack and <em style="color:#B8966E;">start living.</em></p>
         <p style="margin:0 0 16px;font-size:12.5px;color:#6b6b6b;line-height:1.5;">All of our professionally-managed apartments are private, furnished, set up and ready to move in. All bills, Wi-Fi, housekeeping and resident support are included as standard. No guarantors or credit checks required.</p>
-        <table width="100%" cellpadding="0" cellspacing="0" class="sl-tick-row">
-          <tr><td style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;display:block;width:100%;">
-            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Fully furnished &amp; equipped</td></tr>
-          <tr><td style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;display:block;width:100%;">
-            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Weekly housekeeping</td></tr>
-          <tr><td style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;display:block;width:100%;">
-            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>All bills &amp; everything included</td></tr>
-          <tr><td style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;display:block;width:100%;">
-            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Flexible lengths of stay</td></tr>
-          <tr><td style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;display:block;width:100%;">
-            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Hotel-style amenities</td></tr>
-          <tr><td style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;display:block;width:100%;">
-            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Ongoing resident support</td></tr>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Fully furnished &amp; equipped</td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Weekly housekeeping</td>
+          </tr>
+          <tr>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>All bills &amp; everything included</td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Flexible lengths of stay</td>
+          </tr>
+          <tr>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Hotel-style amenities</td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Ongoing resident support</td>
+          </tr>
         </table>
       </td></tr>
     </table>
@@ -495,7 +506,7 @@ async function sendGuestConfirmation(p) {
             <img src="${LOGO_WHITE}" alt="Student Luxe" style="height:22px;width:auto;display:block;margin-bottom:12px;opacity:0.95;">
             <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.65);line-height:1.85;">Dog &amp; Duck Yard, Princeton St<br>London, WC1R 4BH<br>+44 (0)203 007 0017<br>Mon\u2013Fri, 10am\u20136pm GMT</p>
           </td>
-          <td style="text-align:right;vertical-align:top;">
+          <td style="text-align:right;vertical-align:top;padding-top:34px;">
             <a href="${siteUrl}/services" style="display:block;font-size:11px;color:rgba(255,255,255,0.75);text-decoration:none;line-height:2.1;">What\u2019s included</a>
             <a href="${siteUrl}/our-reviews" style="display:block;font-size:11px;color:rgba(255,255,255,0.75);text-decoration:none;line-height:2.1;">Reviews</a>
             <a href="${siteUrl}/faqs" style="display:block;font-size:11px;color:rgba(255,255,255,0.75);text-decoration:none;line-height:2.1;">FAQs</a>
