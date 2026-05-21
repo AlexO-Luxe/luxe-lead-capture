@@ -484,7 +484,7 @@ async function sendGuestConfirmation(p) {
 
   <!-- FOOTER -->
   <tr><td style="background-image:url('${FOOTER_BG}');background-size:cover;background-position:center top;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(184,150,110,0.85);">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(184,150,110,0.90);">
       <tr><td style="padding:28px 32px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;"><tr>
           <td style="vertical-align:top;">
