@@ -665,14 +665,18 @@ body {
         <div id="salesperson" style="margin-top:24px;">
           <div class="section-heading">Bookings by Salesperson</div>
           <div class="table-card">
+            <div class="table-card-header">
+              <span class="table-card-title">Salesperson Performance</span>
+              <span style="font-size:11px;color:var(--hint);font-style:italic;max-width:420px;line-height:1.5;">Note: where a booking is shared between multiple salespeople, the full value is attributed to each — so totals may be higher than actual revenue.</span>
+            </div>
             <div class="table-card-body">
               <table class="data-table" id="salesTable">
                 <thead><tr>
                   <th>Salesperson</th>
-                  <th class="num">Bookings</th>
-                  <th class="num">Avg Booking Value</th>
-                  <th class="num">Total Revenue</th>
-                  <th class="num">Uplift</th>
+                  <th class="num sortable" onclick="sortSales('count')" style="cursor:pointer;">Bookings<span id="salesSort_count"> ↕</span></th>
+                  <th class="num sortable" onclick="sortSales('avg')" style="cursor:pointer;">Avg Value<span id="salesSort_avg"> ↕</span></th>
+                  <th class="num sortable" onclick="sortSales('revenue')" style="cursor:pointer;">Total Revenue<span id="salesSort_revenue"> ↓</span></th>
+                  <th class="num sortable" onclick="sortSales('uplift')" style="cursor:pointer;">Uplift<span id="salesSort_uplift"> ↕</span></th>
                 </tr></thead>
                 <tbody id="salesTableBody"></tbody>
                 <tfoot><tr id="salesTableFoot"></tr></tfoot>
@@ -695,7 +699,35 @@ const API_BASE = 'https://luxe-lead-capture.vercel.app/api';
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 // ── CACHE ─────────────────────────────────────────────────────
-const dataCache = {};
+const dataCache = {}; // in-memory for this session
+
+const CACHE_TTL_MS    = 24 * 60 * 60 * 1000; // 24 hours for past months
+const LS_CACHE_PREFIX = 'sl_dash_';
+
+function currentMonthStr() {
+  const n = new Date();
+  return monthStr(n.getFullYear(), n.getMonth() + 1);
+}
+
+function lsGet(key) {
+  try {
+    const raw = localStorage.getItem(LS_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(LS_CACHE_PREFIX + key); return null; }
+    return data;
+  } catch { return null; }
+}
+
+function lsSet(key, data) {
+  try { localStorage.setItem(LS_CACHE_PREFIX + key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+}
+
+function lsClear(key) {
+  try { localStorage.removeItem(LS_CACHE_PREFIX + key); } catch {}
+}
+
+function isCurMonth(mo) { return mo === currentMonthStr(); }
 
 // ── PERIOD STATE ──────────────────────────────────────────────
 const now = new Date();
@@ -747,10 +779,14 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   const periodVal = document.getElementById('periodSelect').value;
   if (periodVal.startsWith('ytd:') || periodVal.startsWith('multi:')) {
     const months = periodVal.split(':')[1].split(',');
-    months.forEach(mo => { delete dataCache[mo]; delete dataCache[mo + '|' + prevMonthOf(mo)]; });
+    months.forEach(mo => {
+      delete dataCache[mo]; delete dataCache[mo + '|' + prevMonthOf(mo)];
+      lsClear(mo); lsClear(mo + '|' + prevMonthOf(mo));
+    });
   } else {
     delete dataCache[periodVal];
     delete dataCache[periodVal + '|' + prevMonthOf(periodVal)];
+    lsClear(periodVal); lsClear(periodVal + '|' + prevMonthOf(periodVal));
   }
   loadAll();
 });
@@ -834,6 +870,7 @@ async function loadAll() {
       }
       spinner.remove();
       renderDash(monday, gads);
+      window._isYTD = false;
       document.getElementById('lastRefreshed').textContent =
         `Last refreshed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · ${label}`;
       loadComments();
@@ -849,8 +886,14 @@ async function loadAll() {
 
 // ── YTD OVERVIEW ──────────────────────────────────────────────
 async function fetchMonth(mo, prevMo) {
-  const cached = dataCache[mo + (prevMo ? '|' + prevMo : '')];
-  if (cached) return cached;
+  const cacheKey = mo + (prevMo ? '|' + prevMo : '');
+
+  // Always-fresh for current month; localStorage cache for past months
+  if (!isCurMonth(mo)) {
+    if (dataCache[cacheKey]) return dataCache[cacheKey];
+    const lsCached = lsGet(cacheKey);
+    if (lsCached) { dataCache[cacheKey] = lsCached; return lsCached; }
+  }
 
   const prevParam = prevMo ? `&prevMonth=${prevMo}` : '';
   const [mondayRes, gadsRes] = await Promise.all([
@@ -862,7 +905,11 @@ async function fetchMonth(mo, prevMo) {
   if (gadsRes.error)   throw new Error(gadsRes.error);
 
   const result = { month: mo, monday: mondayRes, gads: gadsRes };
-  dataCache[mo + (prevMo ? '|' + prevMo : '')] = result;
+  dataCache[cacheKey] = result;
+
+  // Only persist past months to localStorage
+  if (!isCurMonth(mo)) lsSet(cacheKey, result);
+
   return result;
 }
 
@@ -1154,7 +1201,7 @@ function renderDash(monday, gads) {
   const totalWithUplift = totalRevenue + totalUplift;
 
   document.getElementById('bookingStats').innerHTML = [
-    statCard('Month Total',        '£'+fmt(totalWithUplift), !isMulti && prevBook ? delta(totalWithUplift, (prevBook.totalRevenue||0)+(prevBook.totalUplift||0), true) : null, null, 'Total Revenue + Uplift combined'),
+    statCard(window._isYTD ? 'Year Total' : 'Month Total', '£'+fmt(totalWithUplift), !isMulti && prevBook ? delta(totalWithUplift, (prevBook.totalRevenue||0)+(prevBook.totalUplift||0), true) : null, null, 'Total Revenue + Uplift combined'),
     statCard('Total Revenue',      '£'+fmt(totalRevenue),    !isMulti && prevBook ? delta(totalRevenue, prevBook.totalRevenue||0, true) : null, null, 'Confirmed booking revenue (numeric_mm1ge9h4)'),
     statCard('Uplift',             totalUplift > 0 ? '£'+fmt(totalUplift) : '—', null, null, 'Additional revenue from uplift column (numeric_mm34wesr)'),
     statCard('Confirmed Bookings', totalBookings, !isMulti && prevBook ? delta(totalBookings, prevBook.total) : null),
@@ -1192,7 +1239,7 @@ function renderDash(monday, gads) {
   renderRevTable('revBySource',   bookings.bySource);
   renderRevTable('revByChannel',  bookings.byChannel);
   renderRevTable('revByCampaign', bookings.byCampaign);
-  renderSalesTable(bookings.byPerson || {});
+  renderSalesTableWrapped(bookings.byPerson || {});
 
   // ── CITY PERFORMANCE ──
   // ── CITY PERFORMANCE ──
@@ -1530,12 +1577,21 @@ function renderBarList(elId, data, total) {
 const revTableData = {};
 const revTableSort = {};
 
-function renderSalesTable(byPerson) {
+function renderSalesTable(byPerson, sortKey = 'revenue', sortDir = 'desc') {
   const tbody = document.getElementById('salesTableBody');
   const tfoot = document.getElementById('salesTableFoot');
   if (!tbody) return;
 
-  const entries = Object.entries(byPerson).sort((a,b) => b[1].revenue - a[1].revenue);
+  // Store sort state
+  window._salesSort = { key: sortKey, dir: sortDir };
+
+  const entries = Object.entries(byPerson)
+    .map(([name, v]) => ({ name, ...v, avg: v.count > 0 ? Math.round(v.revenue / v.count) : 0 }))
+    .sort((a, b) => {
+      const mul = sortDir === 'desc' ? -1 : 1;
+      return (a[sortKey] - b[sortKey]) * mul;
+    });
+
   if (entries.length === 0) {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--hint);font-style:italic;padding:16px;">No salesperson data available</td></tr>`;
     if (tfoot) tfoot.innerHTML = '';
@@ -1543,17 +1599,16 @@ function renderSalesTable(byPerson) {
   }
 
   let tCount = 0, tRevenue = 0, tUplift = 0;
-  tbody.innerHTML = entries.map(([name, v]) => {
-    const avg = v.count > 0 && v.revenue > 0 ? Math.round(v.revenue / v.count) : null;
-    tCount   += v.count;
-    tRevenue += v.revenue;
-    tUplift  += v.uplift || 0;
+  tbody.innerHTML = entries.map(e => {
+    tCount   += e.count;
+    tRevenue += e.revenue;
+    tUplift  += e.uplift || 0;
     return `<tr>
-      <td>${name}</td>
-      <td class="num">${v.count}</td>
-      <td class="num">${avg ? '£'+fmt(avg) : '—'}</td>
-      <td class="num">£${fmt(v.revenue)}</td>
-      <td class="num">${v.uplift > 0 ? '£'+fmt(v.uplift) : '—'}</td>
+      <td>${e.name}</td>
+      <td class="num">${e.count}</td>
+      <td class="num">${e.avg ? '£'+fmt(e.avg) : '—'}</td>
+      <td class="num">£${fmt(e.revenue)}</td>
+      <td class="num">${e.uplift > 0 ? '£'+fmt(e.uplift) : '—'}</td>
     </tr>`;
   }).join('');
 
@@ -1564,6 +1619,23 @@ function renderSalesTable(byPerson) {
     <td class="num" style="font-weight:600;">${tAvg ? '£'+fmt(tAvg) : '—'}</td>
     <td class="num" style="font-weight:600;">£${fmt(tRevenue)}</td>
     <td class="num" style="font-weight:600;">${tUplift > 0 ? '£'+fmt(tUplift) : '—'}</td>`;
+
+  // Update sort icons
+  ['count','avg','revenue','uplift'].forEach(k => {
+    const el = document.getElementById(`salesSort_${k}`);
+    if (el) el.textContent = sortKey === k ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ' ↕';
+  });
+}
+
+function sortSales(key) {
+  const cur = window._salesSort || { key: 'revenue', dir: 'desc' };
+  const dir = cur.key === key && cur.dir === 'desc' ? 'asc' : 'desc';
+  renderSalesTable(window._lastByPerson || {}, key, dir);
+}
+
+function renderSalesTableWrapped(byPerson) {
+  window._lastByPerson = byPerson;
+  renderSalesTable(byPerson, (window._salesSort || {}).key || 'revenue', (window._salesSort || {}).dir || 'desc');
 }
 
 function renderRevTable(elId, data) {
