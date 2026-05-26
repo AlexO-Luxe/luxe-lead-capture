@@ -1321,10 +1321,10 @@ function renderDash(monday, gads) {
     const bl = bookByCampaign[baseName] || { count:0, revenue:0 };
     const ll = leadByCampaign[baseName] || 0;
     const hasRevenue = bl.revenue > 0;
-    const profit     = hasRevenue ? bl.revenue - c.spend : null;
+    const profit     = c.spend > 0 ? (bl.revenue - c.spend) : (bl.revenue > 0 ? bl.revenue : null);
     const roasNum    = c.spend > 0
-      ? (hasRevenue ? bl.revenue / c.spend : (c.conversionsValue > 0 ? c.conversionsValue / c.spend : null))
-      : null;
+      ? (bl.revenue > 0 ? bl.revenue / c.spend : 0)
+      : (bl.revenue > 0 ? null : null);
     const avgBooking = bl.count > 0 && bl.revenue > 0 ? bl.revenue / bl.count : null;
     const owner = isJack(c.name) ? 'Jack' : 'Alex';
     return {
@@ -1339,7 +1339,7 @@ function renderDash(monday, gads) {
         ? `<span style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:500">${profit>=0?'':'−'}£${fmt(Math.abs(profit))}</span>`
         : '—',
       roasHtml: roasNum !== null
-        ? `<span style="color:${roasNum>=1?'var(--green)':roasNum>0?'inherit':'var(--red)'}">${roasNum.toFixed(2)}×</span>`
+        ? `<span style="color:${roasNum>=1?'var(--green)':'var(--red)'};font-weight:500">${roasNum.toFixed(2)}×</span>`
         : '—'
     };
   });
