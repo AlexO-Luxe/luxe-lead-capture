@@ -24,19 +24,20 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const [leadsItems, bookingsItems] = await Promise.all([
+    const [leadsItems, bookingsItems, salesMap] = await Promise.all([
       fetchAllItems(LEADS_BOARD,    ['color_mkxk8y67', 'dropdown_mkxkfbff', 'text8', 'text_mm1c3b5w', 'status', 'color_mkt29g1r']),
-      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'numeric_mm34wesr'], true, true)
+      fetchAllItems(BOOKINGS_BOARD, ['date9', 'numeric_mm1ge9h4', 'numeric_mm34wesr'], true, true),
+      fetchSalesperson()
     ]);
 
     // Fetch nights and salesperson separately to avoid GraphQL fragment issues
     const cur  = monthRange(month);
     const prev = prevMonth && /^\d{4}-\d{2}$/.test(prevMonth) ? monthRange(prevMonth) : null;
 
-    const result = { month, current: processMonth(leadsItems, bookingsItems, cur.start, cur.end) };
+    const result = { month, current: processMonth(leadsItems, bookingsItems, salesMap, cur.start, cur.end) };
     if (prev) {
       result.prevMonth = prevMonth;
-      result.previous  = processMonth(leadsItems, bookingsItems, prev.start, prev.end);
+      result.previous  = processMonth(leadsItems, bookingsItems, salesMap, prev.start, prev.end);
     }
 
     return res.status(200).json(result);
@@ -46,23 +47,62 @@ module.exports = async function handler(req, res) {
   }
 };
 
-function processMonth(leadsItems, bookingsItems, startDate, endDate) {
+function processMonth(leadsItems, bookingsItems, salesMap, startDate, endDate) {
   return {
     leads:    processLeads(leadsItems, startDate, endDate),
-    bookings: processBookings(bookingsItems, startDate, endDate)
+    bookings: processBookings(bookingsItems, salesMap, startDate, endDate)
   };
 }
 
-async function mondayQuery(query) {
-  const r = await fetch(MONDAY_API, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
-    body:    JSON.stringify({ query })
-  });
-  const data = await r.json();
-  if (data.errors) throw new Error('Monday API: ' + JSON.stringify(data.errors));
-  return data;
+async function mondayQuery(query, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const r = await fetch(MONDAY_API, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+      body:    JSON.stringify({ query })
+    });
+    const text = await r.text();
+    if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) {
+      if (attempt < retries) {
+        console.warn(`Monday non-JSON response (attempt ${attempt+1}), retrying in 1s...`);
+        await new Promise(res => setTimeout(res, 1000));
+        continue;
+      }
+      throw new Error('Monday API returned non-JSON: ' + text.substring(0, 80));
+    }
+    const data = JSON.parse(text);
+    if (data.errors) throw new Error('Monday API: ' + JSON.stringify(data.errors));
+    return data;
+  }
 }
+
+async function fetchSalesperson() {
+  // Fetch people98 (salesperson) separately — it's a people column
+  const salesMap = {};
+  let cursor = null;
+  do {
+    const cursorArg = cursor ? `, cursor: "${cursor}"` : '';
+    const query = `query {
+      boards(ids: [${BOOKINGS_BOARD}]) {
+        items_page(limit: 500${cursorArg}) {
+          cursor
+          items {
+            id
+            column_values(ids: ["people98"]) { id text }
+          }
+        }
+      }
+    }`;
+    const data = await mondayQuery(query);
+    const page = data?.data?.boards?.[0]?.items_page;
+    (page?.items || []).forEach(item => {
+      salesMap[item.id] = (item.column_values?.[0]?.text || '').trim();
+    });
+    cursor = page?.cursor || null;
+  } while (cursor);
+  return salesMap;
+}
+
 
 async function fetchAllItems(boardId, columnIds, includeGroup = false, includeLinked = false) {
   const cols = columnIds.map(c => `"${c}"`).join(', ');
@@ -215,7 +255,7 @@ function processLeads(items, startDate, endDate) {
   };
 }
 
-function processBookings(items, startDate, endDate) {
+function processBookings(items, salesMap, startDate, endDate) {
   const eligible = items.filter(item => {
     const groupTitle = item.group?.title || '';
     return !EXCLUDED_BOOKING_GROUPS.includes(groupTitle);
@@ -228,7 +268,7 @@ function processBookings(items, startDate, endDate) {
   });
 
   let totalRevenue = 0, totalUplift = 0, ppcCount = 0, ppcRevenue = 0;
-  const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {};
+  const byChannel = {}, byCity = {}, bySource = {}, byCampaign = {}, byPerson = {};
   const byCitySource = {};
 
   filtered.forEach(item => {
@@ -259,6 +299,10 @@ function processBookings(items, startDate, endDate) {
     byCitySource[city][source].count++;
     byCitySource[city][source].revenue += rev;
 
+    // City-level uplift tracking
+    if (!byCitySource[city]._uplift) byCitySource[city]._uplift = 0;
+    byCitySource[city]._uplift += uplift;
+
     if (!byCitySource[city]._PPC)   byCitySource[city]._PPC   = { count:0, revenue:0 };
     if (!byCitySource[city]._SEO)   byCitySource[city]._SEO   = { count:0, revenue:0 };
     if (!byCitySource[city]._Other) byCitySource[city]._Other = { count:0, revenue:0 };
@@ -281,6 +325,13 @@ function processBookings(items, startDate, endDate) {
 
     totalRevenue += rev;
     totalUplift  += uplift;
+
+    // Salesperson
+    const salesperson = (salesMap && salesMap[item.id]) ? salesMap[item.id] : 'Unassigned';
+    if (!byPerson[salesperson]) byPerson[salesperson] = { count:0, revenue:0, uplift:0 };
+    byPerson[salesperson].count++;
+    byPerson[salesperson].revenue += rev;
+    byPerson[salesperson].uplift  += uplift;
   });
 
   // Top 5 bookings by revenue
@@ -304,6 +355,7 @@ function processBookings(items, startDate, endDate) {
     byCity:         sortByRevDesc(byCity),
     bySource:       sortByRevDesc(bySource),
     byCampaign:     sortByRevDesc(byCampaign),
+    byPerson:       sortByRevDesc(byPerson),
     byCitySource
   };
 }
