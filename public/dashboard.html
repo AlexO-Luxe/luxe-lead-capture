@@ -536,12 +536,6 @@ body {
       </div>
 
       <!-- YTD OVERVIEW (shown when YTD selected) -->
-      <div id="ytdOverview" style="display:none;">
-        <div class="section-heading" style="margin-top:0;">2026 — Year to Date</div>
-        <div class="stat-grid" id="ytdTotals" style="margin-bottom:24px;"></div>
-        <div id="ytdMonthCards" style="display:flex;flex-direction:column;gap:16px;"></div>
-      </div>
-
       <div id="dashSections" style="display:none">
         <div class="print-header" id="printHeader">
           <h2 id="printTitle">Marketing Performance</h2>
@@ -667,6 +661,29 @@ body {
           </div>
         </div>
 
+        <!-- SALESPERSON -->
+        <div id="salesperson" style="margin-top:24px;">
+          <div class="section-heading">Bookings by Salesperson</div>
+          <div class="table-card">
+            <div class="table-card-body">
+              <table class="data-table" id="salesTable">
+                <thead><tr>
+                  <th>Salesperson</th>
+                  <th class="num">Bookings</th>
+                  <th class="num">Avg Booking Value</th>
+                  <th class="num">Total Revenue</th>
+                  <th class="num">Uplift</th>
+                </tr></thead>
+                <tbody id="salesTableBody"></tbody>
+                <tfoot><tr id="salesTableFoot"></tr></tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- YTD MONTHLY BREAKDOWN -->
+        <div id="ytdMonthCards" style="display:flex;flex-direction:column;gap:16px;margin-top:32px;"></div>
+
       </div><!-- end dashSections -->
     </div><!-- end content -->
   </main>
@@ -776,7 +793,8 @@ async function loadAll() {
   btn.classList.add('loading'); btn.disabled = true;
   document.getElementById('emptyState').style.display    = 'none';
   document.getElementById('dashSections').style.display  = 'none';
-  document.getElementById('ytdOverview').style.display   = 'none';
+  const ytdClear = document.getElementById('ytdMonthCards');
+  if (ytdClear) ytdClear.innerHTML = '';
 
   const periodVal = document.getElementById('periodSelect').value;
   const label     = document.getElementById('periodSelect').selectedOptions[0].textContent;
@@ -831,205 +849,143 @@ async function loadAll() {
 
 // ── YTD OVERVIEW ──────────────────────────────────────────────
 function renderYTD(months, results) {
-  document.getElementById('ytdOverview').style.display = 'block';
 
-  // Aggregate YTD totals
-  let ytdRevenue=0, ytdPpcRevenue=0, ytdBookings=0, ytdPpcBookings=0, ytdLeads=0, ytdSpend=0;
-  results.forEach(r => {
-    const b = r.monday.current.bookings;
-    const l = r.monday.current.leads;
-    const g = r.gads.accountSummary;
-    ytdRevenue     += b.totalRevenue || 0;
-    ytdPpcRevenue  += b.ppcRevenue   || 0;
-    ytdBookings    += b.total        || 0;
-    ytdPpcBookings += b.ppcCount     || 0;
-    ytdLeads       += l.total        || 0;
-    ytdSpend       += g?.spend       || 0;
-  });
+  // Merge all months into one dataset and render using standard renderDash
+  const merged = mergeMonday(results.map(r => ({ month: r.month, current: r.monday.current, previous: null })));
+  const mergedGads = mergeGads(results.map(r => r.gads));
 
-  const ytdRoas = ytdSpend > 0 && ytdPpcRevenue > 0 ? (ytdPpcRevenue / ytdSpend).toFixed(2) + '×' : '—';
+  // Set isMulti flag so deltas are hidden
+  const origLoadAll = window._isYTD;
+  window._isYTD = true;
 
-  document.getElementById('ytdTotals').innerHTML = [
-    statCard('Total Revenue',    '£'+fmt(ytdRevenue),    null),
-    statCard('PPC Revenue',      '£'+fmt(ytdPpcRevenue), null),
-    statCard('Total Bookings',   ytdBookings,             null),
-    statCard('PPC Bookings',     ytdPpcBookings,          null),
-    statCard('Total Leads',      ytdLeads,                null),
-    statCard('PPC Spend',        '£'+fmt(ytdSpend),       null),
-    statCard('Overall ROAS',     ytdRoas,                 null),
-  ].join('');
+  // Update print header
+  const sel   = document.getElementById('periodSelect');
+  const label = sel ? sel.options[sel.selectedIndex]?.text : 'Year to Date';
+  const title = document.getElementById('printTitle');
+  const meta  = document.getElementById('printMeta');
+  if (title) title.textContent = `Student Luxe — ${label}`;
+  if (meta)  meta.textContent  = `PDF snapshot generated ${new Date().toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Europe/London'})} · Data sourced from Monday.com at time of generation`;
 
-  // Monthly cards
-  // Reverse so latest month is first
+  renderDash(merged, mergedGads);
+
+  // Monthly cards below the main dash
   const reversedPairs = months.map((mo, i) => [mo, results[i]]).reverse();
+  const ytdCards = document.getElementById('ytdMonthCards');
+  if (ytdCards) {
+    ytdCards.style.marginTop = '32px';
+    ytdCards.innerHTML = reversedPairs.map(([mo, r]) => {
+      const b = r.monday.current.bookings;
+      const l = r.monday.current.leads;
+      const g = r.gads.accountSummary;
+      const [y, m] = mo.split('-').map(Number);
+      const monthLabel = MONTH_NAMES[m-1].toUpperCase() + ' ' + y;
+      const spend      = g?.spend || 0;
+      const ppcRev     = b.ppcRevenue || 0;
+      const ppcProfit  = ppcRev > 0 && spend > 0 ? ppcRev - spend : (spend > 0 ? -spend : null);
+      const ppcRoas    = spend > 0 ? (ppcRev / spend).toFixed(2) + '×' : '—';
+      const ppcCpl     = (l.bySource?.['PPC'] || 0) > 0 && spend > 0 ? '£' + fmt(spend / l.bySource['PPC']) : '—';
+      const avgBooking = b.total > 0 && b.totalRevenue > 0 ? '£' + fmt(b.totalRevenue / b.total) : '—';
+      const convRate   = l.total > 0 ? (b.total / l.total * 100).toFixed(1) + '%' : '—';
+      const monthTotal = (b.totalRevenue || 0) + (b.totalUplift || 0);
 
-  document.getElementById('ytdMonthCards').innerHTML = reversedPairs.map(([mo, r]) => {
-    const b = r.monday.current.bookings;
-    const l = r.monday.current.leads;
-    const g = r.gads.accountSummary;
-    const [y, m] = mo.split('-').map(Number);
-    const monthLabel = MONTH_NAMES[m-1].toUpperCase() + ' ' + y;
+      const srcEntries = Object.entries(b.bySource || {}).filter(([,v]) => v.count > 0).sort((a,b) => b[1].revenue - a[1].revenue);
+      const srcRows = srcEntries.map(([src, v]) =>
+        `<tr>
+          <td style="padding:5px 0;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:${srcColour(src)};display:inline-block;flex-shrink:0;"></span>${src}
+          </td>
+          <td style="padding:5px 0;font-size:12px;text-align:right;">${v.count}</td>
+          <td style="padding:5px 0;font-size:12px;text-align:right;color:var(--gold);">£${fmt(v.revenue)}</td>
+        </tr>`
+      ).join('');
 
-    const spend      = g?.spend || 0;
-    const ppcRev     = b.ppcRevenue || 0;
-    const ppcProfit  = ppcRev > 0 && spend > 0 ? ppcRev - spend : null;
-    const ppcRoas    = spend > 0 && ppcRev > 0 ? (ppcRev / spend).toFixed(2) + '×' : '—';
-    const ppcConv    = l.bySource?.['PPC'] > 0 ? (b.ppcCount / l.bySource['PPC'] * 100).toFixed(0) + '%' : '—';
-    const ppcCpl     = (l.bySource?.['PPC'] || 0) > 0 && spend > 0 ? '£' + fmt(spend / l.bySource['PPC']) : '—';
-    const avgBooking = b.total > 0 && b.totalRevenue > 0 ? '£' + fmt(b.totalRevenue / b.total) : '—';
-    const convRate   = l.total > 0 ? (b.total / l.total * 100).toFixed(1) + '%' : '—';
+      const PRIMARY_CITIES = ['London', 'New York', 'Paris'];
+      const cityRaw = b.byCity || {};
+      const cityGrouped = {};
+      Object.entries(cityRaw).forEach(([city, v]) => {
+        const key = PRIMARY_CITIES.includes(city) ? city : 'Other';
+        if (!cityGrouped[key]) cityGrouped[key] = { count:0, revenue:0 };
+        cityGrouped[key].count   += v.count;
+        cityGrouped[key].revenue += v.revenue;
+      });
+      const cityOrder = [...PRIMARY_CITIES, 'Other'];
+      const cityEntries = cityOrder.filter(c => cityGrouped[c]?.count > 0).map(c => [c, cityGrouped[c]]);
 
-    // Source breakdown table
-    const srcEntries = Object.entries(b.bySource || {}).filter(([,v]) => v.count > 0).sort((a,b) => b[1].revenue - a[1].revenue);
-    const srcRows = srcEntries.map(([src, v]) =>
-      `<tr>
-        <td style="padding:5px 0;font-size:12px;display:flex;align-items:center;gap:6px;">
-          <span style="width:7px;height:7px;border-radius:50%;background:${srcColour(src)};display:inline-block;flex-shrink:0;"></span>${src}
-        </td>
-        <td style="padding:5px 0;font-size:12px;text-align:right;">${v.count}</td>
-        <td style="padding:5px 0;font-size:12px;text-align:right;color:var(--gold);">£${fmt(v.revenue)}</td>
-      </tr>`
-    ).join('');
+      const cityRows = cityEntries.map(([city, v]) => {
+        let cityLeads = 0;
+        if (city === 'Other') {
+          Object.entries(l.byCity || {}).forEach(([c, n]) => { if (!PRIMARY_CITIES.includes(c)) cityLeads += n; });
+        } else {
+          cityLeads = l.byCity?.[city] || 0;
+        }
+        const cityConv = cityLeads > 0 ? (v.count / cityLeads * 100).toFixed(1) + '%' : '—';
+        return `<div style="margin-bottom:10px;">
+          <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);margin-bottom:4px;">${city}</div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:1px;"><span style="color:var(--muted);">Revenue</span><span style="font-weight:500;">£${fmt(v.revenue)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:1px;"><span style="color:var(--muted);">Bookings</span><span>${v.count}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:1px;"><span style="color:var(--muted);">Leads</span><span>${cityLeads}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--muted);">Conv. Rate</span><span>${cityConv}</span></div>
+        </div>`;
+      }).join('');
 
-    // City breakdown — group non-primary cities into Other
-    const PRIMARY_CITIES = ['London', 'New York', 'Paris'];
-    const cityRaw = b.byCity || {};
-    const cityGrouped = {};
-    Object.entries(cityRaw).forEach(([city, v]) => {
-      const key = PRIMARY_CITIES.includes(city) ? city : 'Other';
-      if (!cityGrouped[key]) cityGrouped[key] = { count:0, revenue:0 };
-      cityGrouped[key].count   += v.count;
-      cityGrouped[key].revenue += v.revenue;
-    });
-    // Sort: primary cities first in order, then Other
-    const cityOrder = [...PRIMARY_CITIES, 'Other'];
-    const cityEntries = cityOrder
-      .filter(c => cityGrouped[c]?.count > 0)
-      .map(c => [c, cityGrouped[c]]);
-    const cityRows = cityEntries.map(([city, v]) => {
-      let cityLeads = 0;
-      if (city === 'Other') {
-        Object.entries(l.byCity || {}).forEach(([c, n]) => {
-          if (!PRIMARY_CITIES.includes(c)) cityLeads += n;
-        });
-      } else {
-        cityLeads = l.byCity?.[city] || 0;
-      }
-      const cityConv = cityLeads > 0 ? (v.count / cityLeads * 100).toFixed(1) + '%' : '—';
-      return `<div style="margin-bottom:10px;">
-        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);margin-bottom:4px;">${city}</div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:1px;"><span style="color:var(--muted);">Revenue</span><span style="font-weight:500;">£${fmt(v.revenue)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:1px;"><span style="color:var(--muted);">Bookings</span><span>${v.count}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:1px;"><span style="color:var(--muted);">Leads</span><span>${cityLeads}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--muted);">Conv. Rate</span><span>${cityConv}</span></div>
+      const top10 = (b.top5Bookings || []).slice(0, 10);
+      const top10Html = top10.length ? top10.map(bk =>
+        `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:0.5px solid var(--border);font-size:12px;">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;" title="${bk.name}">${bk.name}</span>
+          <span style="color:var(--gold);font-weight:500;flex-shrink:0;margin-left:8px;">£${fmt(bk.revenue)}</span>
+        </div>`
+      ).join('') : '<div style="font-size:11px;color:var(--hint);padding:4px 0;">No bookings</div>';
+
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <div style="background:var(--navy);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:20px;font-weight:400;color:#fff;letter-spacing:0.02em;">${monthLabel}</span>
+          <span style="font-size:11px;color:rgba(255,255,255,0.4);">${b.total} bookings · ${l.total} leads</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border-top:1px solid var(--border);">
+          <div style="padding:18px 20px;border-right:1px solid var(--border);">
+            <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;">Overview</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+              <span style="font-size:11px;color:var(--muted);">Month Total</span>
+              <span style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:18px;color:var(--navy);">£${fmt(monthTotal)}</span>
+            </div>
+            <div style="height:0.5px;background:var(--border);margin:8px 0;"></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">Revenue</span><span style="font-weight:500;">£${fmt(b.totalRevenue)}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">Uplift</span><span>${b.totalUplift > 0 ? '£'+fmt(b.totalUplift) : '—'}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">Bookings</span><span>${b.total}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">Avg Booking</span><span>${avgBooking}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">Leads</span><span>${l.total}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">Conv. Rate</span><span>${convRate}</span></div>
+            <div style="height:0.5px;background:var(--border);margin:8px 0;"></div>
+            <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">PPC</div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC Revenue</span><span style="font-weight:500;">£${fmt(ppcRev)}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC Spend</span><span>£${fmt(spend)}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC Profit</span><span style="color:${ppcProfit>=0?'var(--green)':'var(--red)'};">${ppcProfit!==null?(ppcProfit>=0?'£':'−£')+fmt(Math.abs(ppcProfit)):'—'}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC ROAS</span><span>${ppcRoas}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--muted);">PPC CPL</span><span>${ppcCpl}</span></div>
+          </div>
+          <div style="padding:18px 20px;border-right:1px solid var(--border);">
+            <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;">Total Bookings: ${b.total}</div>
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr>
+                <th style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);font-weight:400;text-align:left;padding-bottom:6px;">Source</th>
+                <th style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);font-weight:400;text-align:right;padding-bottom:6px;">Bookings</th>
+                <th style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);font-weight:400;text-align:right;padding-bottom:6px;">Revenue</th>
+              </tr></thead>
+              <tbody>${srcRows}</tbody>
+            </table>
+          </div>
+          <div style="padding:18px 20px;border-right:1px solid var(--border);">
+            <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;">City Breakdown</div>
+            ${cityRows || '<div style="font-size:11px;color:var(--hint);">No data</div>'}
+          </div>
+          <div style="padding:18px 20px;">
+            <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;">Top Bookings</div>
+            ${top10Html}
+          </div>
+        </div>
       </div>`;
     }).join('');
-
-    // Top 10 bookings
-    const top10 = (b.top5Bookings || []).slice(0, 10);
-    const top10Html = top10.length ? top10.map(bk =>
-      `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:0.5px solid var(--border);font-size:12px;">
-        <span style="color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;" title="${bk.name}">${bk.name}</span>
-        <span style="color:var(--gold);font-weight:500;flex-shrink:0;margin-left:8px;">£${fmt(bk.revenue)}</span>
-      </div>`
-    ).join('') : '<div style="font-size:11px;color:var(--hint);padding:4px 0;">No bookings</div>';
-
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
-      <!-- Header -->
-      <div style="background:var(--navy);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:20px;font-weight:400;color:#fff;letter-spacing:0.02em;">${monthLabel}</span>
-        <span style="font-size:11px;color:rgba(255,255,255,0.4);">${b.total} bookings · ${l.total} leads</span>
-      </div>
-      <!-- Body -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border-top:1px solid var(--border);">
-
-        <!-- Col 1: Overview -->
-        <div style="padding:18px 20px;border-right:1px solid var(--border);">
-          <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;">Overview</div>
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-            <span style="font-size:11px;color:var(--muted);">Total Revenue</span>
-            <span style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:18px;color:var(--navy);">£${fmt(b.totalRevenue)}</span>
-          </div>
-          <div style="height:0.5px;background:var(--border);margin:8px 0;"></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">No. of Bookings</span><span style="font-weight:500;">${b.total}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">Avg Booking Value</span><span>${avgBooking}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">No. of Leads</span><span>${l.total}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">Conv. Rate</span><span>${convRate}</span></div>
-          <div style="height:0.5px;background:var(--border);margin:8px 0;"></div>
-          <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">PPC</div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC Revenue</span><span style="font-weight:500;">£${fmt(ppcRev)}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC Spend</span><span>£${fmt(spend)}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC Profit</span><span style="color:${ppcProfit>=0?'var(--green)':'var(--red)'};">${ppcProfit!==null?(ppcProfit>=0?'£':'−£')+fmt(Math.abs(ppcProfit)):'—'}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC ROAS</span><span>${ppcRoas}</span></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;"><span style="color:var(--muted);">PPC Conv. Rate</span><span>${ppcConv}</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--muted);">PPC CPL</span><span>${ppcCpl}</span></div>
-        </div>
-
-        <!-- Col 2: Source breakdown -->
-        <div style="padding:18px 20px;border-right:1px solid var(--border);">
-          <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;">Total Bookings: ${b.total}</div>
-          <table style="width:100%;border-collapse:collapse;">
-            <thead><tr>
-              <th style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);font-weight:400;text-align:left;padding-bottom:6px;">Source</th>
-              <th style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);font-weight:400;text-align:right;padding-bottom:6px;">Bookings</th>
-              <th style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--hint);font-weight:400;text-align:right;padding-bottom:6px;">Revenue</th>
-            </tr></thead>
-            <tbody>${srcRows}</tbody>
-          </table>
-        </div>
-
-        <!-- Col 3: City breakdown -->
-        <div style="padding:18px 20px;border-right:1px solid var(--border);">
-          <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;">City Breakdown</div>
-          ${cityRows || '<div style="font-size:11px;color:var(--hint);">No data</div>'}
-        </div>
-
-        <!-- Col 4: Top bookings -->
-        <div style="padding:18px 20px;">
-          <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;">Top Bookings</div>
-          ${top10Html}
-        </div>
-
-      </div>
-    </div>`;
-  }).join('');
-
-}
-async function fetchMonth(mo, prev) {
-  // Check cache with prev first, then without (YTD cache)
-  const keyWithPrev = mo + (prev ? '|' + prev : '');
-  const keyNoPrev   = mo;
-
-  if (dataCache[keyWithPrev]) { console.log('Cache hit:', keyWithPrev); return dataCache[keyWithPrev]; }
-  if (!prev && dataCache[keyNoPrev]) { console.log('Cache hit (no-prev):', keyNoPrev); return dataCache[keyNoPrev]; }
-  // If we have the month cached without prev but need prev, fetch prev separately
-  if (prev && dataCache[keyNoPrev]) {
-    const prevData = dataCache[keyNoPrev + '|'] || await fetchMonth(prev);
-    const result = { monday: dataCache[keyNoPrev].monday, gads: dataCache[keyNoPrev].gads };
-    // Attach previous month data
-    result.monday = { ...result.monday, prevMonth: prev, previous: prevData.monday.current };
-    result.gads   = { ...result.gads, prevMonth: prev, prevAccountSummary: prevData.gads.accountSummary };
-    dataCache[keyWithPrev] = result;
-    return result;
   }
-
-  const pp = prev ? `&prevMonth=${prev}` : '';
-  const [monday, gads] = await Promise.all([
-    fetch(`${API_BASE}/dashboard-monday?month=${mo}${pp}`).then(async r => {
-      const json = await r.json();
-      if (!r.ok || json.error) throw new Error('Monday API: ' + (json.error || r.status));
-      if (!json.current) throw new Error('Monday API unexpected: ' + JSON.stringify(json).substring(0,200));
-      return json;
-    }),
-    fetch(`${API_BASE}/dashboard-gads?month=${mo}${pp}`).then(async r => {
-      const json = await r.json();
-      if (!r.ok || json.error) throw new Error('Google Ads API: ' + (json.error || r.status));
-      return json;
-    })
-  ]);
-  dataCache[keyWithPrev] = { monday, gads };
-  dataCache[keyNoPrev]   = { monday, gads }; // also cache without prev key
-  return dataCache[keyWithPrev];
 }
 
 function mergeMonday(arr) {
@@ -1051,7 +1007,7 @@ function mergeMonday(arr) {
     return o;
   }
   function mergeBookings(a) {
-    const o = { total:0, totalRevenue:0, totalUplift:0, ppcCount:0, ppcRevenue:0, top5Bookings:[], byChannel:{}, byCity:{}, bySource:{}, byCampaign:{}, byCitySource:{} };
+    const o = { total:0, totalRevenue:0, totalUplift:0, ppcCount:0, ppcRevenue:0, top5Bookings:[], byChannel:{}, byCity:{}, bySource:{}, byCampaign:{}, byPerson:{}, byCitySource:{} };
     a.forEach(m => {
       const b = m.current.bookings;
       o.total += b.total; o.totalRevenue += b.totalRevenue; o.totalUplift += b.totalUplift || 0;
@@ -1059,15 +1015,23 @@ function mergeMonday(arr) {
       (b.top5Bookings || []).forEach(bk => o.top5Bookings.push(bk));
       mrc(o.byChannel, b.byChannel); mrc(o.byCity, b.byCity);
       mrc(o.bySource, b.bySource);   mrc(o.byCampaign, b.byCampaign);
+      // Merge byPerson
+      Object.entries(b.byPerson || {}).forEach(([name, v]) => {
+        if (!o.byPerson[name]) o.byPerson[name] = { count:0, revenue:0, uplift:0 };
+        o.byPerson[name].count   += v.count   || 0;
+        o.byPerson[name].revenue += v.revenue  || 0;
+        o.byPerson[name].uplift  += v.uplift   || 0;
+      });
       Object.entries(b.byCitySource||{}).forEach(([c,s]) => {
         if (!o.byCitySource[c]) o.byCitySource[c] = {PPC:{count:0,revenue:0},SEO:{count:0,revenue:0},Other:{count:0,revenue:0}};
         ['PPC','SEO','Other'].forEach(b2 => {
           o.byCitySource[c][b2].count   += s[b2]?.count||0;
           o.byCitySource[c][b2].revenue += s[b2]?.revenue||0;
         });
+        o.byCitySource[c]._uplift = (o.byCitySource[c]._uplift || 0) + (s._uplift || 0);
       });
     });
-    o.top5Bookings = o.top5Bookings.sort((a,b) => b.revenue - a.revenue).slice(0, 5);
+    o.top5Bookings = o.top5Bookings.sort((a,b) => b.revenue - a.revenue).slice(0, 10);
     return o;
   }
   return { month: arr[arr.length-1].month, current: { leads: mergeLeads(arr), bookings: mergeBookings(arr) }, previous: null };
@@ -1210,6 +1174,7 @@ function renderDash(monday, gads) {
   renderRevTable('revBySource',   bookings.bySource);
   renderRevTable('revByChannel',  bookings.byChannel);
   renderRevTable('revByCampaign', bookings.byCampaign);
+  renderSalesTable(bookings.byPerson || {});
 
   // ── CITY PERFORMANCE ──
   // ── CITY PERFORMANCE ──
@@ -1240,7 +1205,10 @@ function renderDash(monday, gads) {
     const totalLeads = leads.byCity?.[city] || 0;
     const bookData   = bookings.byCity?.[city] || { count:0, revenue:0 };
     const citySpend  = campaigns.filter(c=>c.city===city).reduce((s,c)=>s+c.spend,0);
+    const cityUplift = bookings.byCitySource?.[city]?._uplift || 0;
     const convRate   = totalLeads > 0 ? (bookData.count/totalLeads*100).toFixed(1)+'%' : '—';
+    const profitability = bookData.revenue + cityUplift - citySpend;
+    const hasProfData   = bookData.revenue > 0 || citySpend > 0;
 
     const citySrcData = bookings.byCitySource?.[city] || {};
     const pieSegments = Object.entries(citySrcData)
@@ -1258,7 +1226,17 @@ function renderDash(monday, gads) {
       <div class="city-metric"><span class="city-metric-label">No. of Leads</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${totalLeads}</span></div>
       <div class="city-metric"><span class="city-metric-label">No. of Bookings</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.count}</span></div>
       <div class="city-metric"><span class="city-metric-label">Total Revenue</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${bookData.revenue>0?'£'+fmt(bookData.revenue):'—'}</span></div>
+      <div class="city-metric"><span class="city-metric-label">Uplift</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${cityUplift>0?'£'+fmt(cityUplift):'—'}</span></div>
+      <div class="city-metric"><span class="city-metric-label">Total Spend</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${citySpend>0?'£'+fmt(citySpend):'—'}</span></div>
       <div class="city-metric"><span class="city-metric-label">Conv. Rate</span><span class="city-metric-value" style="font-weight:600;color:var(--navy);">${convRate}</span></div>
+      ${hasProfData ? `
+      <div style="height:0.5px;background:var(--border);margin:8px 0 6px;"></div>
+      <div class="city-metric">
+        <span class="city-metric-label" style="font-weight:600;">Profitability</span>
+        <span class="city-metric-value" style="font-weight:700;color:${profitability>=0?'var(--green)':'var(--red)'};">
+          ${profitability>=0?'':'−'}£${fmt(Math.abs(profitability))}
+        </span>
+      </div>` : ''}
     </div>`;
   }).join('');
 
@@ -1533,6 +1511,42 @@ function renderBarList(elId, data, total) {
 // Store rev table data for re-sorting
 const revTableData = {};
 const revTableSort = {};
+
+function renderSalesTable(byPerson) {
+  const tbody = document.getElementById('salesTableBody');
+  const tfoot = document.getElementById('salesTableFoot');
+  if (!tbody) return;
+
+  const entries = Object.entries(byPerson).sort((a,b) => b[1].revenue - a[1].revenue);
+  if (entries.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--hint);font-style:italic;padding:16px;">No salesperson data available</td></tr>`;
+    if (tfoot) tfoot.innerHTML = '';
+    return;
+  }
+
+  let tCount = 0, tRevenue = 0, tUplift = 0;
+  tbody.innerHTML = entries.map(([name, v]) => {
+    const avg = v.count > 0 && v.revenue > 0 ? Math.round(v.revenue / v.count) : null;
+    tCount   += v.count;
+    tRevenue += v.revenue;
+    tUplift  += v.uplift || 0;
+    return `<tr>
+      <td>${name}</td>
+      <td class="num">${v.count}</td>
+      <td class="num">${avg ? '£'+fmt(avg) : '—'}</td>
+      <td class="num">£${fmt(v.revenue)}</td>
+      <td class="num">${v.uplift > 0 ? '£'+fmt(v.uplift) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const tAvg = tCount > 0 && tRevenue > 0 ? Math.round(tRevenue / tCount) : null;
+  if (tfoot) tfoot.innerHTML = `
+    <td style="font-weight:600;">Totals</td>
+    <td class="num" style="font-weight:600;">${tCount}</td>
+    <td class="num" style="font-weight:600;">${tAvg ? '£'+fmt(tAvg) : '—'}</td>
+    <td class="num" style="font-weight:600;">£${fmt(tRevenue)}</td>
+    <td class="num" style="font-weight:600;">${tUplift > 0 ? '£'+fmt(tUplift) : '—'}</td>`;
+}
 
 function renderRevTable(elId, data) {
   revTableData[elId] = data;
