@@ -848,6 +848,24 @@ async function loadAll() {
 }
 
 // ── YTD OVERVIEW ──────────────────────────────────────────────
+async function fetchMonth(mo, prevMo) {
+  const cached = dataCache[mo + (prevMo ? '|' + prevMo : '')];
+  if (cached) return cached;
+
+  const prevParam = prevMo ? `&prevMonth=${prevMo}` : '';
+  const [mondayRes, gadsRes] = await Promise.all([
+    fetch(`${API_BASE}/dashboard-monday?month=${mo}${prevParam}`).then(r => r.json()),
+    fetch(`${API_BASE}/dashboard-gads?month=${mo}${prevParam}`).then(r => r.json())
+  ]);
+
+  if (mondayRes.error) throw new Error(mondayRes.error);
+  if (gadsRes.error)   throw new Error(gadsRes.error);
+
+  const result = { month: mo, monday: mondayRes, gads: gadsRes };
+  dataCache[mo + (prevMo ? '|' + prevMo : '')] = result;
+  return result;
+}
+
 function renderYTD(months, results) {
 
   // Merge all months into one dataset and render using standard renderDash
