@@ -326,12 +326,15 @@ function processBookings(items, salesMap, startDate, endDate) {
     totalRevenue += rev;
     totalUplift  += uplift;
 
-    // Salesperson
-    const salesperson = (salesMap && salesMap[item.id]) ? salesMap[item.id] : 'Unassigned';
-    if (!byPerson[salesperson]) byPerson[salesperson] = { count:0, revenue:0, uplift:0 };
-    byPerson[salesperson].count++;
-    byPerson[salesperson].revenue += rev;
-    byPerson[salesperson].uplift  += uplift;
+    // Salesperson — split comma-separated names and attribute full booking to each
+    const rawPerson = (salesMap && salesMap[item.id]) ? salesMap[item.id] : '';
+    const persons   = rawPerson ? rawPerson.split(',').map(s => s.trim()).filter(Boolean) : ['Unassigned'];
+    persons.forEach(salesperson => {
+      if (!byPerson[salesperson]) byPerson[salesperson] = { count:0, revenue:0, uplift:0 };
+      byPerson[salesperson].count++;
+      byPerson[salesperson].revenue += rev;
+      byPerson[salesperson].uplift  += uplift;
+    });
   });
 
   // Top 5 bookings by revenue
