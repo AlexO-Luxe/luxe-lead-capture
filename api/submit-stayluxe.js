@@ -40,11 +40,26 @@ module.exports = async function handler(req, res) {
 
   const p = req.body;
 
+  // Capture submitter IP (parity with the Student Luxe form -> Monday column text_mm2y2ah2)
+  const submitterIp =
+    (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+    req.socket?.remoteAddress ||
+    '';
+
+  // Duplicate check — look for an existing lead with the same email
+  let duplicateOf = null;
+  try {
+    duplicateOf = await findExistingLead(p.email, submitterIp);
+    if (duplicateOf) console.log('Duplicate detected — existing lead ID:', duplicateOf.id);
+  } catch(err) {
+    console.warn('Duplicate check failed (non-fatal):', err.message);
+  }
+
   // Push to Monday first so we get the pulse ID for the team email link
   let mondayId = null;
   let mondayError = null;
   try {
-    mondayId = await pushToMonday(p);
+    mondayId = await pushToMonday(p, submitterIp, duplicateOf);
     console.log('Monday OK — pulse ID:', mondayId);
   } catch(err) {
     mondayError = err.message || 'Unknown error';
@@ -54,7 +69,7 @@ module.exports = async function handler(req, res) {
   // Fire both emails in parallel, passing the pulse ID and any error to the team email
   const results = await Promise.allSettled([
     sendGuestConfirmation(p),
-    sendTeamNotification(p, mondayId, mondayError)
+    sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp)
   ]);
 
   results.forEach((r, i) => {
@@ -354,7 +369,7 @@ async function sendGuestConfirmation(p) {
 //  Tweaks: dark header + footer band, plus the "not a student" NB
 //  notice above the status pill.
 // ──────────────────────────────────────────────────────────────
-async function sendTeamNotification(p, mondayId, mondayError) {
+async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp) {
   const isTypeA   = p.enquiry_type === 'A';
   const guestName = p.full_name || 'New enquiry';
   const nightCount = nights(p);
@@ -387,6 +402,77 @@ async function sendTeamNotification(p, mondayId, mondayError) {
       </td></tr>
     </table>
   </td></tr>` : '';
+
+  // Duplicate comparison banner (parity with Student Luxe)
+  const dupBannerHtml = duplicateOf ? (function() {
+    const originalFormatted = duplicateOf.created_at
+      ? new Date(duplicateOf.created_at).toLocaleString('en-GB', {
+          day:'numeric', month:'long', year:'numeric',
+          hour:'numeric', minute:'2-digit', hour12:true,
+          timeZone:'Europe/London'
+        })
+      : '—';
+
+    const ipMatchTag = duplicateOf.ipMatch
+      ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
+      : '';
+
+    const assigneePills = duplicateOf.assignees && duplicateOf.assignees.length > 0
+      ? duplicateOf.assignees.map(name => {
+          const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+          return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#1a1a1a;margin-right:8px;"><span style="width:24px;height:24px;border-radius:50%;background:#B8966E;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;">${initials}</span>${escHtml(name)}</span>`;
+        }).join('')
+      : '<span style="font-size:12px;color:#9b9b9b;">Unassigned</span>';
+
+    const compareRow = (label, origVal, newVal, isMatch) => {
+      const matchTag = isMatch
+        ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
+        : '';
+      return `<tr>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;width:50%;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(origVal)}</p>
+        </td>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;vertical-align:top;width:50%;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+          <p style="margin:0;font-size:13px;font-weight:500;color:${isMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(newVal)}${matchTag}</p>
+        </td>
+      </tr>`;
+    };
+
+    return `
+  <tr><td style="background:#fffcf2;border-top:3px solid #e8c96b;padding:14px 32px;font-size:13px;color:#5a4310;line-height:1.65;">
+    ⚠️ &nbsp;This lead is a possible duplicate. It's been added to the Leads Board with 'Possible Duplicate' tagged, and the salesperson assigned to the original lead has been automatically assigned to it.
+  </td></tr>
+  <tr><td style="background:#ffffff;padding:20px 32px 0;">
+    <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Original Lead vs. New Lead</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0;margin-bottom:14px;">
+      <tr>
+        <td width="50%" style="padding:8px 16px;background:#f7f2eb;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original Lead</td>
+        <td width="50%" style="padding:8px 16px;background:#1a1a1a;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.6);border-bottom:0.5px solid #e8e4de;border-left:0.5px solid #e8e4de;">New Lead</td>
+      </tr>
+      ${compareRow('Name', duplicateOf.name, p.full_name || '', duplicateOf.name.toLowerCase().trim() === (p.full_name||'').toLowerCase().trim())}
+      ${compareRow('Email', p.email||'', p.email||'', true)}
+      ${compareRow('Lead created', originalFormatted, submittedFormatted, false)}
+      <tr>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
+          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(duplicateOf.originalIp || '—')}</p>
+        </td>
+        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;vertical-align:top;">
+          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
+          <p style="margin:0;font-size:13px;font-weight:500;color:${duplicateOf.ipMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(submitterIp||'—')}${ipMatchTag}</p>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;padding:12px 16px;margin-bottom:20px;">
+      <tr>
+        <td style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;vertical-align:middle;width:160px;">Original lead assigned to</td>
+        <td style="vertical-align:middle;">${assigneePills}</td>
+      </tr>
+    </table>
+  </td></tr>`;
+  })() : '';
 
   const field = (label, value) => value ? `
     <td style="padding:0 20px 14px 0;vertical-align:top;width:50%;">
@@ -425,6 +511,9 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 
   <!-- MONDAY ERROR BANNER -->
   ${mondayErrorBanner}
+
+  <!-- DUPLICATE BANNER -->
+  ${dupBannerHtml}
 
   <!-- NB + SUMMARY LINE + PILL -->
   <tr><td style="background:#ffffff;padding:20px 32px 0;">
@@ -658,7 +747,80 @@ function resolveCampaign(val) {
   return /^\d+$/.test(trimmed) ? (CAMPAIGN_MAP[trimmed] || trimmed) : trimmed;
 }
 
-async function pushToMonday(p) {
+// ──────────────────────────────────────────────────────────────
+//  DUPLICATE DETECTION — find an existing lead with the same email
+// ──────────────────────────────────────────────────────────────
+async function findExistingLead(email, ip) {
+  if (!email) return null;
+
+  const query = `
+    query {
+      items_page_by_column_values(
+        board_id: ${MONDAY_BOARD},
+        limit: 5,
+        columns: [{ column_id: "email", column_values: ["${email.toLowerCase().trim()}"] }]
+      ) {
+        items {
+          id
+          name
+          created_at
+          column_values(ids: ["people_1", "text_mm2y2ah2"]) {
+            id
+            text
+            value
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await fetch(MONDAY_API, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+    body: JSON.stringify({ query })
+  });
+
+  const data = await response.json();
+  if (data.errors) {
+    console.error('Monday duplicate query errors:', JSON.stringify(data.errors));
+    return null;
+  }
+
+  const items = data?.data?.items_page_by_column_values?.items || [];
+  if (items.length === 0) return null;
+
+  const match = items[0];
+
+  let assignees   = [];
+  let assigneeIds = [];
+  const peopleCol = match.column_values?.find(c => c.id === 'people_1');
+  if (peopleCol?.value) {
+    try {
+      const val        = JSON.parse(peopleCol.value);
+      const personsArr = val?.personsAndTeams || [];
+      assigneeIds = personsArr.filter(pt => pt.kind === 'person').map(pt => pt.id);
+      const textVal = peopleCol.text || '';
+      if (textVal) assignees = textVal.split(',').map(s => s.trim()).filter(Boolean);
+    } catch(e) {
+      if (peopleCol.text) assignees = [peopleCol.text];
+    }
+  }
+
+  const ipCol      = match.column_values?.find(c => c.id === 'text_mm2y2ah2');
+  const originalIp = ipCol?.text || '';
+
+  return {
+    id:          match.id,
+    name:        match.name,
+    created_at:  match.created_at,
+    assignees,
+    assigneeIds,
+    originalIp,
+    ipMatch: !!(originalIp && ip && originalIp === ip)
+  };
+}
+
+async function pushToMonday(p, submitterIp, duplicateOf) {
   const nameParts  = (p.full_name || '').trim().split(' ');
   const firstname  = nameParts[0] || '';
   const lastname   = nameParts.slice(1).join(' ') || '';
@@ -683,42 +845,8 @@ async function pushToMonday(p) {
     'other-stay':       'Other'
   };
 
-  // ── Lead source detection ────────────────────────────────────
-  const hasGclid    = !!p.gclid;
-  const hasFbclid   = !!p.fbclid;
-  const hasPPC      = hasGclid || hasFbclid;
-  const hasVisited  = !!(p.visited_paths || p.landing_page);
-
-  // Extract clean domain from referrer e.g. "https://search.yahoo.com/search" → "Yahoo"
-  function extractChannel(referrer) {
-    if(!referrer) return '';
-    try {
-      const host = new URL(referrer).hostname.replace('www.', '').replace('search.', '');
-      const domainMap = {
-        'google.com': 'Google Advert', 'google.co.uk': 'Google Advert',
-        'bing.com': 'Bing', 'yahoo.com': 'Yahoo', 'duckduckgo.com': 'DuckDuckGo',
-        'instagram.com': 'Instagram', 'facebook.com': 'Meta Advert', 'meta.com': 'Meta Advert',
-        'linkedin.com': 'From a Friend', 'twitter.com': 'Unknown', 'x.com': 'Unknown',
-        'tiktok.com': 'TikTok', 'youtube.com': 'Unknown',
-        'studentluxe.co.uk': 'Unknown'
-      };
-      return domainMap[host] || 'Unknown';
-    } catch(e) { return 'Unknown'; }
-  }
-
-  let leadSource = '';
-  let leadChannel = '';
-
-  if(hasGclid){
-    leadSource  = 'PPC';
-    leadChannel = 'Google Advert';
-  } else if(hasFbclid){
-    leadSource  = 'Socials';
-    leadChannel = extractChannel(p.referrer) || 'Instagram';
-  } else if(hasVisited){
-    leadSource  = 'SEO';
-    leadChannel = extractChannel(p.referrer);
-  }
+  // Lead-source auto-detection removed for Stay Luxe: the source/channel
+  // columns are forced to the brand below (see Brand source section).
 
   const columnValues = {
     // ── Personal ──────────────────────────────────────────────
@@ -789,12 +917,19 @@ async function pushToMonday(p) {
     text4__1:            p.gclid || p.fbclid || '',
     text_mm1jhhe7:       p.landing_page  || '',
     long_text__1:        p.visited_paths || '',
+    text_mm2y2ah2:       submitterIp     || '',
 
-    // ── Lead source ────────────────────────────────────────────
-    ...(leadSource  && { color_mkxk8y67:    { label: leadSource } }),
-    ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
-    dropdown_mm1v31yb: { labels: ['/Stay Luxe Form'] },
+    // ── Brand source (Stay Luxe form: forced, not auto-detected) ──
+    color_mkxk8y67:      { label: 'Stay Luxe' },
+    dropdown_mkxkfbff:   { labels: ['StayLuxe'] },
+    dropdown_mm1v31yb:   { labels: ['/Stay Luxe Form'] },
     status1__1:          { label: 'Stay Luxe' },
+
+    // ── Duplicate handling (parity with Student Luxe form) ────────
+    ...(duplicateOf && { color_mknqvzde: { label: 'Possible Duplicate' } }),
+    ...(duplicateOf?.assigneeIds?.length > 0 && {
+      people_1: { personsAndTeams: duplicateOf.assigneeIds.map(id => ({ id, kind: 'person' })) }
+    }),
     ...(p.city && currencyForCity(p.city, p.other_city) && { status0__1: { label: currencyForCity(p.city, p.other_city) } }),
   };
 
