@@ -233,6 +233,7 @@ async function sendGuestConfirmation(p) {
   .sl-h-text, .sl-h-logo { display:block !important; width:100% !important; text-align:center !important; }
   .sl-h-logo { padding:0 0 14px !important; }
   .sl-h-logo-img { margin:0 auto !important; height:28px !important; }
+  .sl-f-logo { margin-left:-24px !important; margin-bottom:28px !important; }
 }
 </style>
 </head>
@@ -318,7 +319,7 @@ async function sendGuestConfirmation(p) {
   <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:28px 32px;">
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;"><tr>
       <td style="vertical-align:top;">
-        <img class="sl-f-logo" src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:24px;width:auto;display:block;margin:0 0 20px -16px;opacity:0.95;">
+        <img class="sl-f-logo" src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:24px;width:auto;display:block;margin:0 0 20px -14px;opacity:0.95;">
         <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.6);line-height:1.85;">Dog &amp; Duck Yard, Princeton St<br>London, WC1R 4BH<br>+44 (0)203 007 0017<br>Mon\u2013Fri, 10am\u20136pm GMT</p>
       </td>
     </tr></table>
