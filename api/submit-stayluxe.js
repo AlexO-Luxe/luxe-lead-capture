@@ -233,7 +233,7 @@ async function sendGuestConfirmation(p) {
   .sl-h-text, .sl-h-logo { display:block !important; width:100% !important; text-align:center !important; }
   .sl-h-logo { padding:0 0 14px !important; }
   .sl-h-logo-img { margin:0 auto !important; height:28px !important; }
-  .sl-f-logo { margin-left:-36px !important; margin-bottom:28px !important; }
+  .sl-f-logo { display:none !important; }
 }
 </style>
 </head>
@@ -324,8 +324,7 @@ async function sendGuestConfirmation(p) {
       </td>
     </tr></table>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid rgba(255,255,255,0.18);padding-top:16px;"><tr>
-      <td><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.5);line-height:1.6;">&copy; 2026 Stay Luxe - a trading name of <a href="https://www.studentluxe.co.uk/" style="color:#D4B896;text-decoration:underline;">Student Luxe</a>. All rights reserved.</p></td>
-      <td style="text-align:right;"><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.5);line-height:1.6;">If you didn\u2019t submit this enquiry, please disregard.</p></td>
+      <td><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.5);line-height:1.6;">&copy; 2026 Stay Luxe - a trading name of <a href="https://www.studentluxe.co.uk/" style="color:#D4B896;text-decoration:underline;">Student Luxe</a>. All rights reserved. PS - if you didn\u2019t submit this enquiry, please disregard.</p></td>
     </tr></table>
   </td></tr>
 
