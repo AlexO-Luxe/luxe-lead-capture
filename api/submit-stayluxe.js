@@ -233,7 +233,7 @@ async function sendGuestConfirmation(p) {
   .sl-h-text, .sl-h-logo { display:block !important; width:100% !important; text-align:center !important; }
   .sl-h-logo { padding:0 0 14px !important; }
   .sl-h-logo-img { margin:0 auto !important; height:28px !important; }
-  .sl-f-logo { margin-left:-27px !important; margin-bottom:28px !important; }
+  .sl-f-logo { margin-left:-30px !important; margin-bottom:28px !important; }
 }
 </style>
 </head>
