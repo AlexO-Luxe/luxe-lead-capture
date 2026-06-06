@@ -16,6 +16,20 @@ const RESEND_API  = 'https://api.resend.com/emails';
 const MONDAY_API  = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
+// ──────────────────────────────────────────────────────────────
+//  STAY LUXE BRAND CONFIG  (edit here only)
+// ──────────────────────────────────────────────────────────────
+// White Stay Luxe logo — used in both email header and footer.
+const STAY_LUXE_LOGO = 'https://images.squarespace-cdn.com/content/v1/67694b623332340e0efb92c0/2a827f07-2c9e-4399-ae78-b9193371abe1/stayluxewhite.png?format=750w';
+
+// Dark header/footer band. Solid colour is the Outlook fallback;
+// the gradient renders in Apple Mail, Gmail and most modern clients.
+const DARK_BG       = '#1a1a1a';
+const DARK_GRADIENT = 'linear-gradient(135deg,#1a1a1a 0%,#333333 100%)';
+
+// Public Stay Luxe site (used in the team-notification NB line).
+const STAY_LUXE_URL = 'https://www.stayluxe.co.uk/';
+
 module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -53,124 +67,262 @@ module.exports = async function handler(req, res) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  EMAIL 1 — Guest confirmation
+//  RESPONSE TIME LOGIC  (drives the "Expected response time" box)
+// ──────────────────────────────────────────────────────────────
+const CLOSURES = [
+  // 2025
+  { name:'Easter',                 closed:'2025-04-18', reopen:'2025-04-23' },
+  { name:'Early May Bank Holiday', closed:'2025-05-05', reopen:'2025-05-06' },
+  { name:'Spring Bank Holiday',    closed:'2025-05-26', reopen:'2025-05-27' },
+  { name:'Summer Bank Holiday',    closed:'2025-08-25', reopen:'2025-08-26' },
+  { name:'Christmas',              closed:'2025-12-25', reopen:'2025-12-29' },
+  // 2026
+  { name:'New Year',               closed:'2026-01-01', reopen:'2026-01-02' },
+  { name:'Easter',                 closed:'2026-04-03', reopen:'2026-04-07' },
+  { name:'Early May Bank Holiday', closed:'2026-05-04', reopen:'2026-05-05' },
+  { name:'Spring Bank Holiday',    closed:'2026-05-25', reopen:'2026-05-26' },
+  { name:'Summer Bank Holiday',    closed:'2026-08-31', reopen:'2026-09-01' },
+  { name:'Christmas',              closed:'2026-12-25', reopen:'2026-12-29' },
+  // 2027
+  { name:'New Year',               closed:'2027-01-01', reopen:'2027-01-04' },
+  { name:'Easter',                 closed:'2027-03-26', reopen:'2027-03-31' },
+  { name:'Early May Bank Holiday', closed:'2027-05-03', reopen:'2027-05-04' },
+  { name:'Spring Bank Holiday',    closed:'2027-05-31', reopen:'2027-06-01' },
+  { name:'Summer Bank Holiday',    closed:'2027-08-30', reopen:'2027-08-31' },
+  { name:'Christmas',              closed:'2027-12-27', reopen:'2027-12-30' },
+];
+
+function getResponseStatus(submittedAt) {
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  const now = submittedAt ? new Date(submittedAt) : new Date();
+  const ukStr = now.toLocaleString('en-GB', { timeZone: 'Europe/London',
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hour12: false });
+  const [datePart, timePart] = ukStr.split(', ');
+  const [dd, mm, yyyy] = datePart.split('/').map(Number);
+  const [hh, mi]       = timePart.split(':').map(Number);
+  const dayOfWeek      = new Date(yyyy, mm - 1, dd).getDay(); // 0=Sun,6=Sat
+  const minuteOfDay    = hh * 60 + mi;
+  const inOffice       = minuteOfDay >= 10 * 60 && minuteOfDay < 18 * 60; // 10am–6pm
+
+  const todayStr = `${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+
+  for (const c of CLOSURES) {
+    if (todayStr >= c.closed && todayStr < c.reopen) {
+      const reopenDate  = new Date(c.reopen);
+      const reopenDay   = reopenDate.getDate();
+      const reopenMonth = MONTHS[reopenDate.getMonth()];
+      return {
+        state:       'holiday',
+        color:       'amber',
+        heading:     `From ${reopenDay} ${reopenMonth}`,
+        body:        `Our offices are closed for the ${c.name} period. We\u2019ll respond to all enquiries as soon as we\u2019re back on ${reopenDay} ${reopenMonth}.`,
+        bodyTextEnd: `from ${reopenDay} ${reopenMonth}`,
+      };
+    }
+  }
+
+  const isFriAfter6  = dayOfWeek === 5 && minuteOfDay >= 18 * 60;
+  const isSat        = dayOfWeek === 6;
+  const isSun        = dayOfWeek === 0;
+  if (isFriAfter6 || isSat || isSun) {
+    return {
+      state:       'weekend',
+      color:       'amber',
+      heading:     'Monday',
+      body:        'Your enquiry came in over the weekend \u2014 we\u2019ll be back in touch first thing on Monday morning.',
+      bodyTextEnd: 'on Monday',
+    };
+  }
+
+  if (inOffice) {
+    return {
+      state:       'inoffice',
+      color:       'green',
+      heading:     'Same day, or within one business day',
+      body:        'Our team are in the office and will be in touch shortly.',
+      bodyTextEnd: 'shortly',
+    };
+  }
+
+  const tomorrowName = DAYS[(dayOfWeek + 1) % 7];
+  return {
+    state:       'outofhours',
+    color:       'green',
+    heading:     'Within one business day',
+    body:        `Your enquiry came in outside office hours and will be picked up first thing ${tomorrowName} morning.`,
+    bodyTextEnd: 'within one business day',
+  };
+}
+
+function responseStatusHtml(status) {
+  const isAmber = status.color === 'amber';
+  const bg      = isAmber ? '#FAEEDA' : '#EAF3DE';
+  const dot     = isAmber ? '#BA7517' : '#639922';
+  const text    = isAmber ? '#854F0B' : '#3B6D11';
+  return `
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0 0;">
+    <tr><td>
+      <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Expected response time</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};border-radius:8px;">
+        <tr><td style="padding:13px 16px;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="vertical-align:top;padding-top:3px;padding-right:10px;">
+              <span style="display:block;width:8px;height:8px;border-radius:50%;background:${dot};"></span>
+            </td>
+            <td style="font-size:13px;color:${text};line-height:1.5;">
+              <strong>${status.heading}</strong> \u2014 ${status.body}
+            </td>
+          </tr></table>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>`;
+}
+
+// ──────────────────────────────────────────────────────────────
+//  EMAIL 1 — Guest confirmation  (Stay Luxe)
+//  Design ported from the Student Luxe "Your enquiry with us" email.
+//  Stay Luxe tweaks: dark header/footer, Stay Luxe logo, no footer
+//  nav, two-brand About section, updated copyright.
 // ──────────────────────────────────────────────────────────────
 async function sendGuestConfirmation(p) {
   const firstName = (p.full_name || '').split(' ')[0] || 'there';
-  const siteUrl   = process.env.SITE_URL || 'https://www.studentluxe.co.uk';
   const isTypeA   = p.enquiry_type === 'A';
+  const status    = getResponseStatus(p.submitted_at);
 
-  // Build stay summary rows
+  // Build summary rows
   const rows = [
-    p.city           && ['City',           formatCity(p.city)],
-    p.apartment_ref  && ['Apartment',      p.apartment_ref],
-    p.apartment_type && ['Apartment type', formatAptType(p.apartment_type)],
-    p.check_in       && ['Check-in',       formatDate(p.check_in)],
-    p.check_out      && ['Check-out',      formatDate(p.check_out)],
-    nights(p)        && ['Stay length',    nights(p) + ' nights'],
-    p.budget         && p.enquiry_type !== 'A' && ['Budget / week', formatBudget(p.budget)],
-    p.response_methods && ['We will respond via', p.response_methods],
+    isTypeA && p.apartment_ref && ['Apartment',            p.apartment_ref],
+    !isTypeA && p.city         && ['City',                 formatCity(p.city)],
+    p.apartment_type           && ['Apartment type',       formatAptType(p.apartment_type)],
+    !isTypeA && p.budget       && ['Budget per week',      formatBudget(p.budget)],
+    p.check_in                 && ['Check-in',             formatDate(p.check_in)],
+    p.check_out                && ['Check-out',            formatDate(p.check_out)],
+    nights(p)                  && ['Stay length',          nights(p) + ' nights'],
+    !isTypeA && p.areas        && ['Areas of interest',    p.areas],
+    p.response_methods         && ["We\u2019ll try to respond via", p.response_methods],
   ].filter(Boolean);
 
   const summaryRows = rows.map(([label, value]) => `
     <tr>
-      <td style="padding:7px 0;font-size:13px;color:#6b6b6b;border-bottom:0.5px solid #ede9e3;width:45%;">${label}</td>
-      <td style="padding:7px 0;font-size:13px;color:#1a1a1a;font-weight:500;border-bottom:0.5px solid #ede9e3;text-align:right;">${value}</td>
+      <td style="padding:9px 0;font-size:12px;color:#6b6b6b;border-bottom:0.5px solid #ede9e3;width:50%;">${label}</td>
+      <td style="padding:9px 0;font-size:12px;color:#1a1a1a;font-weight:500;border-bottom:0.5px solid #ede9e3;text-align:right;">${escHtml(String(value))}</td>
     </tr>`).join('');
+
+  // Greeting body copy — adapts per enquiry type
+  const bodyTypeA = isTypeA
+    ? `Thank you for your enquiry about <strong>${escHtml(p.apartment_ref || 'your chosen apartment')}</strong> \u2014 we\u2019re checking the latest availability and pricing for your chosen dates.`
+    : `Thank you for your <strong>${escHtml(formatCity(p.city) || '')}</strong> apartment enquiry \u2014 we\u2019re curating the best available options for your dates and budget.`;
+
+  const _submittedDate = new Date(p.submitted_at || Date.now()).toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Europe/London'});
+  const _dateParts = _submittedDate.match(/^(\d+ \w+ \d+),?\s+(.+)$/);
+  const _dateFormatted = _dateParts ? `on ${_dateParts[1]} at ${_dateParts[2]}` : _submittedDate;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Enquiry received — Student Luxe</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your enquiry with us \u2014 Stay Luxe</title>
+<style>
+@media only screen and (max-width:600px){
+  .sl-outer-wrap { padding:0 !important; }
+  .sl-card { border-radius:0 !important; border-left:none !important; border-right:none !important; }
+  .sl-body-cell { padding:22px 20px 0 !important; }
+  .sl-tick-td { display:block !important; width:100% !important; }
+}
+</style>
+</head>
 <body style="margin:0;padding:0;background:#f4f1ec;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ec;padding:32px 16px;">
+<table width="100%" cellpadding="0" cellspacing="0" class="sl-outer-wrap" style="background:#f4f1ec;padding:32px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
+<table width="600" cellpadding="0" cellspacing="0" class="sl-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
 
   <!-- HEADER -->
-  <tr><td style="background:#0d1a2e;padding:36px 40px 32px;">
-    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:28px;font-weight:400;color:#f0ece2;line-height:1.15;letter-spacing:-0.03em;">We've received your enquiry</h1>
-    <p style="margin:0;font-size:13px;color:rgba(240,236,226,0.5);font-weight:300;">Our Reservations team will reach out shortly.</p>
+  <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:22px 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="vertical-align:middle;">
+        <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">Your enquiry with us.</p>
+        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.7);">${_dateFormatted}</p>
+      </td>
+      <td style="text-align:right;vertical-align:middle;">
+        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:40px;width:auto;display:block;margin-left:auto;">
+      </td>
+    </tr></table>
   </td></tr>
 
   <!-- BODY -->
-  <tr><td style="background:#ffffff;padding:32px 40px;">
-    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Dear ${escHtml(firstName)},</p>
-    ${isTypeA ? `
-    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your enquiry about <strong>${escHtml(p.apartment_ref || 'your chosen apartment')}</strong> — we're currently checking the latest availability and pricing at this building for your chosen dates.</p>
-    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">A member of our Reservations team will be in touch within 24 hours to confirm these details, and discuss any other options that might suit your needs.</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
-    ` : `
-    <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a;line-height:1.7;">Thank you for your ${escHtml(formatCity(p.city))} apartment enquiry. A member of our Reservations team will be in touch within 24 hours to discuss this further. We'll send over a selection of apartments based on your initial details, and then take time to understand your needs in more depth.</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">We look forward to helping you find your perfect apartment!</p>
-    `}
+  <tr><td class="sl-body-cell" style="background:#ffffff;padding:28px 32px 0;">
 
-    <!-- Summary table -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;padding:4px 20px;margin:0 0 24px;">
-      <tbody>${summaryRows}</tbody>
-    </table>
+    <p style="margin:0 0 14px;font-size:14px;color:#1a1a1a;line-height:1.5;">Dear ${escHtml(firstName)},</p>
+    <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.5;">${bodyTypeA}</p>
 
-    ${p.message ? `
-    <!-- Guest message -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
-      <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:14px 18px;">
-        <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Your message</p>
-        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">${escHtml(p.message)}</p>
-      </td></tr>
-    </table>` : ''}
+    ${responseStatusHtml(status)}
 
-    <p style="margin:0 0 24px;font-size:14px;color:#1a1a1a;line-height:1.7;">In the meantime, you're welcome to browse our full portfolio of apartments.</p>
+    <!-- DIVIDER -->
+    <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:0.5px solid #ede9e3;padding-top:0;margin-top:22px;display:block;height:22px;"></td></tr></table>
 
-    <!-- CTA button -->
-    <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-      <tr><td style="background:#B8966E;border-radius:8px;">
-        <a href="${siteUrl}" style="display:inline-block;padding:13px 32px;font-size:12px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:#ffffff;text-decoration:none;">Browse apartments</a>
-      </td></tr>
-    </table>
-
-    <!-- About blurb -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
-      <tr><td style="border-top:0.5px solid #ede9e3;padding-top:20px;">
-        <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:14px;font-weight:400;letter-spacing:-0.01em;color:#1a1a1a;">About Stay Luxe</p>
-        <p style="margin:0 0 12px;font-size:12px;color:#6b6b6b;line-height:1.75;">We combine premium apartments with exceptional service to make student and professional living effortless. Our expert team will help you find &amp; book the perfect space — offering local insights, personalised recommendations, and support wherever it's needed.</p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid #ede9e3;padding-top:10px;margin-top:4px;">
+    <!-- ABOUT -->
+    <p style="margin:0 0 10px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">About us: Stay Luxe &amp; Student Luxe</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;">
+      <tr><td style="padding:18px 20px;">
+        <p style="margin:0 0 12px;font-family:Georgia,serif;font-size:15px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em;">Two brands, <em style="color:#B8966E;">one philosophy.</em></p>
+        <p style="margin:0 0 16px;font-size:12.5px;color:#6b6b6b;line-height:1.5;">We began in 2019, offering superior stays for students, and have since extended into luxury serviced apartments for discerning guests. Trusted by high-net-worth families for our comfort, flexibility and five-star service.</p>
+        <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Fully-furnished
-            </td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>All bills included
-            </td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Fully furnished &amp; equipped</td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Weekly housekeeping</td>
           </tr>
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Hotel-style amenities
-            </td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Weekly housekeeping
-            </td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>All bills &amp; everything included</td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Flexible lengths of stay</td>
           </tr>
           <tr>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Dedicated support
-            </td>
-            <td width="50%" style="padding:4px 0;font-size:11px;color:#6b6b6b;vertical-align:middle;">
-              <span style="display:inline-block;width:13px;height:13px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:13px;font-size:8px;color:#B8966E;margin-right:6px;vertical-align:middle;">✓</span>Flexible booking policy
-            </td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Hotel-style amenities</td>
+            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Ongoing resident support</td>
           </tr>
         </table>
       </td></tr>
     </table>
+
+    <!-- DIVIDER -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr><td style="border-top:0.5px solid #ede9e3;"></td></tr></table>
+
+    <!-- SUMMARY -->
+    <p style="margin:18px 0 10px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">What you've told us so far</p>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tbody>${summaryRows}</tbody>
+    </table>
+
+    ${p.message ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
+      <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;padding:12px 16px;">
+        <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Your message</p>
+        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">"${escHtml(p.message)}"</p>
+      </td></tr>
+    </table>` : ''}
+
+    <div style="height:28px;"></div>
   </td></tr>
 
   <!-- FOOTER -->
-  <tr><td style="background:#f7f2eb;padding:18px 0;border-top:0.5px solid rgba(184,150,110,0.2);text-align:center;">
-    <p style="margin:0 0 10px;font-size:11px;color:#9b9b9b;line-height:1.9;">
-      Stay Luxe Apartments<br>
-      Dog &amp; Duck Yard, Princeton St, London, WC1R 4BH<br>
-      +44 (0)203 007 0017 &nbsp;·&nbsp; Mon–Fri, 10am–6pm GMT<br>
-      © 2026 Stay Luxe Apartments. All rights reserved.
-    </p>
-    <p style="margin:0;font-size:10px;color:#b9b9b9;line-height:1.6;padding:0 20px;">If you didn't submit this enquiry, please disregard this email. Your details are safe and will never be shared with third parties.</p>
+  <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:28px 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;"><tr>
+      <td style="vertical-align:top;">
+        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:24px;width:auto;display:block;margin-bottom:12px;opacity:0.95;">
+        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.6);line-height:1.85;">Dog &amp; Duck Yard, Princeton St<br>London, WC1R 4BH<br>+44 (0)203 007 0017<br>Mon\u2013Fri, 10am\u20136pm GMT</p>
+      </td>
+    </tr></table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid rgba(255,255,255,0.18);padding-top:16px;"><tr>
+      <td><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.5);line-height:1.6;">&copy; 2026 Stay Luxe - a trading name of <a href="https://www.studentluxe.co.uk/" style="color:#D4B896;text-decoration:underline;">Student Luxe</a>. All rights reserved.</p></td>
+      <td style="text-align:right;"><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.5);line-height:1.6;">If you didn\u2019t submit this enquiry, please disregard.</p></td>
+    </tr></table>
   </td></tr>
 
 </table>
@@ -195,7 +347,9 @@ async function sendGuestConfirmation(p) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  EMAIL 2 — Team notification
+//  EMAIL 2 — Team notification  (Stay Luxe)
+//  Tweaks: dark header + footer band, plus the "not a student" NB
+//  notice above the status pill.
 // ──────────────────────────────────────────────────────────────
 async function sendTeamNotification(p, mondayId, mondayError) {
   const isTypeA   = p.enquiry_type === 'A';
@@ -246,14 +400,14 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
 
   <!-- HEADER -->
-  <tr><td style="background:#B8966E;padding:22px 32px;">
+  <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:22px 32px;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="vertical-align:middle;">
         <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:22px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">${escHtml(guestName)}</p>
         <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);">${submittedFormatted}</p>
       </td>
       <td style="text-align:right;vertical-align:middle;">
-        <img src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng" alt="Student Luxe" style="height:44px;width:auto;display:block;margin-left:auto;">
+        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:44px;width:auto;display:block;margin-left:auto;">
       </td>
     </tr></table>
   </td></tr>
@@ -261,8 +415,13 @@ async function sendTeamNotification(p, mondayId, mondayError) {
   <!-- MONDAY ERROR BANNER -->
   ${mondayErrorBanner}
 
-  <!-- SUMMARY LINE + PILL -->
+  <!-- NB + SUMMARY LINE + PILL -->
   <tr><td style="background:#ffffff;padding:20px 32px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
+      <tr><td style="background:#f4f0ea;border-left:3px solid #1a1a1a;border-radius:0 8px 8px 0;padding:11px 16px;">
+        <p style="margin:0;font-size:12px;color:#3a3a3a;line-height:1.6;"><strong>NB:</strong> This is an enquiry from <a href="${STAY_LUXE_URL}" style="color:#8a6540;text-decoration:underline;">Stay Luxe</a>'s website - and it's likely this guest is not a student.</p>
+      </td></tr>
+    </table>
     <p style="margin:0 0 10px;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.12)' : 'rgba(184,150,110,0.12)'};color:${isTypeA ? '#0F6E56' : '#8a6540'};border:0.5px solid ${isTypeA ? 'rgba(29,158,117,0.4)' : 'rgba(184,150,110,0.4)'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
     <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.75;">${isTypeA
       ? `${escHtml(p.apartment_ref || '')}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}`
@@ -330,12 +489,12 @@ async function sendTeamNotification(p, mondayId, mondayError) {
     </table>
   </td></tr>
 
-  <!-- CTA BUTTONS -->
-  <tr><td style="background:#f7f2eb;padding:16px 32px;">
+  <!-- CTA BUTTONS (footer band) -->
+  <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:18px 32px;">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:8px;"><a href="mailto:${p.email}" style="display:inline-block;padding:10px 20px;background:#B8966E;border-radius:8px;font-size:12px;font-weight:500;color:#ffffff;text-decoration:none;">Reply by email</a></td>
-      <td style="padding-right:8px;"><a href="${crmUrl}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Leads Board</a></td>
-      ${isTypeA && p.apartment_ref ? `<td><a href="https://studentluxe.monday.com/boards/2388987554/views/87174774?term=${encodeURIComponent(p.apartment_ref)}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Property Board</a></td>` : ''}
+      <td style="padding-right:8px;"><a href="${crmUrl}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(255,255,255,0.25);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Leads Board</a></td>
+      ${isTypeA && p.apartment_ref ? `<td><a href="https://studentluxe.monday.com/boards/2388987554/views/87174774?term=${encodeURIComponent(p.apartment_ref)}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(255,255,255,0.25);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Property Board</a></td>` : ''}
     </tr></table>
   </td></tr>
 
