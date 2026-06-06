@@ -318,7 +318,7 @@ async function sendGuestConfirmation(p) {
   <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:28px 32px;">
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;"><tr>
       <td style="vertical-align:top;">
-        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:24px;width:auto;display:block;margin:0 0 12px -8px;opacity:0.95;">
+        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:24px;width:auto;display:block;margin:0 0 20px -18px;opacity:0.95;">
         <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.6);line-height:1.85;">Dog &amp; Duck Yard, Princeton St<br>London, WC1R 4BH<br>+44 (0)203 007 0017<br>Mon\u2013Fri, 10am\u20136pm GMT</p>
       </td>
     </tr></table>
