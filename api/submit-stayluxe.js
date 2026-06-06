@@ -230,6 +230,9 @@ async function sendGuestConfirmation(p) {
   .sl-card { border-radius:0 !important; border-left:none !important; border-right:none !important; }
   .sl-body-cell { padding:22px 20px 0 !important; }
   .sl-tick-td { display:block !important; width:100% !important; }
+  .sl-h-text, .sl-h-logo { display:block !important; width:100% !important; text-align:center !important; }
+  .sl-h-logo { padding:0 0 14px !important; }
+  .sl-h-logo-img { margin:0 auto !important; height:28px !important; }
 }
 </style>
 </head>
@@ -240,13 +243,13 @@ async function sendGuestConfirmation(p) {
 
   <!-- HEADER -->
   <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:22px 32px;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="vertical-align:middle;">
+    <table width="100%" cellpadding="0" cellspacing="0" dir="rtl"><tr>
+      <td class="sl-h-logo" dir="ltr" style="text-align:right;vertical-align:middle;">
+        <img class="sl-h-logo-img" src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:30px;width:auto;display:block;margin-left:auto;">
+      </td>
+      <td class="sl-h-text" dir="ltr" style="vertical-align:middle;text-align:left;">
         <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">Your enquiry with us.</p>
         <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.7);">${_dateFormatted}</p>
-      </td>
-      <td style="text-align:right;vertical-align:middle;">
-        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:40px;width:auto;display:block;margin-left:auto;">
       </td>
     </tr></table>
   </td></tr>
@@ -315,7 +318,7 @@ async function sendGuestConfirmation(p) {
   <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:28px 32px;">
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;"><tr>
       <td style="vertical-align:top;">
-        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:24px;width:auto;display:block;margin-bottom:12px;opacity:0.95;">
+        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:24px;width:auto;display:block;margin:0 0 12px -8px;opacity:0.95;">
         <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.6);line-height:1.85;">Dog &amp; Duck Yard, Princeton St<br>London, WC1R 4BH<br>+44 (0)203 007 0017<br>Mon\u2013Fri, 10am\u20136pm GMT</p>
       </td>
     </tr></table>
@@ -393,7 +396,15 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New enquiry — ${escHtml(guestName)}</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New enquiry — ${escHtml(guestName)}</title>
+<style>
+@media only screen and (max-width:600px){
+  .sl-h-text, .sl-h-logo { display:block !important; width:100% !important; text-align:center !important; }
+  .sl-h-logo { padding:0 0 14px !important; }
+  .sl-h-logo-img { margin:0 auto !important; height:28px !important; }
+}
+</style>
+</head>
 <body style="margin:0;padding:0;background:#f4f1ec;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ec;padding:32px 16px;">
 <tr><td align="center">
@@ -401,13 +412,13 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 
   <!-- HEADER -->
   <tr><td style="background:${DARK_BG};background-image:${DARK_GRADIENT};padding:22px 32px;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="vertical-align:middle;">
+    <table width="100%" cellpadding="0" cellspacing="0" dir="rtl"><tr>
+      <td class="sl-h-logo" dir="ltr" style="text-align:right;vertical-align:middle;">
+        <img class="sl-h-logo-img" src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:30px;width:auto;display:block;margin-left:auto;">
+      </td>
+      <td class="sl-h-text" dir="ltr" style="vertical-align:middle;text-align:left;">
         <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:22px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">${escHtml(guestName)}</p>
         <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);">${submittedFormatted}</p>
-      </td>
-      <td style="text-align:right;vertical-align:middle;">
-        <img src="${STAY_LUXE_LOGO}" alt="Stay Luxe" style="height:44px;width:auto;display:block;margin-left:auto;">
       </td>
     </tr></table>
   </td></tr>
