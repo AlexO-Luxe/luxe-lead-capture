@@ -233,7 +233,7 @@ async function sendGuestConfirmation(p) {
   .sl-h-text, .sl-h-logo { display:block !important; width:100% !important; text-align:center !important; }
   .sl-h-logo { padding:0 0 14px !important; }
   .sl-h-logo-img { margin:0 auto !important; height:28px !important; }
-  .sl-f-logo { margin-left:-24px !important; margin-bottom:28px !important; }
+  .sl-f-logo { margin-left:-27px !important; margin-bottom:28px !important; }
 }
 </style>
 </head>
@@ -517,7 +517,9 @@ async function sendTeamNotification(p, mondayId, mondayError) {
 
   return resendSend({
     from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
-    to:      [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2, 'jared@studentluxe.co.uk'].filter(Boolean),
+    to:      p.test_mode
+      ? ['alex@studentluxe.co.uk']
+      : [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2, 'jared@studentluxe.co.uk'].filter(Boolean),
     replyTo: p.email,
     subject: isTypeA
       ? `[Stay Luxe] New Enquiry — ${p.apartment_ref || 'Specific Apartment'}${nightCount ? ', ' + nightCount + ' Nights' : ''}`
