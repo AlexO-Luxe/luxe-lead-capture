@@ -760,6 +760,23 @@ function computeLeadSource(p) {
   const isGoogleOrg  = visitedPaths.startsWith('Google Organic');
   const hasVisited   = !!(p.visited_paths || p.landing_page);
 
+  // UTM-based social detection
+  const utmSource = (p.utm_source || '').toLowerCase().trim();
+  const utmMedium = (p.utm_medium || '').toLowerCase().trim();
+  const SOCIAL_SOURCES = ['ig','instagram','facebook','fb','meta','tiktok','linkedin','twitter','x'];
+  const SOCIAL_MEDIUMS = ['social','social-media','social_media','paid-social','paid_social','paidsocial'];
+  const isUtmSocial = SOCIAL_SOURCES.includes(utmSource) || SOCIAL_MEDIUMS.includes(utmMedium);
+
+  // Map UTM source to a specific channel label
+  function utmSourceToChannel(src) {
+    if (['ig','instagram'].includes(src))           return 'Instagram';
+    if (['facebook','fb','meta'].includes(src))     return 'Meta Advert';
+    if (['tiktok'].includes(src))                   return 'TikTok';
+    if (['linkedin'].includes(src))                 return 'From a Friend';
+    if (['twitter','x'].includes(src))              return 'Twitter / X';
+    return 'Instagram'; // default for generic social medium
+  }
+
   function extractChannel(referrer) {
     if(!referrer) return '';
     try {
@@ -777,11 +794,12 @@ function computeLeadSource(p) {
 
   let leadSource  = '';
   let leadChannel = '';
-  if (hasPpcSignal)     { leadSource = 'PPC';      leadChannel = 'Google Advert'; }
-  else if (hasFbclid)   { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
-  else if (isDirect)    { leadSource = 'Referral'; leadChannel = 'Direct'; }
-  else if (isGoogleOrg) { leadSource = 'SEO';      leadChannel = 'Google Search (organic)'; }
-  else if (hasVisited)  { leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
+  if (hasPpcSignal)      { leadSource = 'PPC';      leadChannel = 'Google Advert'; }
+  else if (hasFbclid)    { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
+  else if (isUtmSocial)  { leadSource = 'Socials';  leadChannel = utmSourceToChannel(utmSource); }
+  else if (isDirect)     { leadSource = 'Referral'; leadChannel = 'Direct'; }
+  else if (isGoogleOrg)  { leadSource = 'SEO';      leadChannel = 'Google Search (organic)'; }
+  else if (hasVisited)   { leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
 
   return { leadSource, leadChannel };
 }
