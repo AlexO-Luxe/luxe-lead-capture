@@ -754,18 +754,19 @@ function computeLeadSource(p) {
   const hasFbclid    = !!p.fbclid;
   const hasCampaign  = !!(p.utm_campaign || '').trim();
   const hasKeyword   = !!(p.utm_term || '').trim();
-  const hasPpcSignal = hasGclid || hasCampaign || hasKeyword;
   const visitedPaths = (p.visited_paths || '').trim();
   const isDirect     = visitedPaths.startsWith('Direct');
   const isGoogleOrg  = visitedPaths.startsWith('Google Organic');
   const hasVisited   = !!(p.visited_paths || p.landing_page);
 
-  // UTM-based social detection
+  // UTM-based social detection — must come before hasPpcSignal
   const utmSource = (p.utm_source || '').toLowerCase().trim();
   const utmMedium = (p.utm_medium || '').toLowerCase().trim();
   const SOCIAL_SOURCES = ['ig','instagram','facebook','fb','meta','tiktok','linkedin','twitter','x'];
   const SOCIAL_MEDIUMS = ['social','social-media','social_media','paid-social','paid_social','paidsocial'];
   const isUtmSocial = SOCIAL_SOURCES.includes(utmSource) || SOCIAL_MEDIUMS.includes(utmMedium);
+
+  const hasPpcSignal = (hasGclid || hasCampaign || hasKeyword) && !isUtmSocial;
 
   // Map UTM source to a specific channel label
   function utmSourceToChannel(src) {
