@@ -146,7 +146,7 @@ async function uploadConversion({ gclid, email, phone, timestamp, value, currenc
 
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
-  const endpoint         = `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`;
+  const endpoint         = `https://googleads.googleapis.com/v21/customers/${customerId}:uploadClickConversions`;
 
   // Build conversion — gclid optional
   const conversion = {
