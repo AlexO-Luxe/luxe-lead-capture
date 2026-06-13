@@ -196,7 +196,7 @@ async function uploadGoogleAdsConversion(p) {
 
   const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
   console.log('Google Ads customer ID:', customerId);
-  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`);
+  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v21/customers/${customerId}:uploadClickConversions`);
   const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
 
   const conversion = {
@@ -214,7 +214,7 @@ async function uploadGoogleAdsConversion(p) {
   const payload = { conversions: [conversion], partialFailure: true };
 
   const gadsRes = await fetch(
-    `https://googleads.googleapis.com/v20/customers/${customerId}:uploadClickConversions`,
+    `https://googleads.googleapis.com/v21/customers/${customerId}:uploadClickConversions`,
     {
       method:  'POST',
       headers: {
@@ -766,6 +766,11 @@ function computeLeadSource(p) {
   const SOCIAL_MEDIUMS = ['social','social-media','social_media','paid-social','paid_social','paidsocial'];
   const isUtmSocial = SOCIAL_SOURCES.includes(utmSource) || SOCIAL_MEDIUMS.includes(utmMedium);
 
+  // Bing detection
+  const hasMsclkid     = utmSource.includes('bing') && utmMedium.includes('cpc');
+  const isBingOrg      = utmSource.includes('bing') && !utmMedium.includes('cpc');
+  const visitedHasBing = (p.visited_paths || '').toLowerCase().includes('bing');
+
   const hasPpcSignal = (hasGclid || hasCampaign || hasKeyword) && !isUtmSocial;
 
   // Map UTM source to a specific channel label
@@ -795,12 +800,14 @@ function computeLeadSource(p) {
 
   let leadSource  = '';
   let leadChannel = '';
-  if (hasPpcSignal)      { leadSource = 'PPC';      leadChannel = 'Google Advert'; }
-  else if (hasFbclid)    { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
-  else if (isUtmSocial)  { leadSource = 'Socials';  leadChannel = utmSourceToChannel(utmSource); }
-  else if (isDirect)     { leadSource = 'Referral'; leadChannel = 'Direct'; }
-  else if (isGoogleOrg)  { leadSource = 'SEO';      leadChannel = 'Google Search (organic)'; }
-  else if (hasVisited)   { leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
+  if (hasMsclkid)                       { leadSource = 'PPC';      leadChannel = 'Bing Advert'; }
+  else if (isBingOrg || visitedHasBing) { leadSource = 'SEO';      leadChannel = 'Bing'; }
+  else if (hasPpcSignal)                { leadSource = 'PPC';      leadChannel = 'Google Advert'; }
+  else if (hasFbclid)                   { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
+  else if (isUtmSocial)                 { leadSource = 'Socials';  leadChannel = utmSourceToChannel(utmSource); }
+  else if (isDirect)                    { leadSource = 'Referral'; leadChannel = 'Direct'; }
+  else if (isGoogleOrg)                 { leadSource = 'SEO';      leadChannel = 'Google Search (organic)'; }
+  else if (hasVisited)                  { leadSource = 'SEO';      leadChannel = extractChannel(p.referrer); }
 
   return { leadSource, leadChannel };
 }
