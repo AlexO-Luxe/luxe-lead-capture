@@ -35,16 +35,17 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ success: true }); // silent — spammer sees normal success
   }
 
-  // ── Duplicate check — query Monday for matching email ─────
+  // ── Duplicate check — 4 signals (email, phone, IP, name) ─────
+  // Flags as possible duplicate when 2 or more signals match.
   let duplicateOf = null;
   try {
-    duplicateOf = await findExistingLead(p.email, submitterIp);
+    duplicateOf = await findDuplicateLead(p, submitterIp);
   } catch(err) {
     console.warn('Duplicate check failed (non-fatal):', err.message);
   }
 
   if (duplicateOf) {
-    console.log('Duplicate detected — existing lead ID:', duplicateOf.id);
+    console.log(`Duplicate detected (${duplicateOf.matchCount}/4) — existing lead ID:`, duplicateOf.id);
   }
 
   // ── Always push to Monday ─────────────────────────────────
@@ -84,76 +85,249 @@ module.exports = async function handler(req, res) {
 };
 
 // ──────────────────────────────────────────────────────────────
-//  DUPLICATE DETECTION
+//  DUPLICATE DETECTION — 4 signals (email, phone, IP, name)
+//  Each signal scores 0 or 1. A score of 2 or more flags the lead
+//  as a possible duplicate. Empty fields never count as a match.
 // ──────────────────────────────────────────────────────────────
-async function findExistingLead(email, ip) {
-  if (!email) return null;
+function normEmail(e)   { return (e  || '').toLowerCase().trim(); }
+function normIp(ip)     { return (ip || '').trim(); }
+function normName(n)    { return (n  || '').toLowerCase().trim().replace(/\s+/g, ' '); }
+function phoneDigits(s) { return (s  || '').replace(/\D/g, ''); }
+function phoneTail(s) {
+  const d = phoneDigits(s);
+  return d.length >= 9 ? d.slice(-9) : d;
+}
+// Name key = first-initial + surname (lowercased). Loose enough to catch
+// "Sarah Jones" vs "S Jones" vs "Sammy Jones" but still discriminating.
+function nameKey(n) {
+  const cleaned = normName(n);
+  if (!cleaned) return null;
+  const parts = cleaned.split(' ').filter(Boolean);
+  if (!parts.length) return null;
+  const surname = parts[parts.length - 1];
+  const firstInitial = parts[0][0] || '';
+  if (!firstInitial || !surname) return null;
+  return `${firstInitial}|${surname}`;
+}
 
+// Generic candidate fetcher used by email / phone / IP lookups.
+async function mondayLookupByColumn(columnId, value) {
+  if (!value) return [];
   const query = `
     query {
       items_page_by_column_values(
         board_id: ${MONDAY_BOARD},
-        limit: 5,
-        columns: [{ column_id: "email", column_values: ["${email.toLowerCase().trim()}"] }]
+        limit: 25,
+        columns: [{ column_id: "${columnId}", column_values: [${JSON.stringify(String(value))}] }]
       ) {
         items {
           id
           name
           created_at
-          column_values(ids: ["people_1", "text_mm2y2ah2"]) {
-            id
-            text
-            value
+          column_values(ids: ["email", "phone_1", "text_mm2y2ah2", "people_1"]) {
+            id text value
           }
         }
       }
     }
   `;
+  try {
+    const r = await fetch(MONDAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+      body: JSON.stringify({ query })
+    });
+    const d = await r.json();
+    if (d.errors) {
+      console.warn(`Monday lookup (${columnId}) errors:`, JSON.stringify(d.errors));
+      return [];
+    }
+    return d?.data?.items_page_by_column_values?.items || [];
+  } catch (err) {
+    console.warn(`Monday lookup (${columnId}) failed:`, err.message);
+    return [];
+  }
+}
 
-  const response = await fetch(MONDAY_API, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
-    body: JSON.stringify({ query })
-  });
+// Check which Monday user IDs are still active. Used to drop assignments
+// to deactivated/removed employees (which would otherwise fail create_item
+// with an invalidPersonAssignment error and force a manual lead entry).
+// Fail-open on query errors so a flaky users query doesn't cause spurious
+// unassignments.
+async function verifyMondayUsers(userIds) {
+  const idList = (userIds || []).map(Number).filter(n => Number.isFinite(n));
+  if (idList.length === 0) return { failed: false, valid: new Set(), nameById: {} };
+  const query = `
+    query {
+      users(ids: [${idList.join(',')}]) {
+        id
+        name
+        enabled
+      }
+    }
+  `;
+  try {
+    const r = await fetch(MONDAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+      body: JSON.stringify({ query })
+    });
+    const d = await r.json();
+    if (d.errors) {
+      console.warn('Monday user verify errors:', JSON.stringify(d.errors));
+      return { failed: true, valid: new Set(idList), nameById: {} };
+    }
+    const valid = new Set();
+    const nameById = {};
+    for (const u of (d?.data?.users || [])) {
+      nameById[Number(u.id)] = u.name;
+      if (u.enabled) valid.add(Number(u.id));
+    }
+    return { failed: false, valid, nameById };
+  } catch (err) {
+    console.warn('Monday user verify failed:', err.message);
+    return { failed: true, valid: new Set(idList), nameById: {} };
+  }
+}
 
-  const data = await response.json();
-  if (data.errors) {
-    console.error('Monday duplicate query errors:', JSON.stringify(data.errors));
-    return null;
+// Candidate fetcher for the item-name search (surname contains-text rule).
+async function mondayLookupByName(substring) {
+  if (!substring) return [];
+  const query = `
+    query {
+      items_page(
+        board_id: ${MONDAY_BOARD},
+        limit: 50,
+        query_params: { rules: [{ column_id: "name", compare_value: [${JSON.stringify(substring)}], operator: contains_text }] }
+      ) {
+        items {
+          id
+          name
+          created_at
+          column_values(ids: ["email", "phone_1", "text_mm2y2ah2", "people_1"]) {
+            id text value
+          }
+        }
+      }
+    }
+  `;
+  try {
+    const r = await fetch(MONDAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+      body: JSON.stringify({ query })
+    });
+    const d = await r.json();
+    if (d.errors) {
+      console.warn('Monday name lookup errors:', JSON.stringify(d.errors));
+      return [];
+    }
+    return d?.data?.items_page?.items || [];
+  } catch (err) {
+    console.warn('Monday name lookup failed:', err.message);
+    return [];
+  }
+}
+
+async function findDuplicateLead(p, ip) {
+  const newEmail     = normEmail(p.email);
+  const newIp        = normIp(ip);
+  const newName      = p.full_name || '';
+  const newKey       = nameKey(newName);
+  const newSurname   = newKey ? newKey.split('|')[1] : '';
+  const newPhoneTail = phoneTail(p.phone);
+  const newPhoneRaw  = phoneDigits(p.phone);
+
+  // Run all four lookups in parallel. Skip a query when the signal is empty.
+  const [emailHits, phoneHits, ipHits, nameHits] = await Promise.all([
+    newEmail    ? mondayLookupByColumn('email',         newEmail)    : Promise.resolve([]),
+    newPhoneRaw ? mondayLookupByColumn('phone_1',       newPhoneRaw) : Promise.resolve([]),
+    newIp       ? mondayLookupByColumn('text_mm2y2ah2', newIp)       : Promise.resolve([]),
+    newSurname  ? mondayLookupByName(newSurname)                      : Promise.resolve([]),
+  ]);
+
+  // Union candidates by item ID (a single lead may appear in multiple result sets).
+  const candidates = new Map();
+  for (const item of [...emailHits, ...phoneHits, ...ipHits, ...nameHits]) {
+    if (item && item.id && !candidates.has(item.id)) candidates.set(item.id, item);
+  }
+  if (candidates.size === 0) return null;
+
+  // Score every candidate against the 4 signals. Pick highest score, ties broken by most recent.
+  let best = null;
+  for (const item of candidates.values()) {
+    const ev = item.column_values?.find(c => c.id === 'email');
+    const pv = item.column_values?.find(c => c.id === 'phone_1');
+    const iv = item.column_values?.find(c => c.id === 'text_mm2y2ah2');
+
+    const candEmail     = normEmail(ev?.text || '');
+    const candIp        = normIp(iv?.text || '');
+    const candPhoneText = pv?.text || '';
+    const candPhoneTail = phoneTail(candPhoneText);
+    const candName      = item.name || '';
+    const candKey       = nameKey(candName);
+
+    const emailMatch = !!(newEmail     && candEmail     && newEmail     === candEmail);
+    const phoneMatch = !!(newPhoneTail && candPhoneTail && newPhoneTail === candPhoneTail);
+    const ipMatch    = !!(newIp        && candIp        && newIp        === candIp);
+    const nameMatch  = !!(newKey       && candKey       && newKey       === candKey);
+
+    const matchCount = [emailMatch, phoneMatch, ipMatch, nameMatch].filter(Boolean).length;
+    if (matchCount < 2) continue;
+
+    const createdMs = new Date(item.created_at || 0).getTime();
+    const score = matchCount * 1e13 + createdMs;
+    if (best && score <= best.score) continue;
+
+    let assignees = [], assigneeIds = [];
+    const peopleCol = item.column_values?.find(c => c.id === 'people_1');
+    if (peopleCol?.value) {
+      try {
+        const val = JSON.parse(peopleCol.value);
+        const personsArr = val?.personsAndTeams || [];
+        assigneeIds = personsArr.filter(pt => pt.kind === 'person').map(pt => pt.id);
+        const textVal = peopleCol.text || '';
+        if (textVal) assignees = textVal.split(',').map(s => s.trim()).filter(Boolean);
+      } catch(e) {
+        if (peopleCol.text) assignees = [peopleCol.text];
+      }
+    }
+
+    best = {
+      score,
+      id:            item.id,
+      name:          candName,
+      created_at:    item.created_at,
+      assignees,
+      assigneeIds,
+      originalName:  candName,
+      originalEmail: ev?.text || '',
+      originalPhone: candPhoneText,
+      originalIp:    candIp,
+      matchCount,
+      emailMatch,
+      phoneMatch,
+      ipMatch,
+      nameMatch,
+    };
   }
 
-  const items = data?.data?.items_page_by_column_values?.items || [];
-  if (items.length === 0) return null;
-
-  const match = items[0];
-
-  let assignees   = [];
-  let assigneeIds = [];
-  const peopleCol = match.column_values?.find(c => c.id === 'people_1');
-  if (peopleCol?.value) {
-    try {
-      const val        = JSON.parse(peopleCol.value);
-      const personsArr = val?.personsAndTeams || [];
-      assigneeIds = personsArr.filter(pt => pt.kind === 'person').map(pt => pt.id);
-      const textVal = peopleCol.text || '';
-      if (textVal) assignees = textVal.split(',').map(s => s.trim()).filter(Boolean);
-    } catch(e) {
-      if (peopleCol.text) assignees = [peopleCol.text];
+  // Drop assignments to deactivated/removed Monday users. If ALL original
+  // assignees are gone, capture their names so pushToMonday can append a
+  // "(previously X's lead)" suffix to the item name.
+  if (best && best.assigneeIds.length > 0) {
+    const originalIds = best.assigneeIds.slice();
+    const { failed, valid, nameById } = await verifyMondayUsers(originalIds);
+    best.assigneeIds = originalIds.filter(id => valid.has(Number(id)));
+    if (best.assigneeIds.length === 0 && !failed) {
+      const removed = originalIds.map((id, i) =>
+        nameById[Number(id)] || best.assignees[i] || 'a former colleague'
+      );
+      best.removedAssignees = [...new Set(removed)];
     }
   }
 
-  const ipCol      = match.column_values?.find(c => c.id === 'text_mm2y2ah2');
-  const originalIp = ipCol?.text || '';
-
-  return {
-    id:          match.id,
-    name:        match.name,
-    created_at:  match.created_at,
-    assignees,
-    assigneeIds,
-    originalIp,
-    ipMatch: !!(originalIp && ip && originalIp === ip)
-  };
+  return best;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -584,10 +758,6 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
         })
       : '—';
 
-    const ipMatchTag = duplicateOf.ipMatch
-      ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
-      : '';
-
     const assigneePills = duplicateOf.assignees && duplicateOf.assignees.length > 0
       ? duplicateOf.assignees.map(name => {
           const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
@@ -595,25 +765,25 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
         }).join('')
       : '<span style="font-size:12px;color:#9b9b9b;">Unassigned</span>';
 
+    const matchTagHtml = `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`;
+
     const compareRow = (label, origVal, newVal, isMatch) => {
-      const matchTag = isMatch
-        ? `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`
-        : '';
+      const matchTag = isMatch ? matchTagHtml : '';
       return `<tr>
         <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;width:50%;">
           <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
-          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(origVal)}</p>
+          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(origVal || '—')}</p>
         </td>
         <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;vertical-align:top;width:50%;">
           <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
-          <p style="margin:0;font-size:13px;font-weight:500;color:${isMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(newVal)}${matchTag}</p>
+          <p style="margin:0;font-size:13px;font-weight:500;color:${isMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(newVal || '—')}${matchTag}</p>
         </td>
       </tr>`;
     };
 
     return `
   <tr><td style="background:#fffcf2;border-top:3px solid #e8c96b;padding:14px 32px;font-size:13px;color:#5a4310;line-height:1.65;">
-    ⚠️ &nbsp;This lead is a possible duplicate. It's been added to the Leads Board with 'Possible Duplicate' tagged — and the salesperson assigned to the original lead has been automatically assigned to it.
+    ⚠️ &nbsp;Possible duplicate, ${duplicateOf.matchCount} of 4 signals match. It's been added to the Leads Board with 'Possible Duplicate' tagged, and the salesperson assigned to the original lead has been automatically assigned to it.
   </td></tr>
   <tr><td style="background:#ffffff;padding:20px 32px 0;">
     <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Original Lead vs. New Lead</p>
@@ -622,19 +792,11 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
         <td width="50%" style="padding:8px 16px;background:#f7f2eb;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original Lead</td>
         <td width="50%" style="padding:8px 16px;background:#0d1a2e;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.6);border-bottom:0.5px solid #e8e4de;border-left:0.5px solid #e8e4de;">New Lead</td>
       </tr>
-      ${compareRow('Name', duplicateOf.name, p.full_name || '', duplicateOf.name.toLowerCase().trim() === (p.full_name||'').toLowerCase().trim())}
-      ${compareRow('Email', p.email||'', p.email||'', true)}
+      ${compareRow('Name',       duplicateOf.originalName,  p.full_name || '', duplicateOf.nameMatch)}
+      ${compareRow('Email',      duplicateOf.originalEmail, p.email     || '', duplicateOf.emailMatch)}
+      ${compareRow('Phone',      duplicateOf.originalPhone, p.phone     || '', duplicateOf.phoneMatch)}
+      ${compareRow('IP address', duplicateOf.originalIp,    submitterIp || '', duplicateOf.ipMatch)}
       ${compareRow('Lead created', originalFormatted, submittedFormatted, false)}
-      <tr>
-        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;border-right:0.5px solid #e8e4de;vertical-align:top;">
-          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
-          <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(duplicateOf.originalIp || '—')}</p>
-        </td>
-        <td style="padding:12px 16px;border-top:0.5px solid #e8e4de;vertical-align:top;">
-          <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;">IP address</p>
-          <p style="margin:0;font-size:13px;font-weight:500;color:${duplicateOf.ipMatch ? '#B8966E' : '#1a1a1a'};">${escHtml(submitterIp||'—')}${ipMatchTag}</p>
-        </td>
-      </tr>
     </table>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;padding:12px 16px;margin-bottom:20px;">
       <tr>
@@ -874,7 +1036,17 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
   const nameParts = (p.full_name || '').trim().split(' ');
   const firstname = nameParts[0] || '';
   const lastname  = nameParts.slice(1).join(' ') || '';
-  const itemName  = p.full_name || 'New Enquiry';
+  let   itemName  = p.full_name || 'New Enquiry';
+
+  // If the original lead's assignees are all deactivated, flag it in the item
+  // name so the team knows to manually reassign on the Leads board.
+  if (duplicateOf?.removedAssignees?.length > 0) {
+    const names = duplicateOf.removedAssignees;
+    const suffix = names.length === 1
+      ? `(previously ${names[0]}'s lead)`
+      : `(previously assigned to ${names.join(', ')})`;
+    itemName = `${itemName} ${suffix}`;
+  }
 
   const { leadSource, leadChannel } = computeLeadSource(p);
 
