@@ -16,6 +16,8 @@ const RESEND_API  = 'https://api.resend.com/emails';
 const MONDAY_API  = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
+const { buildTouch, getSession, attachSubmission } = require('./_attribution.js');
+
 // ──────────────────────────────────────────────────────────────
 //  STAY LUXE BRAND CONFIG  (edit here only)
 // ──────────────────────────────────────────────────────────────
@@ -45,6 +47,24 @@ module.exports = async function handler(req, res) {
     (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
     req.socket?.remoteAddress ||
     '';
+
+  // ── Attribution capture (parity with Student Luxe) ────────
+  const touch     = buildTouch(req, p);
+  const sessionId = p.session_id || '';
+  const session   = sessionId ? await getSession(sessionId) : null;
+  const firstTouch = session?.first || touch;
+  p.gbraid      = p.gbraid     || touch.gbraid;
+  p.wbraid      = p.wbraid     || touch.wbraid;
+  p.user_agent  = touch.userAgent;
+  p.device      = touch.device;
+  p.browser     = touch.browser;
+  p.os          = touch.os;
+  p.country     = touch.country;
+  p.city_geo    = touch.city;
+  p.region      = touch.region;
+  p.session_id  = sessionId;
+  p.first_touch = firstTouch;
+  p.last_touch  = touch;
 
   // Duplicate check — 4 signals (email, phone, IP, name). Flags when 2+ match.
   let duplicateOf = null;
@@ -77,6 +97,17 @@ module.exports = async function handler(req, res) {
     if(r.status === 'rejected') console.error(`${label} failed:`, r.reason?.message || r.reason);
     else console.log(`${label} OK`);
   });
+
+  // Attach submission to KV session (non-fatal)
+  if (sessionId && mondayId) {
+    await attachSubmission(sessionId, {
+      mondayId,
+      brand:       'stayluxe',
+      submittedAt: new Date().toISOString(),
+      email:       p.email || '',
+      name:        p.full_name || ''
+    });
+  }
 
   return res.status(200).json({ success: true });
 }
@@ -1085,7 +1116,7 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text43__1:           p.utm_adgroup   || '',
     text3__1:            p.utm_term      || '',
     text_mm1d87rp:       p.utm_matchtype || '',
-    text4__1:            p.gclid || p.fbclid || '',
+    text4__1:            p.gclid || p.gbraid || p.wbraid || p.fbclid || '',
     text_mm1jhhe7:       p.landing_page  || '',
     long_text__1:        p.visited_paths || '',
     text_mm2y2ah2:       submitterIp     || '',

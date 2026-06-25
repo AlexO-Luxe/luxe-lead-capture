@@ -1,0 +1,184 @@
+<!--
+  ============================================================
+   Student Luxe / Stay Luxe — Site-wide attribution snippet
+   Drop into Squarespace > Settings > Code Injection > FOOTER
+   so it loads on every page (including reservation forms).
+  ============================================================
+
+  Responsibilities:
+   1. Read URL params (gclid, gbraid, wbraid, utm_*, fbclid) and
+      persist them as sl_* cookies. Both first-touch (sl_first_*)
+      and last-touch (sl_*). 90-day TTL.
+   2. Capture document.referrer once (sl_first_referrer) and
+      window.location.pathname once (sl_first_landing).
+   3. Maintain a session ID (sl_session_id) so server-side KV
+      can stitch multi-touch paths.
+   4. POST a page-view ping to /api/track on every page so the
+      server-side KV stays synced (multi-touch journey).
+   5. Mirror cookies into form hidden inputs on submit so the
+      Vercel endpoint receives them in req.body.
+
+  Why both cookies AND form mirroring?
+   - Cookies survive Safari ITP for first-party HTTPS.
+   - Form mirroring guarantees the submit endpoint sees values
+     even when third-party storage gets clobbered between visits.
+-->
+
+<script>
+(function () {
+  'use strict';
+
+  var COOKIE_DAYS = 90;
+  var TRACK_URL   = 'https://api.studentluxe.co.uk/api/track';
+  //  ^ Replace with your Vercel domain. Could be:
+  //    https://luxe-lead-capture.vercel.app/api/track
+  //  if you don't proxy under studentluxe.co.uk.
+
+  // ── Cookie helpers ─────────────────────────────────────────
+  function setCookie(name, value, days) {
+    if (value == null || value === '') return;
+    var expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = name + '=' + encodeURIComponent(value) +
+      '; expires=' + expires + '; path=/; SameSite=Lax; Secure';
+  }
+  function getCookie(name) {
+    var match = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[2]) : '';
+  }
+  function setFirstTouch(name, value) {
+    if (!getCookie(name) && value) setCookie(name, value, COOKIE_DAYS);
+  }
+
+  // ── Session ID — first visit creates one ───────────────────
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'sl-' + Date.now().toString(36) + '-' +
+      Math.random().toString(36).slice(2, 10);
+  }
+  if (!getCookie('sl_session_id')) setCookie('sl_session_id', uuid(), COOKIE_DAYS);
+
+  // ── URL params → cookies (last-touch + first-touch) ────────
+  var params = new URLSearchParams(window.location.search);
+  var fields = ['gclid', 'gbraid', 'wbraid', 'fbclid',
+                'utm_campaign', 'utm_adgroup', 'utm_term',
+                'utm_matchtype', 'utm_source', 'utm_medium'];
+
+  fields.forEach(function (f) {
+    var v = params.get(f);
+    if (v) {
+      var key = f.indexOf('utm_') === 0 ? 'sl_' + f.slice(4) : 'sl_' + f;
+      // Special-case to keep cookie names consistent with existing handlers.
+      if (f === 'utm_source') key = 'sl_utm_source';
+      if (f === 'utm_medium') key = 'sl_utm_medium';
+      setCookie(key, v, COOKIE_DAYS);          // last-touch
+      setFirstTouch('sl_first_' + key.slice(3), v); // first-touch
+    }
+  });
+
+  // ── First-touch referrer + landing ─────────────────────────
+  if (document.referrer && document.referrer.indexOf(location.host) === -1) {
+    setFirstTouch('sl_first_referrer', document.referrer);
+    setCookie('sl_referrer', document.referrer, COOKIE_DAYS);
+  }
+  setFirstTouch('sl_first_landing_page', location.pathname);
+  setCookie('sl_landing_page', location.pathname, COOKIE_DAYS);
+
+  // ── Visited paths trail (kept small) ───────────────────────
+  var trail = (getCookie('sl_visited_paths') || '').split('|').filter(Boolean);
+  trail.push(location.pathname);
+  if (trail.length > 25) trail = trail.slice(-25);
+  setCookie('sl_visited_paths', trail.join('|'), COOKIE_DAYS);
+
+  // ── Page-view ping (KV session journal) ────────────────────
+  // Fire-and-forget. keepalive lets it survive page unload.
+  try {
+    fetch(TRACK_URL, {
+      method:      'POST',
+      credentials: 'include',
+      keepalive:   true,
+      headers:     { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id:    getCookie('sl_session_id'),
+        gclid:         getCookie('sl_gclid'),
+        gbraid:        getCookie('sl_gbraid'),
+        wbraid:        getCookie('sl_wbraid'),
+        fbclid:        getCookie('sl_fbclid'),
+        utm_campaign:  getCookie('sl_campaign'),
+        utm_adgroup:   getCookie('sl_adgroup'),
+        utm_term:      getCookie('sl_term'),
+        utm_matchtype: getCookie('sl_matchtype'),
+        utm_source:    getCookie('sl_utm_source'),
+        utm_medium:    getCookie('sl_utm_medium'),
+        referrer:      document.referrer || '',
+        landing_page:  getCookie('sl_first_landing_page'),
+        path:          location.pathname
+      })
+    });
+  } catch (e) { /* non-fatal */ }
+
+  // ── Form mirror: inject hidden inputs on every form submit ──
+  // Squarespace forms post directly to Vercel; the cookies will
+  // travel via req.headers.cookie already, but mirroring into
+  // body fields makes the handlers cookie-free if needed.
+  function mirrorIntoForms() {
+    var forms = document.querySelectorAll('form');
+    forms.forEach(function (form) {
+      if (form.dataset.slMirrored === '1') return;
+      form.dataset.slMirrored = '1';
+      var inject = [
+        'session_id', 'gclid', 'gbraid', 'wbraid', 'fbclid',
+        'utm_campaign', 'utm_adgroup', 'utm_term', 'utm_matchtype',
+        'utm_source', 'utm_medium', 'referrer', 'landing_page',
+        'visited_paths',
+        'first_gclid', 'first_gbraid', 'first_wbraid',
+        'first_campaign', 'first_adgroup', 'first_term',
+        'first_referrer', 'first_landing_page', 'first_seen'
+      ];
+      var cookieMap = {
+        session_id:         'sl_session_id',
+        gclid:              'sl_gclid',
+        gbraid:             'sl_gbraid',
+        wbraid:             'sl_wbraid',
+        fbclid:             'sl_fbclid',
+        utm_campaign:       'sl_campaign',
+        utm_adgroup:        'sl_adgroup',
+        utm_term:           'sl_term',
+        utm_matchtype:      'sl_matchtype',
+        utm_source:         'sl_utm_source',
+        utm_medium:         'sl_utm_medium',
+        referrer:           'sl_referrer',
+        landing_page:       'sl_landing_page',
+        visited_paths:      'sl_visited_paths',
+        first_gclid:        'sl_first_gclid',
+        first_gbraid:       'sl_first_gbraid',
+        first_wbraid:       'sl_first_wbraid',
+        first_campaign:     'sl_first_campaign',
+        first_adgroup:      'sl_first_adgroup',
+        first_term:         'sl_first_term',
+        first_referrer:     'sl_first_referrer',
+        first_landing_page: 'sl_first_landing_page',
+        first_seen:         'sl_first_seen'
+      };
+      inject.forEach(function (name) {
+        if (form.querySelector('input[name="' + name + '"]')) return;
+        var input = document.createElement('input');
+        input.type  = 'hidden';
+        input.name  = name;
+        input.value = getCookie(cookieMap[name]) || '';
+        form.appendChild(input);
+      });
+    });
+  }
+
+  if (!getCookie('sl_first_seen')) setCookie('sl_first_seen', new Date().toISOString(), COOKIE_DAYS);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mirrorIntoForms);
+  } else {
+    mirrorIntoForms();
+  }
+  // Re-mirror on dynamic form mounts (Squarespace can lazy-render forms).
+  var mo = new MutationObserver(mirrorIntoForms);
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
+</script>

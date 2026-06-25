@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attribution Dashboard — Student Luxe</title>
+<style>
+  :root {
+    --navy:    #0d1a2e;
+    --gold:    #B8966E;
+    --cream:   #FBF8F2;
+    --ink:     #1a1a1a;
+    --mute:    #9b9b9b;
+    --line:    #2a2a2a;
+    --bg:      #0b0b0d;
+    --card:    #131318;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: #e8e8ea; font-family: 'DM Sans', system-ui, sans-serif; }
+
+  header {
+    padding: 28px 40px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  header h1 {
+    margin: 0;
+    font-family: Baskerville, Georgia, serif;
+    font-weight: 400;
+    font-size: 28px;
+    letter-spacing: 0.2px;
+  }
+  header .gold { color: var(--gold); }
+
+  .controls {
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--mute);
+  }
+  .controls select {
+    background: var(--card);
+    color: #e8e8ea;
+    border: 1px solid var(--line);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: inherit;
+  }
+  .controls button {
+    background: var(--gold);
+    color: var(--navy);
+    border: none;
+    padding: 9px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+  }
+
+  .layout { padding: 24px 40px 60px; display: grid; grid-template-columns: 380px 1fr; gap: 32px; }
+
+  .lead-list { background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-height: 85vh; overflow-y: auto; }
+  .lead-row { padding: 14px 18px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .15s; }
+  .lead-row:hover  { background: #1a1a20; }
+  .lead-row.active { background: #1d1d24; border-left: 3px solid var(--gold); padding-left: 15px; }
+  .lead-row .name  { font-size: 14px; color: #fff; }
+  .lead-row .meta  { font-size: 11px; color: var(--mute); margin-top: 3px; }
+  .channel-pill { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
+  .ch-google    { background: #1a4d8c; color: #b7d4ff; }
+  .ch-meta      { background: #4c2e7a; color: #d6c4f7; }
+  .ch-organic   { background: #1f5e3a; color: #b7e8c8; }
+  .ch-direct    { background: #3a3a3a; color: #d0d0d0; }
+  .ch-referral  { background: #6e4a1f; color: #f0d9b6; }
+  .ch-bing      { background: #2a5e6e; color: #b7e0e8; }
+
+  .detail { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-content: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 22px 24px; }
+  .card h3 {
+    margin: 0 0 18px;
+    font-family: Baskerville, Georgia, serif;
+    font-weight: 400;
+    font-size: 18px;
+    color: #fff;
+    letter-spacing: 0.3px;
+  }
+  .card h3 small { color: var(--gold); font-size: 11px; font-family: 'DM Sans', sans-serif; letter-spacing: 1.5px; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .section-label { color: var(--mute); font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase; margin: 22px 0 10px; }
+  .section-label:first-of-type { margin-top: 0; }
+  .kv { display: grid; grid-template-columns: 110px 1fr; row-gap: 8px; font-size: 12.5px; }
+  .kv .k { color: var(--mute); }
+  .kv .v { color: #fff; text-align: right; word-break: break-word; }
+
+  .path-card { grid-column: 1 / -1; }
+  .path-row { display: grid; grid-template-columns: 110px 1fr 1fr 100px; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .path-row:last-child { border-bottom: none; }
+  .path-row .ts { color: var(--mute); }
+
+  .empty { color: var(--mute); text-align: center; padding: 60px 20px; font-style: italic; }
+  .loading { color: var(--mute); padding: 40px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Attribution <span class="gold">Dashboard</span></h1>
+  <div style="font-size:12px;color:var(--mute);">Student Luxe · Stay Luxe</div>
+</header>
+
+<div class="controls">
+  <span>Window:</span>
+  <select id="days">
+    <option value="1">Today</option>
+    <option value="3">Last 3 days</option>
+    <option value="7" selected>Last 7 days</option>
+    <option value="14">Last 14 days</option>
+    <option value="30">Last 30 days</option>
+  </select>
+  <button id="refresh">Refresh</button>
+  <span id="status"></span>
+</div>
+
+<div class="layout">
+  <div class="lead-list" id="leadList"><div class="loading">Loading…</div></div>
+  <div id="detail" class="detail"><div class="loading">Select a lead</div></div>
+</div>
+
+<script>
+const API = '/api/dashboard-attribution';
+let leads = [], activeId = null;
+
+function channelClass(name) {
+  if (!name) return 'ch-direct';
+  const n = name.toLowerCase();
+  if (n.includes('google ads') || n.includes('google organic')) return 'ch-google';
+  if (n.includes('meta') || n.includes('facebook') || n.includes('instagram')) return 'ch-meta';
+  if (n.includes('bing')) return 'ch-bing';
+  if (n.includes('organic')) return 'ch-organic';
+  if (n.includes('direct')) return 'ch-direct';
+  return 'ch-referral';
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+  } catch { return iso; }
+}
+
+async function load() {
+  const days = document.getElementById('days').value;
+  document.getElementById('status').textContent = 'Loading…';
+  const r = await fetch(`${API}?days=${days}`);
+  const data = await r.json();
+  if (data.error) {
+    document.getElementById('leadList').innerHTML =
+      `<div class="empty">Error: ${escapeHtml(data.error)}</div>`;
+    return;
+  }
+  leads = data.leads || [];
+  document.getElementById('status').textContent = `${leads.length} leads`;
+  renderList();
+  if (leads[0]) select(leads[0].id);
+}
+
+function renderList() {
+  const html = leads.map(l => {
+    const ch = l.lastChannel || 'Direct';
+    return `
+      <div class="lead-row ${l.id === activeId ? 'active' : ''}" data-id="${l.id}">
+        <div class="name">${escapeHtml(l.name)}</div>
+        <div class="meta">
+          ${fmtDate(l.createdAt)} · ${escapeHtml(l.city || '—')}
+          <span class="channel-pill ${channelClass(ch)}" style="margin-left:6px;">${escapeHtml(ch)}</span>
+        </div>
+      </div>`;
+  }).join('') || '<div class="empty">No leads in window.</div>';
+  const el = document.getElementById('leadList');
+  el.innerHTML = html;
+  el.querySelectorAll('.lead-row').forEach(row => {
+    row.addEventListener('click', () => select(row.dataset.id));
+  });
+}
+
+function renderTouchCard(title, sub, touch, channel) {
+  if (!touch) {
+    return `<div class="card"><h3><small>${sub}</small>${title}</h3><div class="empty">No session data captured. Older lead or pre-tracking.</div></div>`;
+  }
+  const pill = `<span class="channel-pill ${channelClass(channel)}">${escapeHtml(channel || '—')}</span>`;
+  return `
+    <div class="card">
+      <h3><small>${sub}</small>${title}</h3>
+      <div class="section-label">Source</div>
+      <div class="kv">
+        <div class="k">Channel</div>     <div class="v">${pill}</div>
+        <div class="k">Campaign</div>    <div class="v">${escapeHtml(touch.campaign || '—')}</div>
+        <div class="k">Ad group</div>    <div class="v">${escapeHtml(touch.adgroup  || '—')}</div>
+        <div class="k">Term</div>        <div class="v">${escapeHtml(touch.term     || '—')}</div>
+        <div class="k">Match</div>       <div class="v">${escapeHtml(touch.matchtype || '—')}</div>
+        <div class="k">Referrer</div>    <div class="v">${escapeHtml(touch.referrer || '—')}</div>
+        <div class="k">Entry page</div>  <div class="v">${escapeHtml(touch.landing  || '—')}</div>
+      </div>
+      <div class="section-label">Environment</div>
+      <div class="kv">
+        <div class="k">Country</div>     <div class="v">${escapeHtml(touch.country || '—')}${touch.city ? ', ' + escapeHtml(touch.city) : ''}</div>
+        <div class="k">Device</div>      <div class="v">${escapeHtml(touch.device  || '—')}</div>
+        <div class="k">Browser</div>     <div class="v">${escapeHtml(touch.browser || '—')}</div>
+        <div class="k">OS</div>          <div class="v">${escapeHtml(touch.os      || '—')}</div>
+      </div>
+      <div class="section-label">Click IDs</div>
+      <div class="kv">
+        <div class="k">gclid</div>       <div class="v" style="font-size:10px;">${touch.gclid  ? escapeHtml(touch.gclid.slice(0,40)) + '…' : '—'}</div>
+        <div class="k">gbraid</div>      <div class="v" style="font-size:10px;">${touch.gbraid ? escapeHtml(touch.gbraid.slice(0,40)) + '…' : '—'}</div>
+        <div class="k">wbraid</div>      <div class="v" style="font-size:10px;">${touch.wbraid ? escapeHtml(touch.wbraid.slice(0,40)) + '…' : '—'}</div>
+      </div>
+      <div class="section-label">Timing</div>
+      <div class="kv">
+        <div class="k">Timestamp</div>   <div class="v">${fmtDate(touch.ts)}</div>
+      </div>
+    </div>`;
+}
+
+async function select(id) {
+  activeId = id;
+  document.querySelectorAll('.lead-row').forEach(r => {
+    r.classList.toggle('active', r.dataset.id === id);
+  });
+  const lead = leads.find(l => l.id === id);
+  if (!lead) return;
+  const r = await fetch(`${API}?mondayId=${id}`);
+  const data = await r.json();
+  const session = data.session || {};
+  const first = session.first || lead.first;
+  const last  = session.last  || lead.last;
+
+  const detail = document.getElementById('detail');
+  detail.innerHTML = `
+    ${renderTouchCard('First Click Attribution', 'Acquisition', first, lead.firstChannel)}
+    ${renderTouchCard('Last Click Attribution',  'Conversion',  last,  lead.lastChannel)}
+    ${renderPathCard(session.touches || [])}
+  `;
+}
+
+function renderPathCard(touches) {
+  if (!touches.length) return '';
+  const rows = touches.map(t => `
+    <div class="path-row">
+      <div class="ts">${fmtDate(t.ts)}</div>
+      <div>${escapeHtml(t.source || '—')}</div>
+      <div>${escapeHtml(t.campaign || t.referrer || '—')}</div>
+      <div>${escapeHtml(t.path || '—')}</div>
+    </div>`).join('');
+  return `
+    <div class="card path-card">
+      <h3><small>Journey</small>Multi-touch path (${touches.length})</h3>
+      ${rows}
+    </div>`;
+}
+
+document.getElementById('refresh').addEventListener('click', load);
+document.getElementById('days').addEventListener('change', load);
+load();
+</script>
+</body>
+</html>
