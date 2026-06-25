@@ -16,7 +16,7 @@ const RESEND_API  = 'https://api.resend.com/emails';
 const MONDAY_API  = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
-const { buildTouch, getSession, attachSubmission } = require('./_attribution.js');
+const { buildTouch, getSession, attachSubmission, classifyTouch } = require('./_attribution.js');
 
 // ──────────────────────────────────────────────────────────────
 //  STAY LUXE BRAND CONFIG  (edit here only)
@@ -1117,6 +1117,14 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text3__1:            p.utm_term      || '',
     text_mm1d87rp:       p.utm_matchtype || '',
     text4__1:            p.gclid || p.gbraid || p.wbraid || p.fbclid || '',
+    // Attribution columns (added 2026-06-25)
+    text_mm4n6987:       p.device     || '',                                                       // device
+    text_mm4n61bc:       p.country    || '',                                                       // country
+    text_mm4nkhk0:       p.first_touch ? classifyTouch(p.first_touch) : '',                        // first_channel
+    text_mm4ntp4n:       (p.first_touch && p.first_touch.campaign) || p.first_campaign || '',      // first_campaign
+    text_mm4ncd41:       p.gbraid     || '',                                                       // gbraid
+    text_mm4n9t2x:       p.wbraid     || '',                                                       // wbraid
+    text_mm4n9415:       p.session_id || '',                                                       // session_id
     text_mm1jhhe7:       p.landing_page  || '',
     long_text__1:        p.visited_paths || '',
     text_mm2y2ah2:       submitterIp     || '',
