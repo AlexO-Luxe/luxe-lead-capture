@@ -91,10 +91,13 @@
 
   // ── Page-view ping (KV session journal) ────────────────────
   // Fire-and-forget. keepalive lets it survive page unload.
+  // credentials: 'omit' so we don't trigger a credentialed CORS preflight
+  // that the wildcard ACAO would reject. The session_id is in the body
+  // anyway, so we don't need cookies traveling on the request.
   try {
     fetch(TRACK_URL, {
       method:      'POST',
-      credentials: 'include',
+      credentials: 'omit',
       keepalive:   true,
       headers:     { 'Content-Type': 'application/json' },
       body: JSON.stringify({
