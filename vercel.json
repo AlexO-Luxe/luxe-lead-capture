@@ -4,6 +4,10 @@
     {
       "path": "/api/weekly-summary",
       "schedule": "0 9 * * 5"
+    },
+    {
+      "path": "/api/sync-customer-match",
+      "schedule": "0 6 * * 1"
     }
   ]
 }
