@@ -54,7 +54,7 @@ module.exports = async function handler(req, res) {
       query {
         items(ids: [${itemId}]) {
           id name created_at
-          column_values(ids: ["text4__1", "color_mkxk8y67", "mirror28__1", "email", "phone_1"]) {
+          column_values(ids: ["text4__1", "color_mkxk8y67", "mirror28__1", "email", "phone_1", "text_mm4ncd41", "text_mm4n9t2x"]) {
             id text value
           }
         }
@@ -79,8 +79,10 @@ module.exports = async function handler(req, res) {
     const timestamp  = cols['mirror28__1'] || item.created_at;
     const email      = cols['email'];
     const phone      = cols['phone_1'];
+    const gbraid     = cols['text_mm4ncd41'];
+    const wbraid     = cols['text_mm4n9t2x'];
 
-    console.log('Item data:', { itemId, gclid, leadSource, timestamp, hasEmail: !!email, hasPhone: !!phone });
+    console.log('Item data:', { itemId, gclid, gbraid, wbraid, leadSource, timestamp, hasEmail: !!email, hasPhone: !!phone });
 
     // ── GUARD: Only fire for PPC leads ────────────────────────
     if (!leadSource.toLowerCase().includes('ppc')) {
@@ -91,6 +93,8 @@ module.exports = async function handler(req, res) {
     // Upload — gclid optional, matched via email/phone when absent
     await uploadConversion({
       gclid,
+      gbraid,
+      wbraid,
       email,
       phone,
       timestamp,
@@ -111,7 +115,7 @@ module.exports = async function handler(req, res) {
 // ──────────────────────────────────────────────────────────────
 //  GOOGLE ADS CONVERSION UPLOAD
 // ──────────────────────────────────────────────────────────────
-async function uploadConversion({ gclid, email, phone, timestamp, value, currency, actionId }) {
+async function uploadConversion({ gclid, gbraid, wbraid, email, phone, timestamp, value, currency, actionId }) {
 
   // Get fresh access token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -148,20 +152,24 @@ async function uploadConversion({ gclid, email, phone, timestamp, value, currenc
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
   const endpoint         = `https://googleads.googleapis.com/v21/customers/${customerId}:uploadClickConversions`;
 
-  // Build conversion — gclid optional
+  // gclid/gbraid/wbraid are a oneof on ClickConversion v21.
+  // Priority: gclid > gbraid (iOS web) > wbraid (iOS app).
   const conversion = {
     conversionAction,
-    conversionDateTime: conversionTime,
-    conversionValue:    value,
-    currencyCode:       currency,
+    conversionDateTime:    conversionTime,
+    conversionValue:       value,
+    currencyCode:          currency,
+    conversionEnvironment: 'WEB',
     userIdentifiers: [
       ...(hashedEmail ? [{ hashedEmail }] : []),
       ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
     ]
   };
-  if (gclid) conversion.gclid = gclid;
+  if      (gclid)  conversion.gclid  = gclid;
+  else if (gbraid) conversion.gbraid = gbraid;
+  else if (wbraid) conversion.wbraid = wbraid;
 
-  console.log('Uploading:', { conversionAction, hasGclid: !!gclid, hasEmail: !!hashedEmail, hasPhone: !!hashedPhone, value });
+  console.log('Uploading:', { conversionAction, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid, hasEmail: !!hashedEmail, hasPhone: !!hashedPhone, value });
 
   const gadsRes = await fetch(endpoint, {
     method:  'POST',

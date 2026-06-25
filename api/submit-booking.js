@@ -50,7 +50,7 @@ module.exports = async function handler(req, res) {
             ... on BoardRelationValue {
               linked_items {
                 id
-                column_values(ids: ["email", "phone_1"]) { id text }
+                column_values(ids: ["email", "phone_1", "text_mm4ncd41", "text_mm4n9t2x"]) { id text }
               }
             }
           }
@@ -80,18 +80,20 @@ module.exports = async function handler(req, res) {
     const isPPC       = (leadSource || '').toLowerCase().includes('ppc');
     const hasGclid    = !!gclid;
 
-    // Extract email + phone from linked lead for enhanced matching
+    // Extract email + phone + click IDs from linked lead for enhanced matching
     const relationCol  = (item.relation || []).find(c => c.id === 'link_to_leads26');
     const linkedLead   = relationCol?.linked_items?.[0];
-    let leadEmail = '', leadPhone = '';
+    let leadEmail = '', leadPhone = '', leadGbraid = '', leadWbraid = '';
     if (linkedLead) {
       linkedLead.column_values.forEach(c => {
-        if (c.id === 'email')   leadEmail = c.text || '';
-        if (c.id === 'phone_1') leadPhone = c.text || '';
+        if (c.id === 'email')          leadEmail  = c.text || '';
+        if (c.id === 'phone_1')        leadPhone  = c.text || '';
+        if (c.id === 'text_mm4ncd41')  leadGbraid = c.text || '';
+        if (c.id === 'text_mm4n9t2x')  leadWbraid = c.text || '';
       });
     }
 
-    console.log('Item data:', { itemId, bookingName, status, gclid, leadSource, revenueRaw, leadEmail: leadEmail ? '✓' : '✗', leadPhone: leadPhone ? '✓' : '✗' });
+    console.log('Item data:', { itemId, bookingName, status, gclid, leadSource, revenueRaw, leadEmail: leadEmail ? '✓' : '✗', leadPhone: leadPhone ? '✓' : '✗', leadGbraid: leadGbraid ? '✓' : '✗', leadWbraid: leadWbraid ? '✓' : '✗' });
 
     // ── TRIGGER A: Status changed to Confirmed Booking ────────
     if (isStatusTrigger) {
@@ -108,7 +110,7 @@ module.exports = async function handler(req, res) {
 
       if (cleanValue > 0 && isPPC) {
         console.log('Status confirmed + revenue present, uploading. Value: £' + cleanValue);
-        const result = await uploadConversion({ gclid, email: leadEmail, phone: leadPhone, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+        const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
         await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
         return res.status(200).json({ success: true, itemId, value: cleanValue });
       }
@@ -130,7 +132,7 @@ module.exports = async function handler(req, res) {
       }
 
       console.log('Revenue filled for PPC booking, uploading. Value: £' + cleanValue);
-      const result = await uploadConversion({ gclid, email: leadEmail, phone: leadPhone, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+      const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
       await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
       return res.status(200).json({ success: true, itemId, value: cleanValue });
     }
@@ -144,7 +146,7 @@ module.exports = async function handler(req, res) {
 // ──────────────────────────────────────────────────────────────
 //  GOOGLE ADS CONVERSION UPLOAD
 // ──────────────────────────────────────────────────────────────
-async function uploadConversion({ gclid, email, phone, timestamp, value, currency, actionId }) {
+async function uploadConversion({ gclid, gbraid, wbraid, email, phone, timestamp, value, currency, actionId }) {
 
   // Get fresh access token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -181,20 +183,25 @@ async function uploadConversion({ gclid, email, phone, timestamp, value, currenc
   const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
   const endpoint         = `https://googleads.googleapis.com/v21/customers/${customerId}:uploadClickConversions`;
 
-  // Build conversion — gclid optional, matched via email/phone when absent
+  // Build conversion — gclid/gbraid/wbraid are a oneof on ClickConversion v21.
+  // Priority: gclid (best signal) > gbraid (iOS web) > wbraid (iOS app).
+  // userIdentifiers (hashed email/phone) act as the enhanced-conversions fallback.
   const conversion = {
     conversionAction,
-    conversionDateTime: conversionTime,
-    conversionValue:    value,
-    currencyCode:       currency,
+    conversionDateTime:    conversionTime,
+    conversionValue:       value,
+    currencyCode:          currency,
+    conversionEnvironment: 'WEB',
     userIdentifiers: [
       ...(hashedEmail ? [{ hashedEmail }] : []),
       ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
     ]
   };
-  if (gclid) conversion.gclid = gclid;
+  if      (gclid)  conversion.gclid  = gclid;
+  else if (gbraid) conversion.gbraid = gbraid;
+  else if (wbraid) conversion.wbraid = wbraid;
 
-  console.log('Uploading conversion:', { endpoint, conversionAction, hasGclid: !!gclid, hasEmail: !!hashedEmail, hasPhone: !!hashedPhone, conversionTime, value });
+  console.log('Uploading conversion:', { endpoint, conversionAction, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid, hasEmail: !!hashedEmail, hasPhone: !!hashedPhone, conversionTime, value });
 
   const gadsRes = await fetch(endpoint, {
     method:  'POST',
