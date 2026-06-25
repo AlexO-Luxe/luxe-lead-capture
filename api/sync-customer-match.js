@@ -172,7 +172,7 @@ async function findOrCreateUserList (customerId, headers) {
     })
   });
   const text = await r.text();
-  if (!r.ok) throw new Error(`User list search HTTP ${r.status}: ${text.slice(0, 300)}`);
+  if (!r.ok) throw new Error(`User list search HTTP ${r.status}: ${text}`);
   let data;
   try { data = JSON.parse(text); } catch { throw new Error('Non-JSON: ' + text.slice(0, 200)); }
   const results = (Array.isArray(data) ? data : [data]).flatMap(s => s.results || []);
@@ -197,7 +197,7 @@ async function findOrCreateUserList (customerId, headers) {
     })
   });
   const ctext = await cr.text();
-  if (!cr.ok) throw new Error(`User list create HTTP ${cr.status}: ${ctext.slice(0, 300)}`);
+  if (!cr.ok) throw new Error(`User list create HTTP ${cr.status}: ${ctext}`);
   const cdata = JSON.parse(ctext);
   return cdata.results?.[0]?.resourceName;
 }
@@ -215,7 +215,7 @@ async function createJob (customerId, headers, listResource) {
     })
   });
   const text = await r.text();
-  if (!r.ok) throw new Error(`Job create HTTP ${r.status}: ${text.slice(0, 300)}`);
+  if (!r.ok) throw new Error(`Job create HTTP ${r.status}: ${text}`);
   const j = JSON.parse(text);
   return j.resourceName;
 }
@@ -245,7 +245,7 @@ async function runJob (customerId, headers, jobResource) {
   const r = await fetch(url, { method: 'POST', headers });
   if (!r.ok) {
     const text = await r.text();
-    throw new Error(`Run job HTTP ${r.status}: ${text.slice(0, 300)}`);
+    throw new Error(`Run job HTTP ${r.status}: ${text}`);
   }
 }
 
