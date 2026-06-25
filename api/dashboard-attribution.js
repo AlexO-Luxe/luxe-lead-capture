@@ -70,30 +70,45 @@ module.exports = async function handler(req, res) {
 };
 
 async function fetchRecentLeads(since) {
-  // Pull last 500 leads, filter by created_at >= since.
-  const query = `query {
-    boards(ids: [${LEADS_BOARD}]) {
-      items_page(limit: 500) {
-        items {
-          id name created_at
-          column_values(ids: ["email", "color_mkxk8y67", "text_mm1c3b5w", "text8"]) {
-            id text
+  // Monday items_page returns oldest-first by ID. Cursor-paginate and
+  // accumulate everything, then filter to last N days. Cap iterations
+  // so an unbounded board can't hang the request.
+  const MAX_PAGES = 20;          // 20 × 500 = up to 10k leads scanned
+  const PAGE_SIZE = 500;
+
+  let all = [], cursor = null;
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const cursorArg = cursor ? `, cursor: "${cursor}"` : '';
+    const query = `query {
+      boards(ids: [${LEADS_BOARD}]) {
+        items_page(limit: ${PAGE_SIZE}${cursorArg}) {
+          cursor
+          items {
+            id name created_at
+            column_values(ids: ["email", "color_mkxk8y67", "text_mm1c3b5w", "text8"]) {
+              id text
+            }
           }
         }
       }
-    }
-  }`;
+    }`;
 
-  const r = await fetch(MONDAY_API, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
-    body:    JSON.stringify({ query })
-  });
-  const data = await r.json();
-  if (data.errors) throw new Error('Monday: ' + JSON.stringify(data.errors));
+    const r = await fetch(MONDAY_API, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+      body:    JSON.stringify({ query })
+    });
+    const data = await r.json();
+    if (data.errors) throw new Error('Monday: ' + JSON.stringify(data.errors));
 
-  const items = data?.data?.boards?.[0]?.items_page?.items || [];
-  return items
+    const page = data?.data?.boards?.[0]?.items_page;
+    const items = page?.items || [];
+    all = all.concat(items);
+    cursor = page?.cursor || null;
+    if (!cursor) break;
+  }
+
+  return all
     .filter(i => new Date(i.created_at) >= since)
     .map(i => {
       const cols = {};
