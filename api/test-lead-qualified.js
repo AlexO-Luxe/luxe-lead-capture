@@ -76,10 +76,12 @@ module.exports = async function handler(req, res) {
     }
 
     // Return the rendered email so it can be eyeballed in a browser.
+    // Header values must be ASCII, so the subject (which contains a checkmark
+    // and middle dots) is URI-encoded; the full subject is in the email's title.
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('X-Lead-Item-Id', String(item.id));
-    res.setHeader('X-Email-Subject', subject);
-    if (sent) res.setHeader('X-Resend-Id', sent.id || 'sent');
+    res.setHeader('X-Email-Subject', encodeURIComponent(subject));
+    if (sent) res.setHeader('X-Resend-Id', String(sent.id || 'sent'));
     return res.status(200).send(html);
 
   } catch (err) {
