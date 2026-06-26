@@ -39,7 +39,8 @@ const COLS = [
   'color_mkxk8y67',    // lead source
   'dropdown_mkxkfbff', // lead channel
   'text_mm1c3b5w',     // campaign
-  'text43__1',         // adgroup
+  'text3__1',          // utm_term
+  'text_mm4nkhk0',     // first channel (first touch)
   'long_text__1',      // visited paths
   'people_1',          // assigned to
   'status',            // lead status
@@ -181,7 +182,8 @@ function mapItemToLead(item, q) {
   const assigned = colText(item, 'people_1');
   const source   = colText(item, 'color_mkxk8y67');
   const campaign = colText(item, 'text_mm1c3b5w');
-  const adgroup  = colText(item, 'text43__1');
+  const term     = colText(item, 'text3__1');         // utm_term (use instead of adgroup)
+  const firstCh  = colText(item, 'text_mm4nkhk0');    // first channel / first touch
   const city     = colText(item, 'text8');
   const areas    = colText(item, 'dropdown19');
   const phone    = colText(item, 'phone_1');
@@ -197,8 +199,9 @@ function mapItemToLead(item, q) {
     assignedTo:   assigned || 'Unassigned',
     assignedToRole: 'Reservations',
 
-    source:       source || 'Unknown',
-    campaign:     [campaign, adgroup].filter(Boolean).join(' · '),
+    source:          source || 'Unknown',
+    sourceFirstTouch: firstCh,
+    campaign:        [campaign, term].filter(Boolean).join(' · '),
 
     nights:       nightsBetween(checkIn, checkOut),
     weeklyRate:   parseRate(colText(item, 'budget_per_week')),
