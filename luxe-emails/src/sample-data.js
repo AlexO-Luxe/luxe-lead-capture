@@ -15,7 +15,6 @@ module.exports = {
   source:         'Google Ads · PPC',
   campaign:       'London · Marylebone · Sept',
 
-  estValue:       15600,
   nights:         91,
   weeklyRate:     1200,
   budgetNote:     'flex to £1,400',
@@ -25,14 +24,16 @@ module.exports = {
   checkOut:       '2026-12-01',
   location:       'Marylebone, London W1',
 
-  leadScore:      88,
-  scoreLabel:     'Hot · high intent',
   teamAvgCooking: '3d 14h',
 
-  speedToContact: '18 min',
-  touches:        '7 page views',
-  firstTouch:     'Organic search',
-  journey:        '/luxury-apartments-london → /marylebone → /our-reviews → /marylebone → hero form',
+  // Leads board "visited paths" column, in order
+  visitedPaths: [
+    '/luxury-apartments-london',
+    '/marylebone',
+    '/our-reviews',
+    '/marylebone',
+    'hero form'
+  ],
 
   notes: [
     { author: 'Sofia Marchetti', at: '24 Jun, 09:32', kind: 'open',

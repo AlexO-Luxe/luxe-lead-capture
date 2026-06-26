@@ -63,10 +63,10 @@ function gbp(n) {
  *   createdAt, qualifiedAt            (ISO strings / Date)
  *   qualifiedBy, assignedTo, assignedToRole
  *   source, campaign                  (e.g. "Google Ads / PPC", "London / Marylebone / Sept")
- *   estValue, nights, weeklyRate, budgetNote, guests
+ *   nights, weeklyRate, budgetNote, guests
  *   checkIn, checkOut, location
- *   leadScore (0-100), scoreLabel     ("Hot"), teamAvgCooking ("3d 14h")
- *   speedToContact, touches, firstTouch, journey
+ *   teamAvgCooking ("3d 14h")
+ *   visitedPaths: string[]            (the Leads board "visited paths" column, in order)
  *   notes: [{ author, at, text, kind }]   kind: 'open' | 'mid' | 'qualified'
  *   nextAction, nextActionDue
  *   mondayUrl, whatsappUrl
@@ -98,6 +98,21 @@ function renderLeadQualified(lead) {
     ? `<p style="margin:5px 0 0;font-size:10.5px;color:${BRAND.greenL};">vs team avg ${escHtml(lead.teamAvgCooking)}</p>`
     : '';
 
+  // Visited paths block, sourced from the Leads board "visited paths" column.
+  const paths = Array.isArray(lead.visitedPaths) ? lead.visitedPaths.filter(Boolean) : [];
+  const pathsHtml = paths.length ? `
+  <tr><td style="background:#ffffff;padding:18px 32px 0;" class="le-pad">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border-radius:10px;border-left:3px solid ${BRAND.gold};"><tr><td style="padding:13px 18px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:7px;"><tr>
+        <td><p style="margin:0;font-size:9.5px;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.muted};">Visited Paths</p></td>
+        <td style="text-align:right;"><p style="margin:0;font-size:10px;color:${BRAND.muted};">${paths.length} ${paths.length === 1 ? 'page' : 'pages'} before enquiry</p></td>
+      </tr></table>
+      <p style="margin:0;font-size:12px;color:#3a3a3a;line-height:1.7;">${paths.map((p, i) =>
+        `<span style="color:${i === paths.length - 1 ? BRAND.ink : BRAND.gold};font-weight:${i === paths.length - 1 ? '600' : '400'};">${escHtml(p)}</span>`
+      ).join(' &rarr; ')}</p>
+    </td></tr></table>
+  </td></tr>` : '';
+
   const phoneDigits = String(lead.contactPhone || '').replace(/[^\d+]/g, '');
 
   const html = `<!DOCTYPE html>
@@ -118,7 +133,7 @@ function renderLeadQualified(lead) {
 </style>
 </head>
 <body style="margin:0;padding:0;background:${BRAND.cream};font-family:'DM Sans',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escHtml(lead.guestName)} qualified by ${escHtml(lead.qualifiedBy)} &middot; cooked in ${cookingTime} &middot; est. ${gbp(lead.estValue)} &middot; ${escHtml(lead.location)}, ${escHtml(lead.nights)} nights</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escHtml(lead.guestName)} qualified by ${escHtml(lead.qualifiedBy)} &middot; cooked in ${cookingTime} &middot; assigned to ${escHtml(lead.assignedTo)} &middot; ${escHtml(lead.location)}, ${escHtml(lead.nights)} nights</div>
 
 <table width="100%" cellpadding="0" cellspacing="0" class="le-wrap" style="background:${BRAND.cream};padding:32px 16px;">
 <tr><td align="center">
@@ -138,23 +153,25 @@ function renderLeadQualified(lead) {
     </tr></table>
   </td></tr>
 
-  <!-- HERO METRICS -->
+  <!-- HERO METRIC -->
   <tr><td style="background:${BRAND.navy2};padding:0;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td class="le-metric" width="33.33%" style="padding:18px 20px;border-right:0.5px solid rgba(184,150,110,0.22);vertical-align:top;">
+      <td class="le-metric" width="52%" style="padding:18px 24px;border-right:0.5px solid rgba(184,150,110,0.22);vertical-align:top;">
         <p style="margin:0 0 7px;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.42);">Lead Cooking Time</p>
-        <p style="margin:0;font-family:Georgia,serif;font-size:25px;font-weight:400;color:#f0ece2;letter-spacing:-0.02em;line-height:1;">${escHtml(cookingTime)}</p>
+        <p style="margin:0;font-family:Georgia,serif;font-size:30px;font-weight:400;color:#f0ece2;letter-spacing:-0.02em;line-height:1;">${escHtml(cookingTime)}</p>
         ${fasterLine}
       </td>
-      <td class="le-metric" width="33.33%" style="padding:18px 20px;border-right:0.5px solid rgba(184,150,110,0.22);vertical-align:top;">
-        <p style="margin:0 0 7px;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.42);">Est. Booking Value</p>
-        <p style="margin:0;font-family:Georgia,serif;font-size:25px;font-weight:400;color:#f0ece2;letter-spacing:-0.02em;line-height:1;">${gbp(lead.estValue)}</p>
-        <p style="margin:5px 0 0;font-size:10.5px;color:rgba(255,255,255,0.45);">${escHtml(lead.nights)} nights &middot; ${gbp(lead.weeklyRate)}/wk</p>
-      </td>
-      <td class="le-metric" width="33.33%" style="padding:18px 20px;vertical-align:top;">
-        <p style="margin:0 0 7px;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.42);">Lead Score</p>
-        <p style="margin:0;font-family:Georgia,serif;font-size:25px;font-weight:400;color:#f0ece2;letter-spacing:-0.02em;line-height:1;">${escHtml(lead.leadScore)}<span style="font-size:14px;color:rgba(255,255,255,0.4);">/100</span></p>
-        <p style="margin:5px 0 0;font-size:10.5px;color:${BRAND.amber};">&#9650; ${escHtml(lead.scoreLabel)}</p>
+      <td class="le-metric" width="48%" style="padding:18px 24px;vertical-align:top;">
+        <p style="margin:0 0 9px;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.42);">From Enquiry to Qualified</p>
+        <table cellpadding="0" cellspacing="0"><tr>
+          <td style="vertical-align:middle;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.5);"></span></td>
+          <td style="padding-left:9px;"><p style="margin:0;font-size:12px;color:rgba(255,255,255,0.8);"><span style="color:rgba(255,255,255,0.45);">Created</span>&nbsp;&nbsp;${fmtDateTime(lead.createdAt)}</p></td>
+        </tr></table>
+        <div style="width:1px;height:9px;background:rgba(184,150,110,0.4);margin:1px 0 1px 3px;"></div>
+        <table cellpadding="0" cellspacing="0"><tr>
+          <td style="vertical-align:middle;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${BRAND.greenL};"></span></td>
+          <td style="padding-left:9px;"><p style="margin:0;font-size:12px;color:rgba(255,255,255,0.8);"><span style="color:rgba(255,255,255,0.45);">Qualified</span>&nbsp;&nbsp;${fmtDateTime(lead.qualifiedAt)}</p></td>
+        </tr></table>
       </td>
     </tr></table>
   </td></tr>
@@ -208,17 +225,8 @@ function renderLeadQualified(lead) {
     </table>
   </td></tr>
 
-  <!-- SPEED / JOURNEY -->
-  <tr><td style="background:#ffffff;padding:18px 32px 0;" class="le-pad">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border-radius:10px;border-left:3px solid ${BRAND.gold};"><tr><td style="padding:13px 18px;">
-      <table width="100%" cellpadding="0" cellspacing="0"><tr>
-        <td class="le-stack" width="33%" style="vertical-align:top;"><p style="margin:0 0 2px;font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:${BRAND.muted};">Speed to first contact</p><p style="margin:0;font-size:14px;color:${BRAND.green};font-weight:600;">${escHtml(lead.speedToContact)}</p></td>
-        <td class="le-stack" width="33%" style="vertical-align:top;"><p style="margin:0 0 2px;font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:${BRAND.muted};">Touches before form</p><p style="margin:0;font-size:14px;color:${BRAND.ink};font-weight:600;">${escHtml(lead.touches)}</p></td>
-        <td class="le-stack" width="34%" style="vertical-align:top;"><p style="margin:0 0 2px;font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:${BRAND.muted};">First touch</p><p style="margin:0;font-size:14px;color:${BRAND.ink};font-weight:600;">${escHtml(lead.firstTouch)}</p></td>
-      </tr></table>
-      ${lead.journey ? `<p style="margin:10px 0 0;font-size:11px;color:${BRAND.muted};line-height:1.6;"><span style="color:${BRAND.gold};font-weight:600;">Journey:</span> ${escHtml(lead.journey)}</p>` : ''}
-    </td></tr></table>
-  </td></tr>
+  <!-- VISITED PATHS (leads board column) -->
+  ${pathsHtml}
 
   <!-- SALES PROGRESS NOTES -->
   <tr><td style="background:#ffffff;padding:24px 32px 0;" class="le-pad">
@@ -252,7 +260,7 @@ function renderLeadQualified(lead) {
 </table>
 </body></html>`;
 
-  const subject = `✓ Qualified: ${lead.guestName} · ${gbp(lead.estValue)} · cooked in ${cookingTime} · ${lead.assignedTo}`;
+  const subject = `✓ Qualified: ${lead.guestName} · cooked in ${cookingTime} · ${lead.assignedTo}`;
 
   return { subject, html };
 }

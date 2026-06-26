@@ -42,29 +42,36 @@ seconds, matched to the existing Student Luxe brand (navy `#0d1a2e`, gold
 Requested:
 
 - **Lead cooking time** - time from lead created to qualified, with a
-  comparison against the team average.
+  comparison against the team average, plus a created-to-qualified mini
+  timeline in the hero.
 - **Lead source** - channel plus the campaign / adgroup it came from.
 - **Person assigned** - the lead owner, shown distinctly from who qualified it.
 - **Sales progress notes** - the full thread of Monday updates as a timeline.
 
 Added (answers to "what else could it have"):
 
-- **Est. booking value** - nights x weekly rate, the number that says how much
-  this lead is worth chasing.
-- **Lead score / temperature** - Hot / Warm / Cold at a glance.
-- **Speed to first contact** - how fast the team responded after submission.
 - **Qualified by vs assigned to** - accountability on both sides.
 - **Stay details** - check-in, check-out, length of stay, guests, location,
   budget (with flex), contact number.
-- **Attribution** - first touch, touch count, and the page journey to the form.
+- **Visited paths** - the `visited paths` column from the Leads board, rendered
+  as the page journey that led to the enquiry.
 - **Next action + due date** - what happens next so the lead does not stall.
 - **One-tap CTAs** - Open in Monday, Call guest, WhatsApp guest.
-- **Smart subject line** - guest, value, cooking time, and owner up front.
+- **Smart subject line** - guest, cooking time, and owner up front.
+
+### Deliberately left out
+
+These are not reliably known at the moment the lead is qualified, so they were
+dropped to keep every figure honest:
+
+- Estimated booking value (not entered until later in the pipeline).
+- Lead score / temperature.
+- Speed to first contact.
 
 ### Further ideas (not yet built)
 
 - Cold-lead SLA badge if cooking time crosses a threshold.
-- Sparkline of the guest's page views over time.
+- Est. booking value once it is captured later in the pipeline.
 - "Similar booked leads" for pricing confidence.
 - Brand switch (Stay Luxe palette) driven by a `brand` field, to keep parity
   with the two submit handlers in `luxe-lead-capture`.
