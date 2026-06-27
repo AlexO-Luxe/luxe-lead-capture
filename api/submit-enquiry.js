@@ -8,6 +8,7 @@ const MONDAY_API   = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch } = require('./_attribution.js');
+const { sendGadsAlert } = require('./_alert.js');
 
 // ── IP BLOCKLIST ──────────────────────────────────────────────
 // Add spammer IPs here. Returns fake success so they don't know they're blocked.
@@ -104,6 +105,18 @@ module.exports = async function handler(req, res) {
     console.log('Google Ads conversion uploaded OK');
   } catch(err) {
     console.error('Google Ads conversion failed (non-fatal):', err.message);
+    sendGadsAlert({
+      source:  'Student Luxe enquiry',
+      action:  'Step 1 NEW (server-side enquiry)',
+      payload: {
+        email:     p.email,
+        name:      p.full_name,
+        mondayId,
+        hasGclid:  !!p.gclid,
+        hasGbraid: !!p.gbraid
+      },
+      error:   err.message
+    });
   }
 
   // ── Attach submission summary to KV session (non-fatal) ───

@@ -4,6 +4,7 @@
 // ============================================================
 
 const MONDAY_API = 'https://api.monday.com/v2';
+const { sendGadsAlert } = require('./_alert.js');
 
 const POTENTIAL_CONFIG = {
   'high potential': {
@@ -108,6 +109,12 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('submit-high-potential error:', err.message);
+    sendGadsAlert({
+      source:  'Student Luxe lead-potential',
+      action:  'High / Moderate Potential',
+      payload: { mondayId: req.body?.event?.pulseId || req.body?.event?.itemId },
+      error:   err.message
+    });
     return res.status(200).json({ error: err.message });
   }
 };

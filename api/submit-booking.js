@@ -4,6 +4,7 @@
 // ============================================================
 
 const MONDAY_API = 'https://api.monday.com/v2';
+const { sendGadsAlert } = require('./_alert.js');
 
 module.exports = async function handler(req, res) {
 
@@ -139,6 +140,12 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('submit-booking error:', err.message);
+    sendGadsAlert({
+      source:  'Student Luxe booking',
+      action:  'Confirmed Booking',
+      payload: { mondayId: req.body?.event?.pulseId || req.body?.event?.itemId },
+      error:   err.message
+    });
     return res.status(200).json({ error: err.message });
   }
 };
