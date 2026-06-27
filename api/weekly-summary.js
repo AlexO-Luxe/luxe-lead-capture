@@ -87,7 +87,7 @@ async function fetchBookingData(since, until) {
           items_page(limit: 500${pageArg}) {
             cursor
             items {
-              id name updated_at
+              id name created_at updated_at
               group { title }
               column_values(ids: ["numeric_mm1ge9h4", "status", "mirror21__1", "lookup_mkxtxk48", "date9"]) {
                 id text
@@ -115,11 +115,12 @@ async function fetchBookingData(since, until) {
       const source = (cols['lookup_mkxtxk48'] || '').toLowerCase();
       const isPPC  = source.includes('ppc');
       if (!rev || !isPPC) return false;
-      // Filter by updated_at: best proxy for when the booking was
-      // confirmed / revenue was submitted. date9 is the check-in
-      // date which is almost always in the future and unsuitable.
-      const updated = new Date(item.updated_at);
-      return updated >= since && updated < until;
+      // Filter by created_at: when the booking row was first created
+      // in Monday. updated_at over-counts because every status change
+      // (Confirmed → Paying → Payment Complete) touches the row.
+      // date9 is the future check-in date so also unsuitable.
+      const created = new Date(item.created_at);
+      return created >= since && created < until;
     })
     .map(item => {
       const cols = colMap(item);
