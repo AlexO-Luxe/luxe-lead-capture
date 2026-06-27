@@ -124,12 +124,15 @@ async function fetchBookingData(since, until) {
       const source = (cols['lookup_mkxtxk48'] || '').toLowerCase();
       const isPPC  = source.includes('ppc');
       if (!rev || !isPPC) return false;
-      // Filter by created_at: when the booking row was first created
-      // in Monday. updated_at over-counts because every status change
-      // (Confirmed → Paying → Payment Complete) touches the row.
-      // date9 is the future check-in date so also unsuitable.
-      const created = new Date(item.created_at);
-      return created >= since && created < until;
+      // Filter by date9: the booking's contractual close / check-in
+      // date. This is how Alex accounts revenue — a booking belongs
+      // to the month its close date falls in, regardless of when the
+      // Monday row was first created or last updated.
+      const closeRaw = cols['date9'];
+      if (!closeRaw) return false;
+      const close = new Date(closeRaw);
+      if (isNaN(close)) return false;
+      return close >= since && close < until;
     })
     .map(item => {
       const cols = colMap(item);
@@ -137,14 +140,15 @@ async function fetchBookingData(since, until) {
       const linkedLead = item.relation?.[0]?.linked_items?.[0];
       const campaign   = linkedLead?.column_values?.find(c => c.id === 'text_mm1c3b5w')?.text || '';
       return {
-        name:     item.name,
-        value:    parseFloat(cols['numeric_mm1ge9h4'] || 0),
-        status:   cols['status'] || '—',
-        source:   cols['lookup_mkxtxk48'] || '',
+        name:      item.name,
+        value:     parseFloat(cols['numeric_mm1ge9h4'] || 0),
+        status:    cols['status'] || '—',
+        source:    cols['lookup_mkxtxk48'] || '',
         campaign,
-        group:    item.group?.title || '',
-        created:  item.created_at,
-        gclid:    cols['mirror21__1'] || ''
+        group:     item.group?.title || '',
+        created:   item.created_at,
+        closeDate: cols['date9'] || '',
+        gclid:     cols['mirror21__1'] || ''
       };
     })
     .sort((a, b) => b.value - a.value);
