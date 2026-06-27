@@ -95,6 +95,15 @@ async function fetchBookingData(since, until) {
                 ... on BoardRelationValue { display_value }
                 ... on StatusValue        { label }
               }
+              relation: column_values(ids: ["link_to_leads26"]) {
+                id
+                ... on BoardRelationValue {
+                  linked_items {
+                    id
+                    column_values(ids: ["text_mm1c3b5w"]) { id text }
+                  }
+                }
+              }
             }
           }
         }
@@ -124,14 +133,18 @@ async function fetchBookingData(since, until) {
     })
     .map(item => {
       const cols = colMap(item);
+      // Campaign name lives on the linked lead in column text_mm1c3b5w.
+      const linkedLead = item.relation?.[0]?.linked_items?.[0];
+      const campaign   = linkedLead?.column_values?.find(c => c.id === 'text_mm1c3b5w')?.text || '';
       return {
-        name:    item.name,
-        value:   parseFloat(cols['numeric_mm1ge9h4'] || 0),
-        status:  cols['status'] || '—',
-        source:  cols['lookup_mkxtxk48'] || '',
-        group:   item.group?.title || '',
-        created: item.created_at,
-        gclid:   cols['mirror21__1'] || ''
+        name:     item.name,
+        value:    parseFloat(cols['numeric_mm1ge9h4'] || 0),
+        status:   cols['status'] || '—',
+        source:   cols['lookup_mkxtxk48'] || '',
+        campaign,
+        group:    item.group?.title || '',
+        created:  item.created_at,
+        gclid:    cols['mirror21__1'] || ''
       };
     })
     .sort((a, b) => b.value - a.value);
@@ -191,10 +204,11 @@ async function sendSummaryEmail({ weekItems, weekTotal, monthTotal, dateFrom, da
   const bookingRows = weekItems.length > 0
     ? weekItems.map(b => `
     <tr>
-      <td style="padding:10px 16px;border-bottom:0.5px solid #f0ece3;font-size:13px;color:#1a1a1a;">${escHtml(b.name)}</td>
-      <td style="padding:10px 16px;border-bottom:0.5px solid #f0ece3;font-size:13px;font-weight:600;color:#417505;text-align:right;">£${b.value.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="padding:10px 14px;border-bottom:0.5px solid #f0ece3;font-size:13px;color:#1a1a1a;">${escHtml(b.name)}</td>
+      <td style="padding:10px 14px;border-bottom:0.5px solid #f0ece3;font-size:12px;color:#6b6b6b;">${escHtml(b.campaign || '—')}</td>
+      <td style="padding:10px 14px;border-bottom:0.5px solid #f0ece3;font-size:13px;font-weight:600;color:#417505;text-align:right;white-space:nowrap;">£${b.value.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
     </tr>`).join('')
-    : `<tr><td colspan="2" style="padding:16px;text-align:center;font-size:12px;color:#9b9b9b;font-style:italic;">No confirmed PPC bookings with revenue submitted this week</td></tr>`;
+    : `<tr><td colspan="3" style="padding:16px;text-align:center;font-size:12px;color:#9b9b9b;font-style:italic;">No confirmed PPC bookings with revenue submitted this week</td></tr>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -223,14 +237,15 @@ async function sendSummaryEmail({ weekItems, weekTotal, monthTotal, dateFrom, da
     <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Confirmed PPC Bookings This Week</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #ede9e3;border-radius:10px;overflow:hidden;">
       <thead><tr style="background:#f7f2eb;">
-        <th style="padding:10px 16px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#9b9b9b;font-weight:500;text-align:left;">Booking</th>
-        <th style="padding:10px 16px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#9b9b9b;font-weight:500;text-align:right;">Revenue</th>
+        <th style="padding:10px 14px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#9b9b9b;font-weight:500;text-align:left;">Booking</th>
+        <th style="padding:10px 14px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#9b9b9b;font-weight:500;text-align:left;">Campaign</th>
+        <th style="padding:10px 14px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#9b9b9b;font-weight:500;text-align:right;">Revenue</th>
       </tr></thead>
       <tbody>${bookingRows}</tbody>
       ${weekItems.length > 0 ? `
       <tfoot><tr style="background:#f7f2eb;">
-        <td style="padding:10px 16px;font-size:12px;font-weight:600;color:#1a1a1a;">This week total</td>
-        <td style="padding:10px 16px;font-size:14px;font-weight:700;color:#417505;text-align:right;">£${weekTotal.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        <td colspan="2" style="padding:10px 14px;font-size:12px;font-weight:600;color:#1a1a1a;">This week total</td>
+        <td style="padding:10px 14px;font-size:14px;font-weight:700;color:#417505;text-align:right;white-space:nowrap;">£${weekTotal.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       </tr></tfoot>` : ''}
     </table>
   </td></tr>
