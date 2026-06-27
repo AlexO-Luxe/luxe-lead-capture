@@ -48,7 +48,7 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({
         dryRun:    true,
         week:      { from: weekFrom.toISOString(), to: now.toISOString(), count: weekData.items.length, total: weekData.total, items: weekData.items },
-        month:     { from: monthStart.toISOString(), to: monthEnd.toISOString(), count: monthData.items.length, total: monthData.total }
+        month:     { from: monthStart.toISOString(), to: monthEnd.toISOString(), count: monthData.items.length, total: monthData.total, items: monthData.items }
       });
     }
 
@@ -125,10 +125,13 @@ async function fetchBookingData(since, until) {
     .map(item => {
       const cols = colMap(item);
       return {
-        name:   item.name,
-        value:  parseFloat(cols['numeric_mm1ge9h4'] || 0),
-        status: cols['status'] || '—',
-        gclid:  cols['mirror21__1'] || ''
+        name:    item.name,
+        value:   parseFloat(cols['numeric_mm1ge9h4'] || 0),
+        status:  cols['status'] || '—',
+        source:  cols['lookup_mkxtxk48'] || '',
+        group:   item.group?.title || '',
+        created: item.created_at,
+        gclid:   cols['mirror21__1'] || ''
       };
     })
     .sort((a, b) => b.value - a.value);
