@@ -425,7 +425,6 @@ async function uploadGoogleAdsConversion(p) {
   if      (p.gclid)  conversion.gclid  = p.gclid;
   else if (p.gbraid) conversion.gbraid = p.gbraid;
   else if (p.wbraid) conversion.wbraid = p.wbraid;
-  if (p.user_agent)  conversion.userAgent = p.user_agent;
 
   const payload = { conversions: [conversion], partialFailure: true };
 
