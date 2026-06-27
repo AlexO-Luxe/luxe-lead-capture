@@ -248,19 +248,21 @@ async function verifyMondayUsers(userIds) {
 // Candidate fetcher for the item-name search (surname contains-text rule).
 async function mondayLookupByName(substring) {
   if (!substring) return [];
+  // items_page lives inside boards on Monday API v2 — not at root.
   const query = `
     query {
-      items_page(
-        board_id: ${MONDAY_BOARD},
-        limit: 50,
-        query_params: { rules: [{ column_id: "name", compare_value: [${JSON.stringify(substring)}], operator: contains_text }] }
-      ) {
-        items {
-          id
-          name
-          created_at
-          column_values(ids: ["email", "phone_1", "text_mm2y2ah2", "people_1"]) {
-            id text value
+      boards(ids: [${MONDAY_BOARD}]) {
+        items_page(
+          limit: 50,
+          query_params: { rules: [{ column_id: "name", compare_value: [${JSON.stringify(substring)}], operator: contains_text }] }
+        ) {
+          items {
+            id
+            name
+            created_at
+            column_values(ids: ["email", "phone_1", "text_mm2y2ah2", "people_1"]) {
+              id text value
+            }
           }
         }
       }
@@ -277,7 +279,7 @@ async function mondayLookupByName(substring) {
       console.warn('Monday name lookup errors:', JSON.stringify(d.errors));
       return [];
     }
-    return d?.data?.items_page?.items || [];
+    return d?.data?.boards?.[0]?.items_page?.items || [];
   } catch (err) {
     console.warn('Monday name lookup failed:', err.message);
     return [];
