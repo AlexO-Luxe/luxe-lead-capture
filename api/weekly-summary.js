@@ -15,8 +15,16 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const now        = new Date();
-    const lastFriday = getLastFriday9am(now);
+    const now = new Date();
+
+    // Manual / test trigger: ?days=N&secret=<CRON_SECRET>&dryRun=1
+    const isTest    = req.query?.secret === process.env.CRON_SECRET;
+    const customDays = isTest ? parseInt(req.query.days || '7', 10) : null;
+    const dryRun     = isTest && req.query.dryRun === '1';
+
+    const weekFrom = customDays
+      ? new Date(now.getTime() - customDays * 24 * 60 * 60 * 1000)
+      : getLastFriday9am(now);
 
     // If we're in first 3 days of month, show previous month's total
     const dayOfMonth = now.getUTCDate();
@@ -24,25 +32,34 @@ module.exports = async function handler(req, res) {
       ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
       : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
-    console.log(`Weekly: ${lastFriday.toISOString()} → ${now.toISOString()}`);
-    console.log(`Month: ${monthStart.toISOString()} → ${now.toISOString()}`);
-
     const monthEnd = dayOfMonth <= 3
-      ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) // end of prev month
+      ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
       : now;
 
+    console.log(`Weekly window: ${weekFrom.toISOString()} → ${now.toISOString()}`);
+    console.log(`Month  window: ${monthStart.toISOString()} → ${monthEnd.toISOString()}`);
+
     const [weekData, monthData] = await Promise.all([
-      fetchBookingData(lastFriday, now),
+      fetchBookingData(weekFrom, now),
       fetchBookingData(monthStart, monthEnd)
     ]);
+
+    if (dryRun) {
+      return res.status(200).json({
+        dryRun:    true,
+        week:      { from: weekFrom.toISOString(), to: now.toISOString(), count: weekData.items.length, total: weekData.total, items: weekData.items },
+        month:     { from: monthStart.toISOString(), to: monthEnd.toISOString(), count: monthData.items.length, total: monthData.total }
+      });
+    }
 
     await sendSummaryEmail({
       weekItems:   weekData.items,
       weekTotal:   weekData.total,
       monthTotal:  monthData.total,
-      dateFrom:    lastFriday,
+      dateFrom:    weekFrom,
       dateTo:      now,
-      monthStart
+      monthStart,
+      isTest
     });
 
     return res.status(200).json({ success: true, weekCount: weekData.items.length, weekTotal: weekData.total, monthTotal: monthData.total });
@@ -62,6 +79,8 @@ async function fetchBookingData(since, until) {
 
   do {
     const pageArg = cursor ? `, cursor: "${cursor}"` : '';
+    // mirror21__1 + lookup_mkxtxk48 are mirror / lookup columns —
+    // they only populate via display_value, never via plain text.
     const query = `
       query {
         boards(ids: [${BOOKING_BOARD}]) {
@@ -70,8 +89,11 @@ async function fetchBookingData(since, until) {
             items {
               id name updated_at
               group { title }
-              column_values(ids: ["numeric_mm1ge9h4", "status", "mirror21__1", "date9"]) {
+              column_values(ids: ["numeric_mm1ge9h4", "status", "mirror21__1", "lookup_mkxtxk48", "date9"]) {
                 id text
+                ... on MirrorValue        { display_value }
+                ... on BoardRelationValue { display_value }
+                ... on StatusValue        { label }
               }
             }
           }
@@ -90,21 +112,22 @@ async function fetchBookingData(since, until) {
       if (EXCLUDED.includes(item.group?.title)) return false;
       const cols   = colMap(item);
       const rev    = parseFloat(cols['numeric_mm1ge9h4'] || 0);
-      const gclid  = cols['mirror21__1'];
-      if (!rev || !gclid) return false;
-      // For week: use updated_at (when revenue was submitted)
-      // For month: use date9 (booking close date)
+      const source = (cols['lookup_mkxtxk48'] || '').toLowerCase();
+      const isPPC  = source.includes('ppc');
+      if (!rev || !isPPC) return false;
+      // Filter by updated_at: best proxy for when the booking was
+      // confirmed / revenue was submitted. date9 is the check-in
+      // date which is almost always in the future and unsuitable.
       const updated = new Date(item.updated_at);
-      const booked  = new Date(cols['date9']);
-      const useDate = (!isNaN(booked) && cols['date9']) ? booked : updated;
-      return useDate >= since && useDate < until;
+      return updated >= since && updated < until;
     })
     .map(item => {
       const cols = colMap(item);
       return {
         name:   item.name,
         value:  parseFloat(cols['numeric_mm1ge9h4'] || 0),
-        status: cols['status'] || '—'
+        status: cols['status'] || '—',
+        gclid:  cols['mirror21__1'] || ''
       };
     })
     .sort((a, b) => b.value - a.value);
@@ -115,7 +138,9 @@ async function fetchBookingData(since, until) {
 
 function colMap(item) {
   const map = {};
-  (item.column_values || []).forEach(c => { map[c.id] = c.text || ''; });
+  (item.column_values || []).forEach(c => {
+    map[c.id] = c.display_value || c.label || c.text || '';
+  });
   return map;
 }
 
@@ -155,7 +180,7 @@ function fmtMonth(date) {
 // ──────────────────────────────────────────────────────────────
 //  SEND EMAIL
 // ──────────────────────────────────────────────────────────────
-async function sendSummaryEmail({ weekItems, weekTotal, monthTotal, dateFrom, dateTo, monthStart }) {
+async function sendSummaryEmail({ weekItems, weekTotal, monthTotal, dateFrom, dateTo, monthStart, isTest }) {
   const periodLabel = `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
   const monthLabel  = fmtMonth(monthStart);
 
@@ -230,9 +255,10 @@ async function sendSummaryEmail({ weekItems, weekTotal, monthTotal, dateFrom, da
 </table>
 </body></html>`;
 
+  const subjectPrefix = isTest ? '[TEST] ' : '';
   const subject = weekItems.length > 0
-    ? `📊 PPC Bookings — ${weekItems.length} this week, £${weekTotal.toLocaleString('en-GB',{minimumFractionDigits:0})} | ${monthLabel}: £${monthTotal.toLocaleString('en-GB',{minimumFractionDigits:0})}`
-    : `📊 PPC Bookings — No new bookings this week | ${monthLabel}: £${monthTotal.toLocaleString('en-GB',{minimumFractionDigits:0})}`;
+    ? `${subjectPrefix}📊 PPC Bookings — ${weekItems.length} this week, £${weekTotal.toLocaleString('en-GB',{minimumFractionDigits:0})} | ${monthLabel}: £${monthTotal.toLocaleString('en-GB',{minimumFractionDigits:0})}`
+    : `${subjectPrefix}📊 PPC Bookings — No new bookings this week | ${monthLabel}: £${monthTotal.toLocaleString('en-GB',{minimumFractionDigits:0})}`;
 
   const r = await fetch(RESEND_API, {
     method:  'POST',
