@@ -9,6 +9,7 @@ const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch } = require('./_attribution.js');
 const { sendGadsAlert } = require('./_alert.js');
+const { logGadsEvent }  = require('./_log.js');
 
 // ── IP BLOCKLIST ──────────────────────────────────────────────
 // Add spammer IPs here. Returns fake success so they don't know they're blocked.
@@ -100,21 +101,26 @@ module.exports = async function handler(req, res) {
   });
 
   // ── GOOGLE ADS SERVER-SIDE CONVERSION ─────────────────────
+  const gadsCtx = {
+    source:    'Student Luxe enquiry',
+    action:    'Step 1 NEW (server-side enquiry)',
+    email:     p.email,
+    mondayId,
+    hasGclid:  !!p.gclid,
+    hasGbraid: !!p.gbraid,
+    hasWbraid: !!p.wbraid
+  };
   try {
     await uploadGoogleAdsConversion(p);
     console.log('Google Ads conversion uploaded OK');
+    logGadsEvent({ ...gadsCtx, ok: true });
   } catch(err) {
     console.error('Google Ads conversion failed (non-fatal):', err.message);
+    logGadsEvent({ ...gadsCtx, ok: false, error: err.message });
     sendGadsAlert({
-      source:  'Student Luxe enquiry',
-      action:  'Step 1 NEW (server-side enquiry)',
-      payload: {
-        email:     p.email,
-        name:      p.full_name,
-        mondayId,
-        hasGclid:  !!p.gclid,
-        hasGbraid: !!p.gbraid
-      },
+      source:  gadsCtx.source,
+      action:  gadsCtx.action,
+      payload: { email: p.email, name: p.full_name, mondayId, hasGclid: gadsCtx.hasGclid, hasGbraid: gadsCtx.hasGbraid },
       error:   err.message
     });
   }

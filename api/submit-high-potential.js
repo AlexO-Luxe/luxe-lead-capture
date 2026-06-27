@@ -5,6 +5,7 @@
 
 const MONDAY_API = 'https://api.monday.com/v2';
 const { sendGadsAlert } = require('./_alert.js');
+const { logGadsEvent }  = require('./_log.js');
 
 const POTENTIAL_CONFIG = {
   'high potential': {
@@ -92,7 +93,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Upload — gclid optional, matched via email/phone when absent
-    await uploadConversion({
+    const result = await uploadConversion({
       gclid,
       gbraid,
       wbraid,
@@ -104,15 +105,29 @@ module.exports = async function handler(req, res) {
       actionId: config.actionId()
     });
 
+    logGadsEvent({
+      source:    'Student Luxe lead-potential',
+      action:    config.label,
+      ok:        !result?.skipped,
+      reason:    result?.reason || 'uploaded',
+      email,
+      value:     config.value,
+      hasGclid:  !!gclid,
+      hasGbraid: !!gbraid,
+      hasWbraid: !!wbraid,
+      mondayId:  itemId
+    });
     console.log(`${config.label} conversion uploaded for item:`, itemId);
     return res.status(200).json({ success: true, itemId, gclid, potential: config.label, value: config.value });
 
   } catch (err) {
     console.error('submit-high-potential error:', err.message);
+    const mid = req.body?.event?.pulseId || req.body?.event?.itemId;
+    logGadsEvent({ source: 'Student Luxe lead-potential', action: 'High / Moderate Potential', ok: false, reason: 'exception', error: err.message, mondayId: mid });
     sendGadsAlert({
       source:  'Student Luxe lead-potential',
       action:  'High / Moderate Potential',
-      payload: { mondayId: req.body?.event?.pulseId || req.body?.event?.itemId },
+      payload: { mondayId: mid },
       error:   err.message
     });
     return res.status(200).json({ error: err.message });

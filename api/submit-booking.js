@@ -5,6 +5,7 @@
 
 const MONDAY_API = 'https://api.monday.com/v2';
 const { sendGadsAlert } = require('./_alert.js');
+const { logGadsEvent }  = require('./_log.js');
 
 module.exports = async function handler(req, res) {
 
@@ -112,6 +113,7 @@ module.exports = async function handler(req, res) {
       if (cleanValue > 0 && isPPC) {
         console.log('Status confirmed + revenue present, uploading. Value: £' + cleanValue);
         const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+        logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
         await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
         return res.status(200).json({ success: true, itemId, value: cleanValue });
       }
@@ -134,16 +136,19 @@ module.exports = async function handler(req, res) {
 
       console.log('Revenue filled for PPC booking, uploading. Value: £' + cleanValue);
       const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+      logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
       await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
       return res.status(200).json({ success: true, itemId, value: cleanValue });
     }
 
   } catch (err) {
     console.error('submit-booking error:', err.message);
+    const mid = req.body?.event?.pulseId || req.body?.event?.itemId;
+    logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: err.message, mondayId: mid });
     sendGadsAlert({
       source:  'Student Luxe booking',
       action:  'Confirmed Booking',
-      payload: { mondayId: req.body?.event?.pulseId || req.body?.event?.itemId },
+      payload: { mondayId: mid },
       error:   err.message
     });
     return res.status(200).json({ error: err.message });
