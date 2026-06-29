@@ -1022,12 +1022,22 @@ function computeLeadSource(p) {
     } catch(e) { return 'Unknown'; }
   }
 
+  // Resolve the social channel by signal strength:
+  // utm_source (explicit, set by us) > referrer host > Meta Advert default
+  // for fbclid (since fbclid IS a Meta click ID).
+  function resolveSocialChannel () {
+    if (utmSource) return utmSourceToChannel(utmSource);
+    const fromRef = extractChannel(p.referrer);
+    if (fromRef && fromRef !== 'Unknown') return fromRef;
+    return 'Meta Advert';
+  }
+
   let leadSource  = '';
   let leadChannel = '';
   if (hasMsclkid)                       { leadSource = 'PPC';      leadChannel = 'Bing Advert'; }
   else if (isBingOrg || visitedHasBing) { leadSource = 'SEO';      leadChannel = 'Bing'; }
   else if (hasPpcSignal)                { leadSource = 'PPC';      leadChannel = 'Google Advert'; }
-  else if (hasFbclid)                   { leadSource = 'Socials';  leadChannel = extractChannel(p.referrer) || 'Instagram'; }
+  else if (hasFbclid)                   { leadSource = 'Socials';  leadChannel = resolveSocialChannel(); }
   else if (isUtmSocial)                 { leadSource = 'Socials';  leadChannel = utmSourceToChannel(utmSource); }
   else if (isDirect)                    { leadSource = 'Referral'; leadChannel = 'Direct'; }
   else if (isGoogleOrg)                 { leadSource = 'SEO';      leadChannel = 'Google Search (organic)'; }
