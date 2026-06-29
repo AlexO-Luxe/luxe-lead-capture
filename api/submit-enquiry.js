@@ -1023,13 +1023,14 @@ function computeLeadSource(p) {
   }
 
   // Resolve the social channel by signal strength:
-  // utm_source (explicit, set by us) > referrer host > Meta Advert default
-  // for fbclid (since fbclid IS a Meta click ID).
+  // utm_source (explicit, set by us) > referrer host > Instagram default.
+  // fbclid is auto-injected on any IG/FB outbound link, not just ads —
+  // we don't run Meta ads, so the safe default is organic Instagram.
   function resolveSocialChannel () {
     if (utmSource) return utmSourceToChannel(utmSource);
     const fromRef = extractChannel(p.referrer);
     if (fromRef && fromRef !== 'Unknown') return fromRef;
-    return 'Meta Advert';
+    return 'Instagram';
   }
 
   let leadSource  = '';
