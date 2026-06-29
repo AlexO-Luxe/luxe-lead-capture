@@ -106,9 +106,25 @@ function parseRate(text) {
   return m ? Math.round(parseFloat(m[0])) : 0;
 }
 
+// The Leads board "visited paths" column separates entries with 👉 (and sometimes
+// arrows/newlines) and the first entry is usually the full landing URL with a
+// gclid/UTM query string. Split on those separators and reduce each entry to a
+// clean path so a giant unbreakable URL cannot blow out the email width.
+function cleanPathEntry(s) {
+  s = String(s).trim();
+  if (!s) return '';
+  s = s.replace(/^https?:\/\//i, '');           // strip protocol
+  s = s.replace(/\?.*$/, '');                    // strip query string (utm/gclid noise)
+  s = s.replace(/^[^/\s]*\.[^/\s]+(?=\/)/, '');  // strip leading host before a path
+  return s.trim();
+}
+
 function splitPaths(text) {
   if (!text) return [];
-  return String(text).split(/\s*(?:→|->|\n|\|)\s*/).map(s => s.trim()).filter(Boolean);
+  return String(text)
+    .split(/\s*(?:👉|➡️?|→|->|\n|\|)\s*/u)
+    .map(cleanPathEntry)
+    .filter(Boolean);
 }
 
 function splitNotes(text) {

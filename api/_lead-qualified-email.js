@@ -91,7 +91,7 @@ function renderLeadQualified(lead) {
       </td>
       <td style="vertical-align:top;padding:0 0 ${last ? '4' : '16'}px 8px;">
         ${(n.author || n.at) ? `<p style="margin:0 0 3px;font-size:11px;color:${BRAND.muted};">${n.author ? `<span style="color:${BRAND.ink};font-weight:600;">${escHtml(n.author)}</span>` : ''}${(n.author && n.at) ? ' &middot; ' : ''}${n.at ? escHtml(n.at) : ''}</p>` : ''}
-        <p style="margin:0;font-size:13px;color:#3a3a3a;line-height:1.55;">${escHtml(n.text)}</p>
+        <p style="margin:0;font-size:13px;color:#3a3a3a;line-height:1.55;word-break:break-word;overflow-wrap:anywhere;">${escHtml(n.text)}</p>
       </td>
     </tr></table>`;
   }).join('');
@@ -105,7 +105,7 @@ function renderLeadQualified(lead) {
         <td><p style="margin:0;font-size:9.5px;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.muted};">Visited Paths</p></td>
         <td style="text-align:right;"><p style="margin:0;font-size:10px;color:${BRAND.muted};">${paths.length} ${paths.length === 1 ? 'page' : 'pages'} before enquiry</p></td>
       </tr></table>
-      <p style="margin:0;font-size:12px;color:#3a3a3a;line-height:1.7;">${paths.map((p, i) =>
+      <p style="margin:0;font-size:12px;color:#3a3a3a;line-height:1.7;word-break:break-word;overflow-wrap:anywhere;">${paths.map((p, i) =>
         `<span style="color:${i === paths.length - 1 ? BRAND.ink : BRAND.gold};font-weight:${i === paths.length - 1 ? '600' : '400'};">${escHtml(p)}</span>`
       ).join(' &rarr; ')}</p>
     </td></tr></table>
