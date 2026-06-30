@@ -167,6 +167,7 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, ti
     transactionId:         String(timestamp || Date.now()) + ':' + (email || ''),
     eventTimestamp,
     eventName:             'lead_potential',
+    eventSource:           'WEB',
     ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),
     userData: {
       userIdentifiers: buildUserIdentifiers({
