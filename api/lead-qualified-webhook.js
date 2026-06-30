@@ -17,7 +17,7 @@ const { renderLeadQualified } = require('./_lead-qualified-email');
 const { fetchItem, resolveUserName, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
 
 function recipients() {
-  return (process.env.LEAD_QUALIFIED_TO || 'alex@studentluxe.co.uk')
+  return (process.env.LEAD_QUALIFIED_TO || 'alex@studentluxe.co.uk, sam@studentluxe.co.uk')
     .split(',').map(s => s.trim()).filter(Boolean);
 }
 
