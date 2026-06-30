@@ -4,7 +4,7 @@
 // ============================================================
 
 const MONDAY_API = 'https://api.monday.com/v2';
-const { sendGadsAlert } = require('./_alert.js');
+const { sendGadsAlert, sendGadsSuccess } = require('./_alert.js');
 const { logGadsEvent }  = require('./_log.js');
 
 module.exports = async function handler(req, res) {
@@ -117,6 +117,9 @@ module.exports = async function handler(req, res) {
         console.log('Status confirmed + revenue present, uploading. Value: £' + cleanValue);
         const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
         logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+        if (!result?.skipped) {
+          sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
+        }
         await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
         return res.status(200).json({ success: true, itemId, value: cleanValue });
       }
@@ -140,6 +143,9 @@ module.exports = async function handler(req, res) {
       console.log('Revenue filled for PPC booking, uploading. Value: £' + cleanValue);
       const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
       logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+      if (!result?.skipped) {
+        sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
+      }
       await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
       return res.status(200).json({ success: true, itemId, value: cleanValue });
     }

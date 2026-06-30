@@ -8,7 +8,7 @@ const MONDAY_API   = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch } = require('./_attribution.js');
-const { sendGadsAlert } = require('./_alert.js');
+const { sendGadsAlert, sendGadsSuccess } = require('./_alert.js');
 const { logGadsEvent }  = require('./_log.js');
 
 // ── IP BLOCKLIST ──────────────────────────────────────────────
@@ -111,9 +111,14 @@ module.exports = async function handler(req, res) {
     hasWbraid: !!p.wbraid
   };
   try {
-    await uploadGoogleAdsConversion(p);
+    const dmResult = await uploadGoogleAdsConversion(p);
     console.log('Google Ads conversion uploaded OK');
     logGadsEvent({ ...gadsCtx, ok: true });
+    sendGadsSuccess({
+      source:  gadsCtx.source,
+      action:  gadsCtx.action,
+      payload: { email: p.email, name: p.full_name, mondayId, hasGclid: gadsCtx.hasGclid, hasGbraid: gadsCtx.hasGbraid, requestId: dmResult?.requestId }
+    });
   } catch(err) {
     console.error('Google Ads conversion failed (non-fatal):', err.message);
     logGadsEvent({ ...gadsCtx, ok: false, error: err.message });
