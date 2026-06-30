@@ -91,6 +91,10 @@ function hashedName  (n) { const v = normName(n);      return v ? sha256Hex(v) :
 
 // Build userIdentifiers[] for either an event or an audience member.
 // Each entry is a oneof of { emailAddress | phoneNumber | address }.
+// Address requires firstName + lastName + regionCode + postalCode ALL present —
+// Data Manager API rejects partial address with INVALID_ARGUMENT
+// "address.postal_code required field is missing". Skip address entirely
+// until the form collects postcode; email + phone are strong matchers alone.
 function buildUserIdentifiers ({ email, phone, firstName, lastName, regionCode, postalCode } = {}) {
   const out = [];
   const he = hashedEmail(email);
@@ -99,13 +103,15 @@ function buildUserIdentifiers ({ email, phone, firstName, lastName, regionCode, 
   if (hp) out.push({ phoneNumber: hp });
   const hf = hashedName(firstName);
   const hl = hashedName(lastName);
-  if (hf || hl || regionCode || postalCode) {
-    const addr = {};
-    if (hf)         addr.givenName  = hf;
-    if (hl)         addr.familyName = hl;
-    if (regionCode) addr.regionCode = regionCode;
-    if (postalCode) addr.postalCode = String(postalCode).toUpperCase().replace(/\s+/g, '');
-    out.push({ address: addr });
+  if (hf && hl && regionCode && postalCode) {
+    out.push({
+      address: {
+        givenName:  hf,
+        familyName: hl,
+        regionCode,
+        postalCode: String(postalCode).toUpperCase().replace(/\s+/g, '')
+      }
+    });
   }
   return out.slice(0, 10);   // API max 10 identifiers per member/event
 }
