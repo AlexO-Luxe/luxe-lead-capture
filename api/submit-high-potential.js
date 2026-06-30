@@ -56,7 +56,7 @@ module.exports = async function handler(req, res) {
       query {
         items(ids: [${itemId}]) {
           id name created_at
-          column_values(ids: ["text4__1", "color_mkxk8y67", "mirror28__1", "email", "phone_1", "text_mm4ncd41", "text_mm4n9t2x"]) {
+          column_values(ids: ["text4__1", "color_mkxk8y67", "mirror28__1", "email", "phone_1", "text_mm4ncd41", "text_mm4n9t2x", "text37", "text60"]) {
             id text value
           }
         }
@@ -83,6 +83,9 @@ module.exports = async function handler(req, res) {
     const phone      = cols['phone_1'];
     const gbraid     = cols['text_mm4ncd41'];
     const wbraid     = cols['text_mm4n9t2x'];
+    const leadFirst  = cols['text37'] || '';
+    const leadLast   = cols['text60'] || '';
+    const name       = [leadFirst, leadLast].filter(Boolean).join(' ').trim();
 
     console.log('Item data:', { itemId, gclid, gbraid, wbraid, leadSource, timestamp, hasEmail: !!email, hasPhone: !!phone });
 
@@ -92,13 +95,16 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ skipped: true, reason: 'not ppc' });
     }
 
-    // Upload — gclid optional, matched via email/phone when absent
+    // Upload via Data Manager API — Enhanced Conversions for Leads.
+    // Email + phone + hashed name match the lead back to the original click
+    // without needing the click ID (which usually expires 90+ days later).
     const result = await uploadConversion({
       gclid,
       gbraid,
       wbraid,
       email,
       phone,
+      name,
       timestamp,
       value:    config.value,
       currency: 'GBP',
@@ -137,92 +143,75 @@ module.exports = async function handler(req, res) {
 // ──────────────────────────────────────────────────────────────
 //  GOOGLE ADS CONVERSION UPLOAD
 // ──────────────────────────────────────────────────────────────
-async function uploadConversion({ gclid, gbraid, wbraid, email, phone, timestamp, value, currency, actionId }) {
+const {
+  conversionDestination,
+  buildUserIdentifiers,
+  ingestEvents,
+  CONSENT_GRANTED
+} = require('./_dataManager.js');
 
-  // Get fresh access token
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    new URLSearchParams({
-      client_id:     process.env.GOOGLE_ADS_CLIENT_ID,
-      client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-      refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
-      grant_type:    'refresh_token'
-    })
-  });
+async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, timestamp, value, currency, actionId }) {
+  const nameParts = (name || '').trim().split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] || '';
+  const lastName  = nameParts.slice(1).join(' ');
 
-  const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
+  const eventTimestamp = (timestamp ? new Date(timestamp) : new Date()).toISOString();
 
-  // Hash email and phone for enhanced matching
-  async function sha256(str) {
-    const encoder    = new TextEncoder();
-    const data       = encoder.encode(str.toLowerCase().trim());
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
+  const adIdentifiers = {};
+  if      (gclid)  adIdentifiers.gclid  = gclid;
+  else if (gbraid) adIdentifiers.gbraid = gbraid;
+  else if (wbraid) adIdentifiers.wbraid = wbraid;
 
-  const hashedEmail = email ? await sha256(email) : null;
-  const cleanPhone  = phone ? phone.replace(/[\s\-().]/g, '') : null;
-  const hashedPhone = cleanPhone ? await sha256(cleanPhone) : null;
-
-  // Format timestamp
-  const rawTime        = timestamp ? new Date(timestamp) : new Date();
-  const conversionTime = rawTime.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '+00:00');
-
-  const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
-  const conversionAction = `customers/${customerId}/conversionActions/${actionId}`;
-  const endpoint         = `https://googleads.googleapis.com/v21/customers/${customerId}:uploadClickConversions`;
-
-  // gclid/gbraid/wbraid are a oneof on ClickConversion v21.
-  // Priority: gclid > gbraid (iOS web) > wbraid (iOS app).
-  const conversion = {
-    conversionAction,
-    conversionDateTime:    conversionTime,
-    conversionValue:       value,
-    currencyCode:          currency,
-    conversionEnvironment: 'WEB',
-    userIdentifiers: [
-      ...(hashedEmail ? [{ hashedEmail }] : []),
-      ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
-    ]
-  };
-  if      (gclid)  conversion.gclid  = gclid;
-  else if (gbraid) conversion.gbraid = gbraid;
-  else if (wbraid) conversion.wbraid = wbraid;
-
-  console.log('Uploading:', { conversionAction, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid, hasEmail: !!hashedEmail, hasPhone: !!hashedPhone, value });
-
-  const gadsRes = await fetch(endpoint, {
-    method:  'POST',
-    headers: {
-      'Authorization':     `Bearer ${tokenData.access_token}`,
-      'developer-token':   process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-      'login-customer-id': '6046238343',
-      'Content-Type':      'application/json'
+  const event = {
+    destinationReferences: ['sl-lead-potential'],
+    transactionId:         String(timestamp || Date.now()) + ':' + (email || ''),
+    eventTimestamp,
+    eventName:             'lead_potential',
+    ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),
+    userData: {
+      userIdentifiers: buildUserIdentifiers({
+        email,
+        phone,
+        firstName,
+        lastName,
+        regionCode: 'GB'
+      })
     },
-    body: JSON.stringify({ conversions: [conversion], partialFailure: true })
+    currency:        currency || 'GBP',
+    conversionValue: value
+  };
+
+  const body = {
+    destinations: [
+      conversionDestination({
+        conversionActionId: actionId,
+        reference:          'sl-lead-potential'
+      })
+    ],
+    events:  [event],
+    consent: CONSENT_GRANTED
+  };
+
+  console.log('Data Manager lead-potential ingest:', {
+    actionId,
+    hasGclid:        !!gclid,
+    hasGbraid:       !!gbraid,
+    hasWbraid:       !!wbraid,
+    identifierCount: event.userData.userIdentifiers.length,
+    eventTimestamp,
+    value
   });
 
-  const rawText = await gadsRes.text();
-  console.log('Google Ads response (status ' + gadsRes.status + '):', rawText.substring(0, 800));
-
-  if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
-    throw new Error('Google Ads non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
-  }
-
-  const gadsData = JSON.parse(rawText);
-
-  if (gadsData.partialFailureError) {
-    const errStr = JSON.stringify(gadsData.partialFailureError);
-    if (errStr.includes('EXPIRED_EVENT') || errStr.includes('TOO_RECENT_CONVERSION_ACTION')) {
-      console.log('Upload skipped (expected):', errStr.substring(0, 200));
+  try {
+    const result = await ingestEvents(body);
+    console.log('Data Manager lead-potential ingest OK — requestId:', result?.requestId || '(no id)');
+    return result;
+  } catch (err) {
+    const msg = String(err.message || err);
+    if (/EXPIRED|TOO_OLD|click.*window/i.test(msg)) {
+      console.log('Data Manager lead-potential skipped (click outside window):', msg.slice(0, 200));
       return { skipped: true, reason: 'expired_event' };
     }
-    throw new Error('Partial failure: ' + errStr);
+    throw err;
   }
-  if (gadsData.error) throw new Error('API error: ' + JSON.stringify(gadsData.error));
-
-  console.log('Conversion uploaded successfully');
-  return gadsData;
 }

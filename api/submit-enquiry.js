@@ -388,94 +388,73 @@ async function findDuplicateLead(p, ip) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  GOOGLE ADS — Server-side conversion upload
+//  GOOGLE ADS — Server-side conversion upload (Data Manager API)
+//  Migrated from googleads.googleapis.com:uploadClickConversions.
 // ──────────────────────────────────────────────────────────────
-async function uploadGoogleAdsConversion(p) {
+const {
+  conversionDestination,
+  buildUserIdentifiers,
+  ingestEvents,
+  consentForLead
+} = require('./_dataManager.js');
 
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    new URLSearchParams({
-      client_id:     process.env.GOOGLE_ADS_CLIENT_ID,
-      client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-      refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
-      grant_type:    'refresh_token'
-    })
-  });
+async function uploadGoogleAdsConversion (p) {
+  const nameParts = (p.full_name || '').trim().split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] || '';
+  const lastName  = nameParts.slice(1).join(' ');
 
-  const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) {
-    throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
-  }
+  const eventTimestamp = (p.submitted_at ? new Date(p.submitted_at) : new Date()).toISOString();
 
-  async function sha256(str) {
-    const encoder    = new TextEncoder();
-    const data       = encoder.encode(str.toLowerCase().trim());
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray  = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  }
+  // gclid / gbraid / wbraid are still a oneof on Data Manager events.
+  // Priority unchanged: gclid > gbraid (iOS web) > wbraid (iOS app).
+  const adIdentifiers = {};
+  if      (p.gclid)  adIdentifiers.gclid  = p.gclid;
+  else if (p.gbraid) adIdentifiers.gbraid = p.gbraid;
+  else if (p.wbraid) adIdentifiers.wbraid = p.wbraid;
 
-  const hashedEmail = p.email ? await sha256(p.email) : null;
-  const cleanPhone  = p.phone ? p.phone.replace(/[\s\-().]/g, '') : null;
-  const hashedPhone = cleanPhone ? await sha256(cleanPhone) : null;
-
-  const rawTime        = p.submitted_at ? new Date(p.submitted_at) : new Date();
-  const conversionTime = rawTime.toISOString()
-    .replace('T', ' ')
-    .replace(/\.\d{3}Z$/, '+00:00');
-
-  const customerId       = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
-  console.log('Google Ads customer ID:', customerId);
-  console.log('Google Ads endpoint:', `https://googleads.googleapis.com/v21/customers/${customerId}:uploadClickConversions`);
-  const conversionAction = `customers/${customerId}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`;
-
-  const conversion = {
-    conversionAction,
-    conversionDateTime:    conversionTime,
-    conversionValue:       1.0,
-    currencyCode:          'GBP',
-    conversionEnvironment: 'WEB',
-    userIdentifiers: [
-      ...(hashedEmail ? [{ hashedEmail }] : []),
-      ...(hashedPhone ? [{ hashedPhoneNumber: hashedPhone }] : [])
-    ]
+  const event = {
+    destinationReferences: ['sl-step1-new'],
+    transactionId:         String(p.session_id || p.email || Date.now()),
+    eventTimestamp,
+    eventName:             'lead_step1_new',
+    ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),
+    userData: {
+      userIdentifiers: buildUserIdentifiers({
+        email:      p.email,
+        phone:      p.phone,
+        firstName,
+        lastName,
+        regionCode: 'GB'
+      })
+    },
+    currency:        'GBP',
+    conversionValue: 1.0
   };
-  // Google Ads ClickConversion: gclid / gbraid / wbraid are a oneof —
-  // exactly one allowed. Priority: gclid (best signal) > gbraid (iOS web) > wbraid (iOS app).
-  if      (p.gclid)  conversion.gclid  = p.gclid;
-  else if (p.gbraid) conversion.gbraid = p.gbraid;
-  else if (p.wbraid) conversion.wbraid = p.wbraid;
 
-  const payload = { conversions: [conversion], partialFailure: true };
+  const body = {
+    destinations: [
+      conversionDestination({
+        conversionActionId: process.env.GOOGLE_ADS_CONVERSION_ACTION_ID,
+        reference:          'sl-step1-new'
+      })
+    ],
+    events:  [event],
+    consent: consentForLead(p.marketing_opt_in)
+  };
 
-  const gadsRes = await fetch(
-    `https://googleads.googleapis.com/v21/customers/${customerId}:uploadClickConversions`,
-    {
-      method:  'POST',
-      headers: {
-        'Authorization':     `Bearer ${tokenData.access_token}`,
-        'developer-token':   process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-        'login-customer-id': '6046238343',
-        'Content-Type':      'application/json'
-      },
-      body: JSON.stringify(payload)
-    }
-  );
+  console.log('Data Manager events:ingest payload:', JSON.stringify({
+    customerId:         (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, ''),
+    conversionActionId: process.env.GOOGLE_ADS_CONVERSION_ACTION_ID,
+    hasGclid:           !!p.gclid,
+    hasGbraid:          !!p.gbraid,
+    hasWbraid:          !!p.wbraid,
+    identifierCount:    event.userData.userIdentifiers.length,
+    consent:            body.consent
+  }));
 
-  const rawText = await gadsRes.text();
-  console.log('Google Ads raw response (status ' + gadsRes.status + '):', rawText.substring(0, 500));
-
-  if (!rawText.trim().startsWith('{') && !rawText.trim().startsWith('[')) {
-    throw new Error('Google Ads returned non-JSON (status ' + gadsRes.status + '): ' + rawText.substring(0, 200));
-  }
-
-  const gadsData = JSON.parse(rawText);
-  if (gadsData.partialFailureError) throw new Error('Partial failure: ' + JSON.stringify(gadsData.partialFailureError));
-  if (gadsData.error) throw new Error('API error: ' + JSON.stringify(gadsData.error));
-
-  console.log('Google Ads conversion uploaded successfully');
-  return gadsData;
+  const result = await ingestEvents(body);
+  console.log('Data Manager events:ingest OK — requestId:', result?.requestId || '(no id)');
+  return result;
 }
 
 // ──────────────────────────────────────────────────────────────
