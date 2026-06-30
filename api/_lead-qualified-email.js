@@ -257,7 +257,7 @@ function renderLeadQualified(lead) {
 </table>
 </body></html>`;
 
-  const subject = `✓ Qualified: ${lead.guestName} · cooked in ${cookingTime} · ${lead.assignedTo}`;
+  const subject = `✓ Lead qualified: ${lead.guestName} - by ${lead.qualifiedBy}`;
 
   return { subject, html };
 }
