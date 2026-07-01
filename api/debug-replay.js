@@ -51,6 +51,6 @@ module.exports = async function handler (req, res) {
     });
     return res.status(200).json({ ok: true, result, payload: { destinations, events: [event] } });
   } catch (err) {
-    return res.status(200).json({ ok: false, error: err.message });
+    return res.status(200).json({ ok: false, error: err.message, errorLength: err.message.length });
   }
 };
