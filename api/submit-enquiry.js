@@ -421,7 +421,6 @@ async function uploadGoogleAdsConversion (p) {
     destinationReferences: ['sl-step1-new'],
     transactionId:         String(p.session_id || p.email || Date.now()),
     eventTimestamp,
-    eventName:             'lead_step1_new',
     eventSource:           'WEB',
     ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),
     userData: {
