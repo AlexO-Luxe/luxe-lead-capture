@@ -7,7 +7,7 @@
 const {
   conversionDestination,
   buildUserIdentifiers,
-  dmPost,
+  ingestEvents,
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 
@@ -36,20 +36,20 @@ module.exports = async function handler (req, res) {
       conversionValue: 150.0
     };
 
-    const body = {
-      destinations: [
-        conversionDestination({
-          conversionActionId: process.env.GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID,
-          reference: 'sl-lead-potential'
-        })
-      ],
+    const destinations = [
+      conversionDestination({
+        conversionActionId: process.env.GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID,
+        reference: 'sl-lead-potential'
+      })
+    ];
+
+    const result = await ingestEvents({
+      destinations,
       events: [event],
       consent: CONSENT_GRANTED,
       validateOnly: true
-    };
-
-    const result = await dmPost('events:ingest', body);
-    return res.status(200).json({ ok: true, result, payload: body });
+    });
+    return res.status(200).json({ ok: true, result, payload: { destinations, events: [event] } });
   } catch (err) {
     return res.status(200).json({ ok: false, error: err.message });
   }
