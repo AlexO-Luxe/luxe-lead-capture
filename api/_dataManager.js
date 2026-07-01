@@ -188,11 +188,11 @@ async function dmPost (path, body, { retries = 3 } = {}) {
       try { return JSON.parse(text); } catch { return { raw: text }; }
     }
     if (r.status >= 500 || r.status === 429) {
-      lastErr = new Error('DM ' + path + ' ' + r.status + ': ' + text.slice(0, 400));
+      lastErr = new Error('DM ' + path + ' ' + r.status + ': ' + text.slice(0, 2000));
       await new Promise(res => setTimeout(res, 500 * (2 ** i)));
       continue;
     }
-    throw new Error('DM ' + path + ' ' + r.status + ': ' + text.slice(0, 800));
+    throw new Error('DM ' + path + ' ' + r.status + ': ' + text.slice(0, 2000));
   }
   throw lastErr;
 }
