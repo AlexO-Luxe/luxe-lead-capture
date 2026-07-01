@@ -115,13 +115,28 @@ module.exports = async function handler(req, res) {
 
       if (cleanValue > 0 && isPPC) {
         console.log('Status confirmed + revenue present, uploading. Value: £' + cleanValue);
-        const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-        logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
-        if (!result?.skipped) {
-          sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
+        // Own try/catch so a failure alert carries full lead context
+        // (email, name, click ids) instead of falling through to the
+        // outer catch, which only has mondayId in scope.
+        try {
+          const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+          logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+          if (!result?.skipped) {
+            sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
+          }
+          await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
+          return res.status(200).json({ success: true, itemId, value: cleanValue });
+        } catch (uploadErr) {
+          console.error('submit-booking upload error:', uploadErr.message);
+          logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
+          sendGadsAlert({
+            source:  'Student Luxe booking',
+            action:  'Confirmed Booking',
+            payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid },
+            error:   uploadErr.message
+          });
+          return res.status(200).json({ error: uploadErr.message, itemId });
         }
-        await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
-        return res.status(200).json({ success: true, itemId, value: cleanValue });
       }
 
       console.log('Confirmed Booking — revenue not yet filled, sending notification');
@@ -141,13 +156,25 @@ module.exports = async function handler(req, res) {
       }
 
       console.log('Revenue filled for PPC booking, uploading. Value: £' + cleanValue);
-      const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-      logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
-      if (!result?.skipped) {
-        sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
+      try {
+        const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+        logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+        if (!result?.skipped) {
+          sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
+        }
+        await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
+        return res.status(200).json({ success: true, itemId, value: cleanValue });
+      } catch (uploadErr) {
+        console.error('submit-booking upload error:', uploadErr.message);
+        logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
+        sendGadsAlert({
+          source:  'Student Luxe booking',
+          action:  'Confirmed Booking',
+          payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid },
+          error:   uploadErr.message
+        });
+        return res.status(200).json({ error: uploadErr.message, itemId });
       }
-      await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
-      return res.status(200).json({ success: true, itemId, value: cleanValue });
     }
 
   } catch (err) {

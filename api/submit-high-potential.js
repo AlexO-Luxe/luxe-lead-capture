@@ -98,40 +98,55 @@ module.exports = async function handler(req, res) {
     // Upload via Data Manager API — Enhanced Conversions for Leads.
     // Email + phone + hashed name match the lead back to the original click
     // without needing the click ID (which usually expires 90+ days later).
-    const result = await uploadConversion({
-      gclid,
-      gbraid,
-      wbraid,
-      email,
-      phone,
-      name,
-      timestamp,
-      value:    config.value,
-      currency: 'GBP',
-      actionId: config.actionId()
-    });
+    // Own try/catch so a failure alert carries full lead context (email,
+    // name, click ids) instead of falling through to the outer catch,
+    // which only has mondayId in scope.
+    try {
+      const result = await uploadConversion({
+        gclid,
+        gbraid,
+        wbraid,
+        email,
+        phone,
+        name,
+        timestamp,
+        value:    config.value,
+        currency: 'GBP',
+        actionId: config.actionId()
+      });
 
-    logGadsEvent({
-      source:    'Student Luxe lead-potential',
-      action:    config.label,
-      ok:        !result?.skipped,
-      reason:    result?.reason || 'uploaded',
-      email,
-      value:     config.value,
-      hasGclid:  !!gclid,
-      hasGbraid: !!gbraid,
-      hasWbraid: !!wbraid,
-      mondayId:  itemId
-    });
-    if (!result?.skipped) {
-      sendGadsSuccess({
+      logGadsEvent({
+        source:    'Student Luxe lead-potential',
+        action:    config.label,
+        ok:        !result?.skipped,
+        reason:    result?.reason || 'uploaded',
+        email,
+        value:     config.value,
+        hasGclid:  !!gclid,
+        hasGbraid: !!gbraid,
+        hasWbraid: !!wbraid,
+        mondayId:  itemId
+      });
+      if (!result?.skipped) {
+        sendGadsSuccess({
+          source:  'Student Luxe lead-potential',
+          action:  config.label,
+          payload: { email, mondayId: itemId, value: config.value, hasGclid: !!gclid, hasGbraid: !!gbraid, requestId: result?.requestId }
+        });
+      }
+      console.log(`${config.label} conversion uploaded for item:`, itemId);
+      return res.status(200).json({ success: true, itemId, gclid, potential: config.label, value: config.value });
+    } catch (uploadErr) {
+      console.error('submit-high-potential upload error:', uploadErr.message);
+      logGadsEvent({ source: 'Student Luxe lead-potential', action: config.label, ok: false, reason: 'exception', error: uploadErr.message, email, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid });
+      sendGadsAlert({
         source:  'Student Luxe lead-potential',
         action:  config.label,
-        payload: { email, mondayId: itemId, value: config.value, hasGclid: !!gclid, hasGbraid: !!gbraid, requestId: result?.requestId }
+        payload: { email, name, mondayId: itemId, value: config.value, hasGclid: !!gclid, hasGbraid: !!gbraid },
+        error:   uploadErr.message
       });
+      return res.status(200).json({ error: uploadErr.message, itemId });
     }
-    console.log(`${config.label} conversion uploaded for item:`, itemId);
-    return res.status(200).json({ success: true, itemId, gclid, potential: config.label, value: config.value });
 
   } catch (err) {
     console.error('submit-high-potential error:', err.message);
@@ -158,6 +173,9 @@ const {
 } = require('./_dataManager.js');
 
 async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, timestamp, value, currency, actionId }) {
+  if (!actionId) {
+    throw new Error('Missing conversion action id — check GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID / GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID in Vercel env');
+  }
   const nameParts = (name || '').trim().split(/\s+/).filter(Boolean);
   const firstName = nameParts[0] || '';
   const lastName  = nameParts.slice(1).join(' ');
