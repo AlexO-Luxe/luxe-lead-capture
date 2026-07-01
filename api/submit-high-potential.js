@@ -169,21 +169,22 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, ti
   else if (gbraid) adIdentifiers.gbraid = gbraid;
   else if (wbraid) adIdentifiers.wbraid = wbraid;
 
+  const userIdentifiers = buildUserIdentifiers({ email, phone, firstName, lastName, regionCode: 'GB' });
+
+  // Google rejects an event with neither a click id nor a user identifier —
+  // there is nothing to match it to. Skip rather than send a doomed request.
+  if (!Object.keys(adIdentifiers).length && !userIdentifiers.length) {
+    console.log('Skipping upload — no click id and no email/phone to match on');
+    return { skipped: true, reason: 'no_identifiers' };
+  }
+
   const event = {
     destinationReferences: ['sl-lead-potential'],
     transactionId:         String(timestamp || Date.now()) + ':' + (email || ''),
     eventTimestamp,
     eventSource:           'WEB',
     ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),
-    userData: {
-      userIdentifiers: buildUserIdentifiers({
-        email,
-        phone,
-        firstName,
-        lastName,
-        regionCode: 'GB'
-      })
-    },
+    userData: { userIdentifiers },
     currency:        currency || 'GBP',
     conversionValue: value
   };

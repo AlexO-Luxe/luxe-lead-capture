@@ -417,21 +417,24 @@ async function uploadGoogleAdsConversion (p) {
   else if (p.gbraid) adIdentifiers.gbraid = p.gbraid;
   else if (p.wbraid) adIdentifiers.wbraid = p.wbraid;
 
+  const userIdentifiers = buildUserIdentifiers({
+    email: p.email, phone: p.phone, firstName, lastName, regionCode: 'GB'
+  });
+
+  // Google rejects an event with neither a click id nor a user identifier —
+  // there is nothing to match it to. Skip rather than send a doomed request.
+  if (!Object.keys(adIdentifiers).length && !userIdentifiers.length) {
+    console.log('Skipping upload — no click id and no email/phone to match on');
+    return { skipped: true, reason: 'no_identifiers' };
+  }
+
   const event = {
     destinationReferences: ['sl-step1-new'],
     transactionId:         String(p.session_id || p.email || Date.now()),
     eventTimestamp,
     eventSource:           'WEB',
     ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),
-    userData: {
-      userIdentifiers: buildUserIdentifiers({
-        email:      p.email,
-        phone:      p.phone,
-        firstName,
-        lastName,
-        regionCode: 'GB'
-      })
-    },
+    userData: { userIdentifiers },
     currency:        'GBP',
     conversionValue: 1.0
   };
