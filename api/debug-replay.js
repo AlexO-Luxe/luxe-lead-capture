@@ -36,9 +36,10 @@ module.exports = async function handler (req, res) {
       conversionValue: 150.0
     };
 
+    const actionIdToTest = req.query?.actionIdOverride || process.env.GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID;
     const destinations = [
       conversionDestination({
-        conversionActionId: process.env.GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID,
+        conversionActionId: actionIdToTest,
         reference: 'sl-lead-potential'
       })
     ];
@@ -49,7 +50,7 @@ module.exports = async function handler (req, res) {
       consent: CONSENT_GRANTED,
       validateOnly: true
     });
-    return res.status(200).json({ ok: true, result, payload: { destinations, events: [event] } });
+    return res.status(200).json({ ok: true, result, actionIdUsed: actionIdToTest, payload: { destinations, events: [event] } });
   } catch (err) {
     return res.status(200).json({ ok: false, error: err.message, errorLength: err.message.length });
   }
