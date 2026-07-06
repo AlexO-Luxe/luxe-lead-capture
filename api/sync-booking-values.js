@@ -72,6 +72,9 @@ module.exports = async function handler (req, res) {
       const cv = {};
       it.column_values.forEach(c => { cv[c.id] = c; });
 
+      // PPC only (lookup can't be filtered server-side, so check here).
+      if (!/ppc/i.test(disp(cv.lookup_mkxtxk48))) continue;
+
       // Confirmed only (date9 set), and in scope: closed this month OR future check-in.
       const closeDate = txt(cv.date9);
       const checkIn   = txt(cv.date69);
@@ -173,8 +176,11 @@ async function fetchPpcBookings () {
   do {
     const query = cursor
       ? `query { next_items_page(limit: 250, cursor: ${JSON.stringify(cursor)}) { cursor items { ${frag} } } }`
+      // Lookup columns can't be filtered server-side (contains_text is
+      // unsupported for that type), so filter on date9 (confirmed bookings)
+      // here and check PPC client-side from the lookup's display_value.
       : `query { boards(ids: ${BOOKINGS_BOARD}) { items_page(limit: 250, query_params: {
-           rules: [{ column_id: "lookup_mkxtxk48", compare_value: ["PPC"], operator: contains_text }]
+           rules: [{ column_id: "date9", compare_value: [""], operator: is_not_empty }]
          }) { cursor items { ${frag} } } } }`;
     const d = await mondayQuery(query);
     const page = cursor ? d?.data?.next_items_page : d?.data?.boards?.[0]?.items_page;
