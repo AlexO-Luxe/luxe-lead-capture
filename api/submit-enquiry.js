@@ -416,7 +416,11 @@ async function uploadGoogleAdsConversion (p) {
   const firstName = nameParts[0] || '';
   const lastName  = nameParts.slice(1).join(' ');
 
-  const eventTimestamp = (p.submitted_at ? new Date(p.submitted_at) : new Date()).toISOString();
+  // Always server "now" — the conversion moment is the server receiving
+  // the request, not whatever p.submitted_at the visitor's browser sent.
+  // Client clock skew or a stale/cached form load can push that value
+  // outside Google's acceptable event time window (EVENT_TIME_INVALID).
+  const eventTimestamp = new Date().toISOString();
 
   // gclid / gbraid / wbraid are still a oneof on Data Manager events.
   // Priority unchanged: gclid > gbraid (iOS web) > wbraid (iOS app).
