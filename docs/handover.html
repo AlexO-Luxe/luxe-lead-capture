@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Student Luxe: Enquiry to Google Ads Conversion, End to End</title>
+<style>
+  :root{
+    --navy:#0d1a2e; --gold:#B8966E; --cream:#FBF8F2; --ink:#1c2430;
+    --line:#e4ddd0; --mut:#6b7280; --gpale:#f4eee3;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body{
+    font-family:'DM Sans',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
+    color:var(--ink); margin:0; font-size:10.5pt; line-height:1.5; background:#fff;
+  }
+  h1,h2,h3,h4{font-family:Georgia,'Baskerville',serif; color:var(--navy); font-weight:600; line-height:1.2;}
+  h2{font-size:17pt; margin:0 0 4px; border-bottom:2px solid var(--gold); padding-bottom:6px;}
+  h3{font-size:12.5pt; margin:18px 0 4px; color:var(--navy);}
+  h4{font-size:10.5pt; margin:12px 0 2px; color:var(--gold); letter-spacing:.02em; text-transform:uppercase; font-family:'DM Sans',sans-serif; font-weight:700;}
+  p{margin:6px 0;}
+  code{font-family:'SF Mono',Menlo,Consolas,monospace; font-size:9pt; background:var(--gpale); padding:1px 5px; border-radius:4px; color:#3a2f1e;}
+  a{color:var(--gold); text-decoration:none;}
+  .page{padding:44px 46px; page-break-after:always;}
+  .page:last-child{page-break-after:auto;}
+  @page{size:A4; margin:0;}
+
+  /* Cover */
+  .cover{background:var(--navy); color:#fff; height:100vh; display:flex; flex-direction:column; justify-content:center; padding:60px; page-break-after:always;}
+  .cover .kicker{color:var(--gold); letter-spacing:.28em; text-transform:uppercase; font-size:10pt; font-weight:600;}
+  .cover h1{color:#fff; font-size:34pt; margin:18px 0 10px; line-height:1.08;}
+  .cover .sub{color:#c8cdd6; font-size:13pt; max-width:520px; line-height:1.5;}
+  .cover .meta{margin-top:44px; color:#8a93a3; font-size:9.5pt; border-top:1px solid #26344a; padding-top:16px;}
+  .cover .meta b{color:#fff; font-weight:600;}
+
+  .lead{color:var(--mut); font-size:11pt; margin:8px 0 16px;}
+  table{width:100%; border-collapse:collapse; margin:8px 0 14px; font-size:9pt;}
+  th{background:var(--navy); color:#fff; text-align:left; padding:7px 9px; font-weight:600; font-family:'DM Sans',sans-serif;}
+  td{padding:6px 9px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tr:nth-child(even) td{background:var(--cream);}
+  .box{background:var(--cream); border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:6px; padding:12px 15px; margin:12px 0;}
+  .box.warn{border-left-color:#c0392b; background:#fdf3f2;}
+  .box.ok{border-left-color:#417505; background:#f2f7ec;}
+  .box h4{margin-top:0;}
+  ol,ul{margin:6px 0 10px; padding-left:20px;}
+  li{margin:3px 0;}
+
+  /* flow diagram */
+  .flow{display:flex; flex-direction:column; gap:0; margin:14px 0;}
+  .step{display:flex; align-items:stretch; gap:0;}
+  .step .num{background:var(--gold); color:#fff; font-weight:700; font-family:Georgia,serif; min-width:34px; display:flex; align-items:center; justify-content:center; font-size:13pt;}
+  .step .body{flex:1; background:var(--cream); border:1px solid var(--line); border-left:0; padding:9px 13px;}
+  .step .body b{color:var(--navy);}
+  .arrow{color:var(--gold); text-align:center; font-size:13pt; line-height:1; padding:2px 0; margin-left:16px;}
+  .muted{color:var(--mut); font-size:9pt;}
+  .pill{display:inline-block; background:var(--navy); color:#fff; border-radius:20px; padding:2px 10px; font-size:8pt; font-weight:600; letter-spacing:.03em;}
+  .foot{position:relative; margin-top:22px; padding-top:8px; border-top:1px solid var(--line); color:var(--mut); font-size:8pt; display:flex; justify-content:space-between;}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="kicker">Student Luxe &middot; Internal Handover</div>
+  <h1>Enquiry to Google Ads<br>Conversion, End to End</h1>
+  <div class="sub">How a reservation enquiry travels from the Squarespace form, through Monday.com and the attribution stack, to a server-side Step 4 booking conversion uploaded to Google Ads.</div>
+  <div class="meta">
+    Repo <b>AlexO-Luxe/luxe-lead-capture</b> &nbsp;&middot;&nbsp; Deployed on <b>Vercel</b> &nbsp;&middot;&nbsp; CRM <b>Monday.com</b> &nbsp;&middot;&nbsp; Ads API <b>Google Data Manager v1</b><br>
+    Prepared 6 July 2026 &nbsp;&middot;&nbsp; Owner: Alex Obertelli, Head of Marketing
+  </div>
+</div>
+
+<!-- PAGE 1: OVERVIEW + MAP -->
+<div class="page">
+  <h2>1. The pipeline at a glance</h2>
+  <p class="lead">Student Luxe is a curating agent, not an operator. It earns commission per booking. Attribution is fully in-house: no third-party tool. Every enquiry is captured, deduped, written to Monday, emailed, and uploaded to Google Ads as a conversion. Bookings that later confirm upload again at their real revenue.</p>
+
+  <div class="flow">
+    <div class="step"><div class="num">1</div><div class="body"><b>Squarespace reservation form</b> captures the enquiry plus tracking cookies (gclid, gbraid, wbraid, UTM, session id). Posts to the serverless backend.</div></div>
+    <div class="arrow">&darr;</div>
+    <div class="step"><div class="num">2</div><div class="body"><b>/api/submit-enquiry</b> runs IP blocklist, attribution capture, duplicate detection, Monday write, lead-source classification, Resend emails, then the <b>Step 1 NEW</b> Google Ads upload.</div></div>
+    <div class="arrow">&darr;</div>
+    <div class="step"><div class="num">3</div><div class="body"><b>Lead qualification.</b> When a lead is tagged Moderate or High Potential in Monday, a webhook fires <b>/api/submit-high-potential</b>, uploading <b>Step 2</b> or <b>Step 3</b>.</div></div>
+    <div class="arrow">&darr;</div>
+    <div class="step"><div class="num">4</div><div class="body"><b>Booking confirmed.</b> When the Monday booking hits Confirmed status or its revenue fills, <b>/api/submit-booking</b> uploads <b>Step 4</b> with the real commission value.</div></div>
+  </div>
+
+  <div class="box">
+    <h4>Two supporting daily jobs keep the data clean</h4>
+    <p style="margin:2px 0"><b>enrich-attribution</b> (06:00 UTC): back-fills a lead's campaign / ad group / keyword from its gclid via Google's click_view, because UTMs sitting in a tracking template never reach the landing page under parallel tracking.</p>
+    <p style="margin:2px 0"><b>sync-booking-values</b> (06:30 UTC): recomputes the true booking commission (a Monday formula the API cannot read) and writes it to the number column Google reads, so new bookings fill in and amended ones re-sync.</p>
+  </div>
+
+  <h3>Core coordinates</h3>
+  <table>
+    <tr><th>Thing</th><th>Value</th></tr>
+    <tr><td>Monday Leads board</td><td><code>2171015719</code></td></tr>
+    <tr><td>Monday Bookings board</td><td><code>2171015589</code></td></tr>
+    <tr><td>Google Ads API</td><td>Data Manager <code>datamanager.googleapis.com/v1/events:ingest</code></td></tr>
+    <tr><td>Cookie prefix</td><td><code>sl_</code> (90-day TTL, matches the Google Ads click window)</td></tr>
+    <tr><td>Transactional email</td><td>Resend (DMARC p=quarantine, DKIM verified)</td></tr>
+    <tr><td>Session store</td><td>Upstash Redis (Vercel KV), key <code>session:&lt;uuid&gt;</code></td></tr>
+  </table>
+
+  <div class="foot"><span>Student Luxe &middot; Enquiry to Conversion Handover</span><span>1</span></div>
+</div>
+
+<!-- PAGE 2: STAGE 1 CAPTURE -->
+<div class="page">
+  <h2>2. Stage 1: capture on the Squarespace form</h2>
+  <p class="lead">The reservation form lives in a single Squarespace Code Block (repo <code>luxe-enquiry-form</code>). A tracking script writes ad-click identifiers and UTM values into <code>sl_</code> cookies as the visitor lands, then posts them with the enquiry.</p>
+
+  <h3>What gets captured</h3>
+  <table>
+    <tr><th>Group</th><th>Fields</th></tr>
+    <tr><td>Google click IDs</td><td><code>gclid</code>, <code>gbraid</code> (iOS web), <code>wbraid</code> (iOS app). Auto-tagged by Google on every ad click.</td></tr>
+    <tr><td>UTM / campaign</td><td><code>utm_campaign</code>, <code>utm_adgroup</code>, <code>utm_term</code>, <code>utm_matchtype</code>, <code>utm_content</code>.</td></tr>
+    <tr><td>First-touch twins</td><td><code>sl_first_*</code> written once, never overwritten. Preserves the original source across return visits.</td></tr>
+    <tr><td>Session + journey</td><td><code>sl_session_id</code>, landing page, last page, visited paths (page-view pings via <code>/api/track</code>).</td></tr>
+    <tr><td>Social</td><td><code>fbclid</code>. Defaults to channel "Instagram" (auto-injected on any IG outbound link, not a paid signal).</td></tr>
+  </table>
+
+  <div class="box warn">
+    <h4>Critical gotcha: UTMs in a tracking template never reach the page</h4>
+    <p>Google Ads uses <b>parallel tracking</b> (mandatory on Search). The browser goes straight to the Final URL; the tracking template fires only as a background beacon. So any <code>utm_*</code> that lives in the account/campaign <b>tracking template</b> never lands in the address bar, and the form never sees it. Only the auto-tagged <code>gclid</code>/<code>gbraid</code> arrive. On top of that, the campaign NAME has no valid ValueTrack macro (<code>{campaign}</code> resolves empty, <code>{adgroupname}</code> lands as a literal), which is why campaign detail has been missing on most PPC leads.</p>
+    <p style="margin-bottom:0"><b>Handled by:</b> <code>/api/enrich-attribution</code> looks each lead's gclid up in Google's click_view and writes the real campaign / ad group / keyword / match type back to Monday daily. Recoverable for ~90 days (click_view retention) and only for Search/Shopping clicks.</p>
+  </div>
+
+  <div class="foot"><span>Student Luxe &middot; Enquiry to Conversion Handover</span><span>2</span></div>
+</div>
+
+<!-- PAGE 3: STAGE 2 SUBMIT-ENQUIRY -->
+<div class="page">
+  <h2>3. Stage 2: /api/submit-enquiry</h2>
+  <p class="lead">The main handler. Runs in strict order, never skipping a step. The Stay Luxe sister form (<code>/api/submit-stayluxe</code>) mirrors this exactly, minus the Google Ads upload (Stay Luxe does not run ads).</p>
+
+  <ol>
+    <li><b>IP blocklist</b> rejects known spam IPs silently (returns a fake 200 so bots learn nothing).</li>
+    <li><b>Attribution capture</b> (<code>buildTouch</code>): reads click IDs, UTMs, geo, device, browser from cookies plus headers, and loads any existing KV session by <code>sl_session_id</code>.</li>
+    <li><b>Duplicate detection</b> (see below), runs before every Monday write.</li>
+    <li><b>Monday Leads write</b> to board <code>2171015719</code>, with retry on transient API blocks.</li>
+    <li><b>Lead source + channel classification</b> (<code>computeLeadSource</code>): msclkid &gt; Bing organic &gt; gclid/utm (Google Ads) &gt; fbclid (Instagram) &gt; direct &gt; Google organic.</li>
+    <li><b>Resend emails</b> to the guest and the team, fired in parallel.</li>
+    <li><b>Google Ads Step 1 upload</b> via the Data Manager API (see section 5).</li>
+    <li><b>KV session attach</b> plus email/Monday lookup indices for later joining.</li>
+  </ol>
+
+  <h3>Duplicate detection: 4 signals</h3>
+  <p>Each candidate lead is scored on email, phone, IP, and name. <b>2 or more matches</b> flags the Monday row as a Possible Duplicate and copies the original assignee.</p>
+  <div class="box">
+    <h4>Same-household exception</h4>
+    <p style="margin-bottom:0">An <b>IP-only</b> match (1 of 4) also flags when the original lead is under <b>14 days</b> old. This catches a parent and student enquiring separately from the same home wifi: unique names, emails, and phones, but one IP. Older IP-only matches stay unflagged because shared IPs (halls, offices, mobile CGNAT) are too noisy alone.</p>
+  </div>
+
+  <div class="box ok">
+    <h4>When a Monday write fails</h4>
+    <p style="margin-bottom:0">The guest still gets their confirmation. A rescue email to the team carries the <b>full tracking payload</b> (campaign, ad group, term, all click IDs, session id, landing page, first-touch fields, visited paths, IP) so the lead can be added by hand with zero attribution loss.</p>
+  </div>
+
+  <div class="foot"><span>Student Luxe &middot; Enquiry to Conversion Handover</span><span>3</span></div>
+</div>
+
+<!-- PAGE 4: THE FUNNEL -->
+<div class="page">
+  <h2>4. The Google Ads conversion funnel</h2>
+  <p class="lead">Four conversion actions, one per stage of intent. All set to Count = Every (gbraid/wbraid require it). Steps 2 to 4 use Enhanced Conversions for Leads: they match on hashed email plus phone, so no live click ID is needed even months later.</p>
+
+  <table>
+    <tr><th>Step</th><th>Action</th><th>Fires when</th><th>Value</th><th>Match method</th></tr>
+    <tr><td><span class="pill">1</span></td><td>NEW (server-side enquiry)</td><td>Form submitted</td><td>&pound;1</td><td>Click-based (gclid/gbraid/wbraid)</td></tr>
+    <tr><td><span class="pill">2</span></td><td>Moderate Potential</td><td>Lead tagged Moderate in Monday</td><td>&pound;150</td><td>EC for Leads (email+phone)</td></tr>
+    <tr><td><span class="pill">3</span></td><td>High Potential</td><td>Lead tagged High in Monday</td><td>&pound;300</td><td>EC for Leads</td></tr>
+    <tr><td><span class="pill">4</span></td><td>Confirmed Booking</td><td>Booking confirmed / revenue filled</td><td>Real commission</td><td>EC for Leads</td></tr>
+  </table>
+
+  <h3>Step 2 and 3: lead qualification</h3>
+  <p><code>/api/submit-high-potential</code> is a Monday webhook. When a lead's potential status changes, it pulls the linked lead's email, phone, and name, and uploads Step 2 (&pound;150) or Step 3 (&pound;300). The event timestamp is stamped at webhook time, not lead-creation time, so an old lead does not trip Google's acceptable-time window.</p>
+
+  <div class="box warn">
+    <h4>Benched: Step 3.5 "Qualified Leads" / pending bookings</h4>
+    <p>Open idea: upload the moment a guest signals intent (pending / deposit), before confirmation. Decision: <b>do not</b> put pending into Step 4, it pollutes value-based bidding because some pending bookings cancel. If built, it must be its own action ("Booking Requested") at a discounted value (estimated commission &times; measured close rate), Secondary/observe-only first. Blockers: RETRACT/RESTATE lives on the deprecated Google Ads API we left; the adjustment window is only 55 days; and Step 4 volume may already be enough. Parked.</p>
+  </div>
+
+  <div class="foot"><span>Student Luxe &middot; Enquiry to Conversion Handover</span><span>4</span></div>
+</div>
+
+<!-- PAGE 5: STEP 4 BOOKING + FORMULA -->
+<div class="page">
+  <h2>5. Stage 4: the confirmed booking upload</h2>
+  <p class="lead"><code>/api/submit-booking</code> is a Monday webhook on the Bookings board. It fires on two triggers: the status column changing to Confirmed Booking, or the revenue column <code>numeric_mm1ge9h4</code> being filled. Only PPC bookings (lead source contains "PPC") upload.</p>
+
+  <h4>Sequence</h4>
+  <ol>
+    <li>Fetch the booking plus its linked lead (email, phone, first/last name, click IDs) from Monday.</li>
+    <li>Confirm it is PPC and has a positive value.</li>
+    <li>Upload Step 4 via Data Manager, value = the commission, event timestamp = now.</li>
+    <li>Transaction id = <code>booking.created_at + email</code> (stable), so a later re-upload of the same booking is deduped, not double-counted.</li>
+    <li>Log to the KV event journal; email a success or failure alert.</li>
+  </ol>
+
+  <h3>The booking value problem</h3>
+  <div class="box warn">
+    <h4>Monday cannot serve the real value over the API</h4>
+    <p>The true commission is a Monday <b>formula column</b> (<code>formula2</code>, "Total Luxe Commission excl. VAT"). It references cross-board <b>mirror</b> columns, and Monday never evaluates a mirror-referencing formula server-side, so the API returns <code>null</code>. It can only be read by a human in the UI. That is why the value has had to be hand-copied into the plain number column <code>numeric_mm1ge9h4</code> ("Rev to Google") that the upload actually reads.</p>
+  </div>
+  <div class="box ok">
+    <h4>Handled by /api/sync-booking-values (daily)</h4>
+    <p>The formula is reverse-engineered and recomputed in code from its 10 base columns (nightly rate, nights, commission %, VAT/Net-Gross mirrors, discount). It writes the result to <code>numeric_mm1ge9h4</code> when it differs by more than &pound;1: blank bookings fill in, amended bookings (guest changes nights) re-sync. Matches the hand-entered value on ~90% of PPC bookings; the rest are extensions/rebookings (instalment-column logic not modelled) or genuinely stale entries, all listed in a daily email digest. Monday's formula string comparison is case-sensitive, replicated exactly.</p>
+  </div>
+
+  <div class="box">
+    <h4>Side effect worth knowing</h4>
+    <p style="margin-bottom:0">Editing <code>numeric_mm1ge9h4</code> (by hand or by the sync job) re-fires the submit-booking webhook, which re-uploads Step 4 with the new value under the same transaction id. Intended: it keeps Google in sync with amendments. Cost: a burst of re-uploads can trigger transient upload failures (see next page).</p>
+  </div>
+
+  <div class="foot"><span>Student Luxe &middot; Enquiry to Conversion Handover</span><span>5</span></div>
+</div>
+
+<!-- PAGE 6: DATA MANAGER API -->
+<div class="page">
+  <h2>6. The Data Manager API layer</h2>
+  <p class="lead">All uploads go through <code>api/_dataManager.js</code>. This replaced the deprecated <code>googleads.googleapis.com/.../uploadClickConversions</code> path, which now returns ALLOWLIST errors.</p>
+
+  <h3>Request shape</h3>
+  <table>
+    <tr><th>Part</th><th>Detail</th></tr>
+    <tr><td>Endpoint</td><td><code>POST https://datamanager.googleapis.com/v1/events:ingest</code></td></tr>
+    <tr><td>Auth</td><td><code>Authorization: Bearer</code> + <code>x-goog-user-project: &lt;GCP_PROJECT_ID&gt;</code> (required). Scope <code>datamanager</code>.</td></tr>
+    <tr><td>Dropped headers</td><td><code>developer-token</code> and <code>login-customer-id</code> are GONE. MCC mapping moved into the body (<code>loginAccount.accountId</code>).</td></tr>
+    <tr><td>Event fields</td><td><code>destinationReferences</code>, <code>transactionId</code>, <code>eventTimestamp</code> (RFC3339), <code>eventSource: "WEB"</code>, optional <code>adIdentifiers</code>, <code>userData.userIdentifiers</code> (hashed email/phone), <code>currency</code>, <code>conversionValue</code>.</td></tr>
+  </table>
+
+  <div class="box warn">
+    <h4>Three failure modes we hit and fixed</h4>
+    <p><b>Transient generic 400.</b> Data Manager intermittently rejects a valid payload with a bare <code>events.events[N]</code> violation and no named field. Detected and retried (with 5xx/429) using exponential backoff. Anything that names a real sub-field is a deterministic bug and is not retried.</p>
+    <p><b>EVENT_TIME_INVALID.</b> Caused by trusting a client-supplied timestamp that could be stale or clock-skewed. Every handler now stamps the event at server time.</p>
+    <p style="margin-bottom:0"><b>Address identifier 400.</b> The address block needs first name + last name + region + postcode all present or the whole request fails. We do not collect postcode, so the address block is omitted; matching relies on email + phone.</p>
+  </div>
+
+  <div class="box ok">
+    <h4>Recovery: /api/replay-failed-events</h4>
+    <p style="margin-bottom:0">Scans the KV <code>gads:events</code> fail log, re-fetches each lead/booking from Monday (values pulled fresh, source of truth), and re-uploads via Enhanced Conversions for Leads. Idempotent per Monday item, so re-running never double-counts.</p>
+  </div>
+
+  <div class="foot"><span>Student Luxe &middot; Enquiry to Conversion Handover</span><span>6</span></div>
+</div>
+
+<!-- PAGE 7: MONITORING + REFERENCE -->
+<div class="page">
+  <h2>7. Monitoring, crons, and reference</h2>
+
+  <h3>Scheduled jobs</h3>
+  <table>
+    <tr><th>Job</th><th>When</th><th>Purpose</th></tr>
+    <tr><td>enrich-attribution</td><td>Daily 06:00 UTC (cron)</td><td>Back-fill campaign data from gclid via click_view</td></tr>
+    <tr><td>sync-booking-values</td><td>Daily 06:30 UTC (cron)</td><td>Recompute + sync the booking commission value</td></tr>
+    <tr><td>gads-daily-summary</td><td>09:30 London (Claude routine)</td><td>Daily digest of all conversion uploads</td></tr>
+    <tr><td>weekly-summary</td><td>Friday 09:00 UTC (cron)</td><td>PPC bookings revenue digest by <code>date9</code> close date</td></tr>
+  </table>
+
+  <h3>Alerts</h3>
+  <p>Every conversion-upload failure emails alex@studentluxe.co.uk instantly (<code>sendGadsAlert</code>). Every attempt is logged to the KV <code>gads:events</code> sorted set (35-day retention) that feeds both the daily digest and the replay endpoint.</p>
+
+  <h3>Key Monday columns</h3>
+  <table>
+    <tr><th>Column ID</th><th>Meaning</th><th>Board</th></tr>
+    <tr><td><code>numeric_mm1ge9h4</code></td><td>Rev to Google (commission the upload reads)</td><td>Bookings</td></tr>
+    <tr><td><code>formula2</code></td><td>True commission formula (API-unreadable)</td><td>Bookings</td></tr>
+    <tr><td><code>date9</code></td><td>Close Date (booking confirmed date)</td><td>Bookings</td></tr>
+    <tr><td><code>lookup_mkxtxk48</code></td><td>Lead source lookup (PPC filter)</td><td>Bookings</td></tr>
+    <tr><td><code>text_mm1c3b5w</code></td><td>Campaign</td><td>Leads</td></tr>
+    <tr><td><code>text43__1</code> / <code>text3__1</code></td><td>Ad group / search term</td><td>Leads</td></tr>
+    <tr><td><code>text4__1</code></td><td>Click id (gclid first)</td><td>Leads</td></tr>
+  </table>
+
+  <h3>Required environment variables</h3>
+  <p class="muted">All in the Vercel dashboard, never committed. Redeploy after changes.</p>
+  <table>
+    <tr><th>Var</th><th>Purpose</th></tr>
+    <tr><td><code>GCP_PROJECT_ID</code></td><td>x-goog-user-project header for Data Manager</td></tr>
+    <tr><td><code>GOOGLE_ADS_LOGIN_CUSTOMER_ID</code></td><td>MCC id (6046238343)</td></tr>
+    <tr><td><code>GOOGLE_ADS_CUSTOMER_ID</code></td><td>Child Ads account</td></tr>
+    <tr><td><code>GOOGLE_ADS_*_ACTION_ID</code></td><td>Conversion action ids for Steps 1 to 4</td></tr>
+    <tr><td><code>GOOGLE_ADS_CLIENT_ID / SECRET / REFRESH_TOKEN</code></td><td>OAuth (scopes: adwords + datamanager)</td></tr>
+    <tr><td><code>MONDAY_API_KEY</code>, <code>RESEND_API_KEY</code>, <code>CRON_SECRET</code>, <code>KV_*</code></td><td>CRM, email, cron auth, session store</td></tr>
+  </table>
+
+  <div class="foot"><span>Student Luxe &middot; Enquiry to Conversion Handover</span><span>7</span></div>
+</div>
+
+</body>
+</html>
