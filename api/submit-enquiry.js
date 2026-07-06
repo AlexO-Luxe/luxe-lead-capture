@@ -1183,19 +1183,40 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     }
   `;
 
-  const response = await fetch(MONDAY_API, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
-    body: JSON.stringify({ query: mutation })
-  });
+  // Retry the create: Monday intermittently returns
+  // API_TEMPORARILY_BLOCKED / rate-limit errors that clear within
+  // seconds. Losing the CRM write over a transient block costs a lead.
+  const RETRY_DELAYS = [2000, 5000, 10000];
+  let lastErr;
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    try {
+      const response = await fetch(MONDAY_API, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+        body: JSON.stringify({ query: mutation })
+      });
 
-  const data = await response.json();
-  if (!response.ok) throw new Error('Monday HTTP ' + response.status);
-  if (data.errors) {
-    console.error('Monday API errors:', JSON.stringify(data.errors, null, 2));
-    throw new Error('Monday API error: ' + JSON.stringify(data.errors));
+      const text = await response.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch { throw new Error('Monday non-JSON (HTTP ' + response.status + '): ' + text.slice(0, 120)); }
+
+      if (!response.ok) throw new Error('Monday HTTP ' + response.status);
+      if (data.errors) {
+        console.error('Monday API errors:', JSON.stringify(data.errors, null, 2));
+        throw new Error('Monday API error: ' + JSON.stringify(data.errors));
+      }
+      return data?.data?.create_item?.id;
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err.message || '');
+      const transient = /API_TEMPORARILY_BLOCKED|RATE_LIMIT|COMPLEXITY|non-JSON|HTTP 5\d\d|HTTP 429/i.test(msg);
+      if (!transient || attempt === RETRY_DELAYS.length) throw err;
+      console.warn(`Monday create attempt ${attempt + 1} failed (transient), retrying in ${RETRY_DELAYS[attempt]}ms:`, msg.slice(0, 150));
+      await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+    }
   }
-  return data?.data?.create_item?.id;
+  throw lastErr;
 }
 
 // ──────────────────────────────────────────────────────────────
