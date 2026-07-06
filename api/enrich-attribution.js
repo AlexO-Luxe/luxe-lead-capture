@@ -202,15 +202,24 @@ async function lookupClick (token, gclid, createdAt, lookback) {
 }
 
 // Candidate click dates: lead day first (most brand-search converts same
-// day), then back a week, plus +1 for UTC/London midnight skew.
+// day), then back a week, plus +1 for UTC/London midnight skew. Dates
+// outside click_view's hard ~90-day window are dropped: querying one 400s
+// (INVALID_ARGUMENT) rather than returning empty, so an old click (common
+// on repeat-booking leads) must never reach the query. Empty list => the
+// lead resolves to not-found.
 function clickDates (createdAt, lookback) {
-  const base = new Date(createdAt || Date.now());
+  const base  = new Date(createdAt || Date.now()).getTime();
+  const now   = Date.now();
+  const minMs = now - 90 * 86400000;
   const offsets = [0, -1, 1];
   for (let d = 2; d <= lookback; d++) offsets.push(-d);
-  return offsets.map(off => {
-    const dt = new Date(base.getTime() + off * 86400000);
-    return dt.toISOString().slice(0, 10);
-  });
+  const out = [];
+  for (const off of offsets) {
+    const t = base + off * 86400000;
+    if (t < minMs || t > now + 86400000) continue;
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
 }
 
 // Match existing macro output ({matchtype} => e/p/b).
