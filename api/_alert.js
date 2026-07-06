@@ -82,7 +82,7 @@ async function sendGadsAlert ({ source, action, payload, error }) {
 //  After cutoff, calls silently no-op.
 // ============================================================
 
-const SUCCESS_NOTIFY_UNTIL = new Date('2026-07-02T23:59:00Z').getTime();
+const SUCCESS_NOTIFY_UNTIL = new Date('2026-07-08T23:59:00Z').getTime();
 
 async function sendGadsSuccess ({ source, action, payload }) {
   if (Date.now() > SUCCESS_NOTIFY_UNTIL) return;

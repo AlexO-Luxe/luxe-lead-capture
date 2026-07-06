@@ -173,7 +173,23 @@ function consentForLead (marketingOptIn) {
 // ──────────────────────────────────────────────────────────────
 //  POST + retry on 5xx / 429
 // ──────────────────────────────────────────────────────────────
-async function dmPost (path, body, { retries = 3 } = {}) {
+// The Data Manager API intermittently returns a GENERIC 400 —
+// fieldViolations[].field == "events.events[N]" with description
+// "There was a problem with the request." and no named sub-field —
+// on structurally valid requests. The identical payload succeeds on
+// retry. Treat that specific signature as transient and retry it.
+// A 400 that names a real sub-field (e.g. "...user_data.user_identifiers[2].address.postal_code")
+// is deterministic and must NOT be retried.
+function isTransient400 (text) {
+  let j;
+  try { j = JSON.parse(text); } catch { return false; }
+  const viols = (j.error?.details || []).flatMap(d => d.fieldViolations || []);
+  if (viols.length === 0) return false;
+  // Transient only if EVERY violation is the bare top-level event field.
+  return viols.every(v => /^events\.events\[\d+\]$/.test(v.field || ''));
+}
+
+async function dmPost (path, body, { retries = 4 } = {}) {
   const url = DM_BASE + '/' + path;
   const headers = await dmHeaders();
   let lastErr;
@@ -187,9 +203,12 @@ async function dmPost (path, body, { retries = 3 } = {}) {
     if (r.ok) {
       try { return JSON.parse(text); } catch { return { raw: text }; }
     }
-    if (r.status >= 500 || r.status === 429) {
-      lastErr = new Error('DM ' + path + ' ' + r.status + ': ' + text.slice(0, 2000));
-      await new Promise(res => setTimeout(res, 500 * (2 ** i)));
+
+    const retryable = r.status >= 500 || r.status === 429 || (r.status === 400 && isTransient400(text));
+    if (retryable && i < retries - 1) {
+      lastErr = new Error('DM ' + path + ' ' + r.status + ' (retryable): ' + text.slice(0, 400));
+      // exponential backoff with jitter
+      await new Promise(res => setTimeout(res, 400 * (2 ** i) + Math.floor(Math.random() * 250)));
       continue;
     }
     throw new Error('DM ' + path + ' ' + r.status + ': ' + text.slice(0, 2000));
