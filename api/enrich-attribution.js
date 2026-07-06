@@ -42,12 +42,13 @@ module.exports = async function handler (req, res) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
-  const limit    = Math.max(1, Math.min(300, parseInt(req.query?.limit    || '50', 10)));
-  const lookback = Math.max(1, Math.min(90,  parseInt(req.query?.lookback || '7',  10)));
-  const dryRun   = req.query?.dryRun === '1';
+  const limit     = Math.max(1, Math.min(300, parseInt(req.query?.limit     || '50', 10)));
+  const lookback  = Math.max(1, Math.min(90,  parseInt(req.query?.lookback  || '7',  10)));
+  const maxAgeDays = Math.max(1, Math.min(92, parseInt(req.query?.maxAgeDays || '92', 10)));
+  const dryRun    = req.query?.dryRun === '1';
 
   try {
-    const candidates = await fetchCandidates(limit);
+    const candidates = await fetchCandidates(limit, maxAgeDays);
     const token      = await getAccessToken();
 
     const out = { candidates: candidates.length, limit, lookback, dryRun, results: [] };
@@ -104,9 +105,12 @@ module.exports = async function handler (req, res) {
 };
 
 // ── Monday: pull leads with a click id but no campaign ─────────
-async function fetchCandidates (limit) {
-  const leads  = [];
-  let   cursor = null;
+// Newest first, and stop once leads fall past the click_view window
+// (their gclid is expired on Google's side, so a lookup is wasted).
+async function fetchCandidates (limit, maxAgeDays) {
+  const leads    = [];
+  const cutoffMs = Date.now() - maxAgeDays * 86400000;
+  let   cursor   = null;
 
   while (leads.length < limit) {
     const pageQuery = cursor
@@ -115,10 +119,14 @@ async function fetchCandidates (limit) {
            items { id name created_at column_values(ids: ["${COL_CLICKID}", "${COL_GBRAID}", "${COL_WBRAID}"]) { id text } }
          } }`
       : `query { boards(ids: ${LEADS_BOARD}) {
-           items_page(limit: 100, query_params: { rules: [
-             { column_id: "${COL_CLICKID}",  operator: is_not_empty },
-             { column_id: "${COL_CAMPAIGN}", operator: is_empty }
-           ], operator: and }) {
+           items_page(limit: 100, query_params: {
+             rules: [
+               { column_id: "${COL_CLICKID}",  compare_value: [""], operator: is_not_empty },
+               { column_id: "${COL_CAMPAIGN}", compare_value: [""], operator: is_empty }
+             ],
+             operator: and,
+             order_by: [{ column_id: "__creation_log__", direction: desc }]
+           }) {
              cursor
              items { id name created_at column_values(ids: ["${COL_CLICKID}", "${COL_GBRAID}", "${COL_WBRAID}"]) { id text } }
            }
@@ -128,7 +136,9 @@ async function fetchCandidates (limit) {
     const page = cursor ? d?.data?.next_items_page : d?.data?.boards?.[0]?.items_page;
     if (!page) break;
 
+    let hitFloor = false;
     for (const it of (page.items || [])) {
+      if (new Date(it.created_at || 0).getTime() < cutoffMs) { hitFloor = true; break; }
       const c = {};
       it.column_values.forEach(x => { c[x.id] = (x.text || '').trim(); });
       leads.push({
@@ -143,7 +153,7 @@ async function fetchCandidates (limit) {
     }
 
     cursor = page.cursor;
-    if (!cursor) break;
+    if (hitFloor || !cursor) break;
   }
   return leads;
 }
