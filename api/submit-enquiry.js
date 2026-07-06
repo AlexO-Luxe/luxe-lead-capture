@@ -335,9 +335,17 @@ async function findDuplicateLead(p, ip) {
     const nameMatch  = !!(newKey       && candKey       && newKey       === candKey);
 
     const matchCount = [emailMatch, phoneMatch, ipMatch, nameMatch].filter(Boolean).length;
-    if (matchCount < 2) continue;
+    const createdMs  = new Date(item.created_at || 0).getTime();
 
-    const createdMs = new Date(item.created_at || 0).getTime();
+    // Same-household detection: an IP match on its own is normally too
+    // noisy to flag (universities, offices and mobile CGNAT share IPs
+    // across strangers). But when the original lead is RECENT, a shared
+    // IP usually means the same household — e.g. a parent and student
+    // enquiring separately from home wifi. Flag those too.
+    const RECENT_IP_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+    const ipOnlyRecent = matchCount === 1 && ipMatch && (Date.now() - createdMs) < RECENT_IP_WINDOW_MS;
+
+    if (matchCount < 2 && !ipOnlyRecent) continue;
     const score = matchCount * 1e13 + createdMs;
     if (best && score <= best.score) continue;
 
