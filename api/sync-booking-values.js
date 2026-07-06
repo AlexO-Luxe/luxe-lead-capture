@@ -65,7 +65,7 @@ module.exports = async function handler (req, res) {
   const monthStr  = req.query?.month || monthKey(londonNow()); // YYYY-MM
 
   try {
-    const items    = await fetchPpcBookings();
+    const items    = await fetchScopedBookings(monthStr + '-01', isoToday());
     const out      = { month: monthStr, tolerance, dryRun, scanned: items.length, filled: [], amended: [], skipped: [], unchanged: 0 };
 
     for (const it of items) {
@@ -169,19 +169,31 @@ function netRate (cur, m144, m74, n80, n54, nights) {
 }
 
 // ── Monday ─────────────────────────────────────────────────────
-async function fetchPpcBookings () {
-  const frag = `id name column_values(ids: ${JSON.stringify(COLS)}) { id text ... on MirrorValue { display_value } ... on StatusValue { label } }`;
+// Pulling every confirmed booking (~2.6k, each with heavy mirror
+// display_value fragments) is far too slow. Instead fetch two small
+// date-filtered slices and union them: bookings closed this month
+// (date9 >= 1st, for fill/amend) and bookings with a future check-in
+// (date69 >= today, to catch amendments to advance bookings). Lookup
+// columns can't be filtered server-side, so PPC is checked client-side.
+const FRAG = `id name column_values(ids: ${JSON.stringify(COLS)}) { id text ... on MirrorValue { display_value } ... on StatusValue { label } }`;
+
+async function fetchScopedBookings (monthStart, today) {
+  const a = await fetchByDateRule('date9', monthStart);
+  const b = await fetchByDateRule('date69', today);
+  const byId = new Map();
+  for (const it of [...a, ...b]) byId.set(it.id, it);
+  return [...byId.values()];
+}
+
+async function fetchByDateRule (columnId, sinceIso) {
   const items = [];
   let cursor = null;
   do {
     const query = cursor
-      ? `query { next_items_page(limit: 250, cursor: ${JSON.stringify(cursor)}) { cursor items { ${frag} } } }`
-      // Lookup columns can't be filtered server-side (contains_text is
-      // unsupported for that type), so filter on date9 (confirmed bookings)
-      // here and check PPC client-side from the lookup's display_value.
+      ? `query { next_items_page(limit: 250, cursor: ${JSON.stringify(cursor)}) { cursor items { ${FRAG} } } }`
       : `query { boards(ids: ${BOOKINGS_BOARD}) { items_page(limit: 250, query_params: {
-           rules: [{ column_id: "date9", compare_value: [""], operator: is_not_empty }]
-         }) { cursor items { ${frag} } } } }`;
+           rules: [{ column_id: ${JSON.stringify(columnId)}, compare_value: [${JSON.stringify(sinceIso)}], operator: greater_than_or_equals }]
+         }) { cursor items { ${FRAG} } } } }`;
     const d = await mondayQuery(query);
     const page = cursor ? d?.data?.next_items_page : d?.data?.boards?.[0]?.items_page;
     if (!page) break;
