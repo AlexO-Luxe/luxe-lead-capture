@@ -38,7 +38,11 @@ const CUSTOMER_ID = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '')
 const MCC_ID      = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || '6046238343';
 
 module.exports = async function handler (req, res) {
-  if (req.query?.secret !== process.env.CRON_SECRET) {
+  // Auth: manual runs pass ?secret=; the Vercel cron authenticates via the
+  // Authorization: Bearer <CRON_SECRET> header it injects automatically, so
+  // the secret never has to live in vercel.json.
+  const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+  if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
