@@ -788,12 +788,42 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     ? `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/pulses/${mondayId}`
     : `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/views/205648977`;
 
+  // When the Monday write fails, this email is the ONLY copy of the lead's
+  // attribution — so dump every tracking field into the banner for manual
+  // entry. Normally these live in the Monday row and are omitted here.
+  const trackingRescueRows = mondayError ? (function () {
+    const row = (label, value) => value ? `
+        <tr>
+          <td style="padding:3px 0;font-size:10.5px;color:#856404;width:130px;vertical-align:top;">${label}</td>
+          <td style="padding:3px 0;font-size:10.5px;color:#5a4310;font-weight:500;word-break:break-all;">${escHtml(value)}</td>
+        </tr>` : '';
+    return `
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;border-top:1px dashed #f0ad4e;padding-top:8px;">
+          <tr><td colspan="2" style="padding:8px 0 4px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#856404;font-weight:600;">Full tracking — copy into the Monday row</td></tr>
+          ${row('Campaign',        p.utm_campaign)}
+          ${row('Ad group',        p.utm_adgroup)}
+          ${row('Search term',     p.utm_term)}
+          ${row('Match type',      p.utm_matchtype)}
+          ${row('gclid',           p.gclid)}
+          ${row('gbraid',          p.gbraid)}
+          ${row('wbraid',          p.wbraid)}
+          ${row('fbclid',          p.fbclid)}
+          ${row('Session ID',      p.session_id)}
+          ${row('Landing page',    p.landing_page)}
+          ${row('First campaign',  p.first_campaign)}
+          ${row('First referrer',  p.first_referrer)}
+          ${row('Visited paths',   p.visited_paths)}
+          ${row('Submitter IP',    submitterIp)}
+        </table>`;
+  })() : '';
+
   const mondayErrorBanner = mondayError ? `
   <tr><td style="padding:0 28px 20px;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff3cd;border:1px solid #f0ad4e;border-radius:8px;">
       <tr><td style="padding:12px 16px;">
         <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#856404;">⚠️ Monday CRM push failed — add this lead manually</p>
         <p style="margin:0;font-size:11px;color:#856404;line-height:1.5;">Error: <code style="font-size:10px;background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;">${escHtml(mondayError)}</code></p>
+        ${trackingRescueRows}
       </td></tr>
     </table>
   </td></tr>` : '';
