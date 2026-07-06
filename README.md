@@ -174,7 +174,7 @@ In order, never skip a step:
 
 1. **IP blocklist** — reject spammer IPs silently (returns fake 200)
 2. **Attribution capture** — `buildTouch(req, p)` pulls gclid/gbraid/wbraid/utm/device/browser/geo from cookies + headers + body. Loads existing KV session by `sl_session_id` cookie.
-3. **Duplicate detection** — `findDuplicateLead` scores 4 signals (email, phone, IP, name). 2+ matches flags the Monday row.
+3. **Duplicate detection** — `findDuplicateLead` scores 4 signals (email, phone, IP, name). 2+ matches flags the Monday row. Exception: an IP-only match also flags when the original lead is under 14 days old — same-household detection (parent + student enquiring separately from home wifi). Older IP-only matches stay unflagged because shared IPs (university halls, offices, mobile CGNAT) are too noisy on their own.
 4. **Monday Leads board write** — full column map; flags + assignee fallback if duplicate
 5. **Lead source classification** — `computeLeadSource(p)` resolves source/channel. Priority: msclkid (Bing Ads) > Bing organic > gclid/utm_campaign (Google Ads) > fbclid (Socials, default Instagram since we don't run Meta ads) > utm social > direct > Google organic > visited
 6. **Resend confirmation + team email** — fired in parallel via `Promise.allSettled`

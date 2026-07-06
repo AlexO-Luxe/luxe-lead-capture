@@ -22,7 +22,7 @@ Full architecture, env vars, Monday column IDs, and migration history live in [R
 1. Squarespace form POSTs to `/api/submit-enquiry`
 2. IP blocklist check
 3. `buildTouch(req, p)` captures attribution (gclid, gbraid, wbraid, utm, geo, device, browser, KV session)
-4. Duplicate detection (4 signals: email, phone, IP, name). 2+ match flags the Monday row.
+4. Duplicate detection (4 signals: email, phone, IP, name). 2+ match flags the Monday row. Exception: an IP-only match also flags when the original lead is under 14 days old (same-household detection, e.g. parent + student on home wifi).
 5. Monday Leads board write (board id `2171015719`)
 6. Lead source + channel classification (`computeLeadSource`)
 7. Resend confirmation email (guest + team) in parallel
