@@ -159,13 +159,17 @@ async function fetchCandidates (limit, maxAgeDays) {
 }
 
 // The stored click id is a gclid unless it matches the braid columns or
-// looks like an fbclid. gclids are urlsafe base64 (letters/digits/-/_);
-// gbraid/wbraid start "0AAAA", fbclid starts "IwAR" / "IwZX" / "PAd".
+// looks like a Meta click. gclids are urlsafe base64 (letters/digits/-/_)
+// and start "Cj" / "EAIaIQ"; gbraid/wbraid start "0AAAA"; Meta fbclids
+// start "IwAR" / "IwZX" / "PA" and often carry an "_aem_" segment.
+// (Display/Demand-Gen gclids can't be pre-filtered by shape, so they fall
+// through to a lookup that correctly returns not-found — click_view only
+// holds Search + Shopping clicks.)
 function looksLikeGclid (v, lead) {
   if (!v) return false;
   if (v === lead.gbraid || v === lead.wbraid) return false;
   if (/^0AAAA/.test(v)) return false;
-  if (/^(IwAR|IwZX|PAd|PAA)/.test(v)) return false;
+  if (/^(IwAR|IwZX|PA)/.test(v) || v.includes('_aem_')) return false; // Meta
   if (/['"\\]/.test(v)) return false; // guard GAQL string injection
   return true;
 }
