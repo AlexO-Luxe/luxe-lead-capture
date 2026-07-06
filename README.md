@@ -57,6 +57,8 @@ Outbound monitoring:
 | `api/track.js` | Squarespace page-view ping. Writes 90d session record to Upstash Redis |
 | `api/weekly-summary.js` | Friday cron. Reads PPC bookings from Monday, emails weekly summary |
 | `api/gads-daily-summary.js` | Claude routine target. Reads `gads:events` KV log, emails daily digest |
+| `api/enrich-attribution.js` | Daily cron (06:00 UTC). Backfills campaign/adgroup/keyword/matchtype onto Leads from the gclid via Google Ads `click_view`. Manual: `?secret=<CRON_SECRET>&limit=&lookback=&maxAgeDays=&dryRun=1` |
+| `api/replay-failed-events.js` | Rebuilds + re-uploads failed conversions from the `gads:events` KV log via EC for Leads. Manual: `?secret=<CRON_SECRET>&hours=&dryRun=1` |
 | `api/test-alert.js` | Manual sample failure email for verifying alert path |
 | `api/dashboard-monday.js` | JSON feed for the marketing dashboard |
 | `api/dashboard-gads.js` | JSON feed for Google Ads campaign data |
@@ -266,6 +268,9 @@ Helper: `api/_log.js` (logGadsEvent, readGadsEvents).
 ### Weekly PPC summary
 `api/weekly-summary.js`, Vercel cron Friday 09:00 UTC (10:00 BST). Reads PPC bookings from Monday Bookings board filtered by `date9` (close date), groups by campaign, emails alex@ with a navy header card. Manual trigger: `?secret=<CRON_SECRET>&days=N&dryRun=1`.
 
+### Attribution backfill
+`api/enrich-attribution.js`, Vercel cron daily 06:00 UTC. Finds recent Leads with a gclid but no campaign, looks the click up in Google Ads `click_view`, and writes campaign/adgroup/keyword/matchtype back to Monday. Cron uses a 3-day window; for a wider one-off sweep run manually with `?secret=<CRON_SECRET>&maxAgeDays=92&lookback=12&limit=100` (add `&dryRun=1` to preview). Per-lead outcomes: `enriched`, `not-found` (click not in click_view: Display/Demand-Gen/Search-Partners/expired), `skipped` (Meta fbclid or gbraid, no gclid to look up).
+
 ---
 
 ## Attribution dashboard
@@ -326,6 +331,16 @@ vercel logs https://luxe-lead-capture.vercel.app --follow
 
 | Date | Change |
 |------|--------|
+| 2026-07-06 | Built `/api/enrich-attribution`: backfills missing campaign / ad group / keyword / match type onto Leads by looking the stored gclid up in Google Ads `click_view` (authoritative ~90 days) and writing the result to Monday. Needed because under parallel tracking, UTM params in a tracking template never reach the landing page, and there is no valid ValueTrack macro for the campaign name. Read-only against the classic Ads API (`googleAds:search`), so the deprecated write path is untouched. Idempotent: filled leads drop out of the Monday-side filter. First backfill enriched 16 historical leads. |
+| 2026-07-06 | Daily cron for `/api/enrich-attribution` at 06:00 UTC with a 3-day window (`maxAgeDays=3&lookback=10&limit=100`). Authenticates via the `Authorization: Bearer <CRON_SECRET>` header Vercel injects into cron calls, so no secret sits in `vercel.json`. Short window means unrecoverable leads (Meta/Display/expired) age out instead of being retried forever. |
+| 2026-07-06 | Fixed `EVENT_TIME_INVALID` on `submit-enquiry.js`: event timestamp is now always server `new Date()`, never the client-supplied `submitted_at` (device clock skew or a stale/cached form load could push it outside Google's acceptable window). |
+| 2026-07-06 | `submit-booking.js` + `submit-high-potential.js` stamp the event timestamp at webhook time, not lead/booking creation, to avoid `EVENT_TIME_INVALID` on old rows. |
+| 2026-07-06 | Fixed booking conversion value lost on replay: the failure log now records the revenue value, and `replay-failed-events.js` refetches it straight from Monday. Bug had re-uploaded three failed bookings at £0. |
+| 2026-07-06 | Added `isTransient400` retry to `_dataManager.js`: retries the generic `events.events[N]` 400 (intermittent Google-side rejection of otherwise valid payloads) alongside 5xx/429. Re-armed the temporary success pings. |
+| 2026-07-06 | Built `/api/replay-failed-events`: rebuilds and re-uploads conversions from the KV `gads:events` fail log via EC for Leads, idempotent per Monday item id. |
+| 2026-07-06 | `pushToMonday` (enquiry + stayluxe) retries `create_item` on transient Monday errors (`API_TEMPORARILY_BLOCKED`, rate limit, 5xx) with 2s/5s/10s backoff, was single-shot before. |
+| 2026-07-06 | Duplicate detection: an IP-only match now also flags when the original lead is under 14 days old (same-household, e.g. parent + student on shared home wifi with unique names/emails/phones). |
+| 2026-07-06 | Monday-failure rescue email now dumps the full tracking payload (campaign, adgroup, term, all click ids, session id, landing page, first-touch fields, visited paths, IP) so attribution is recoverable when the CRM write fails. |
 | 2026-06-30 | Migrated all offline conversion uploads from Google Ads API v21 `uploadClickConversions` to Google Data Manager API `events:ingest`. Reason: Google deprecated the old path starting 15 Jun 2026. |
 | 2026-06-30 | Removed `sync-customer-match.js` and its cron. Customer Match flow moves to a separate project. |
 | 2026-06-30 | Flipped all conversion actions to Count = Every (gbraid/wbraid require it). EC for Leads enabled account-wide. Step 4 click window = 90d max. |
@@ -354,6 +369,8 @@ vercel logs https://luxe-lead-capture.vercel.app --follow
 
 ## Known issues / future work
 
+- Google Ads UTMs live in a **tracking template**, not a Final URL suffix. Under parallel tracking (mandatory on Search) tracking-template params never reach the landing page, so only the auto-tagged gclid/gbraid land. On top of that, the campaign NAME has no valid ValueTrack macro and `{adgroupname}` is not a real macro (it lands as the literal string). Net effect: leads capture gclid but not campaign/adgroup/keyword at submit time. `/api/enrich-attribution` backfills all of it from `click_view` daily, so no Google Ads settings change is strictly required. If real-time keyword/matchtype capture at submit is ever wanted, move those macros into a Final URL suffix (account level).
+- Recoverable ceiling for enrichment: Search + Shopping clicks on this account within `click_view`'s ~90-day window. Display/Demand-Gen/Search-Partners clicks, Meta fbclids, gbraid-only iOS clicks, and anything older than 90 days cannot be recovered.
 - Customer Match upload (`sync-customer-match.js`) deferred to a separate project. The Data Manager helper exposes `ingestAudienceMembers` ready to wire.
 - Reservations form does not collect postcode. Once it does, the `address` identifier path in `buildUserIdentifiers` will start contributing to EC for Leads matching automatically.
 - Daily Claude routine only fires when the laptop is awake. For bulletproof firing, add to `vercel.json` crons (timezone is UTC).
