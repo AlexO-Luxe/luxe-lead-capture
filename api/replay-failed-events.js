@@ -86,7 +86,7 @@ module.exports = async function handler (req, res) {
         continue;
       }
 
-      const value = plan.value != null ? plan.value : (job.value || 0);
+      const value = plan.value != null ? plan.value : (ids.value != null ? ids.value : (job.value || 0));
 
       if (dryRun) {
         out.results.push({ mondayId: job.mondayId, action: plan.label, outcome: 'would-upload', identifierCount: userIdentifiers.length, value });
@@ -173,6 +173,7 @@ async function fetchLeadIdentifiers (itemId) {
 async function fetchBookingIdentifiers (itemId) {
   const q = `query { items(ids: [${itemId}]) {
     id
+    revenue: column_values(ids: ["numeric_mm1ge9h4"]) { id text }
     relation: column_values(ids: ["link_to_leads26"]) {
       id
       ... on BoardRelationValue {
@@ -186,5 +187,6 @@ async function fetchBookingIdentifiers (itemId) {
   if (!lead) return null;
   const c = {};
   lead.column_values.forEach(x => { c[x.id] = x.text || ''; });
-  return { email: c.email, phone: c.phone_1, firstName: c.text37, lastName: c.text60 };
+  const value = parseFloat((it?.revenue?.[0]?.text || '').replace(/[£$€,\s]/g, ''));
+  return { email: c.email, phone: c.phone_1, firstName: c.text37, lastName: c.text60, value: Number.isFinite(value) ? value : null };
 }

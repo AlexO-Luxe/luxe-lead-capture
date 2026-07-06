@@ -128,7 +128,7 @@ module.exports = async function handler(req, res) {
           return res.status(200).json({ success: true, itemId, value: cleanValue });
         } catch (uploadErr) {
           console.error('submit-booking upload error:', uploadErr.message);
-          logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
+          logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
           sendGadsAlert({
             source:  'Student Luxe booking',
             action:  'Confirmed Booking',
@@ -166,7 +166,7 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ success: true, itemId, value: cleanValue });
       } catch (uploadErr) {
         console.error('submit-booking upload error:', uploadErr.message);
-        logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
+        logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
         sendGadsAlert({
           source:  'Student Luxe booking',
           action:  'Confirmed Booking',
