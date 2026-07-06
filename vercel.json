@@ -8,6 +8,10 @@
     {
       "path": "/api/enrich-attribution?maxAgeDays=3&lookback=10&limit=100",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/sync-booking-values",
+      "schedule": "30 6 * * *"
     }
   ]
 }

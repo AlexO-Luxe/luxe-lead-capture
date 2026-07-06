@@ -137,7 +137,7 @@ function computeFormula2 (cv) {
   const comm = numOf(txt(cv.numbers92)) / 100;
   const disc = numOf(txt(cv.numeric_mm1a1e33)) / 1.2;
 
-  const rate = eqi(m68, 'Gross')
+  const rate = eq(m68, 'Gross')
     ? grossRate(cur, m144, m74, n80, n54, nights)
     : netRate(cur, m144, m74, n80, n54, nights);
 
@@ -147,7 +147,7 @@ function computeFormula2 (cv) {
 function grossRate (cur, m144, m74, n80, n54, nights) {
   if (cur !== '£') return n80;
   let r;
-  if (eqi(m144, 'Gross') || (eqi(m144, 'Net') && eqi(m74, 'No VAT')) || (nights >= 90 && eqi(m74, 'VAT on < 90 nights'))) {
+  if (eq(m144, 'Gross') || (eq(m144, 'Net') && eq(m74, 'No VAT')) || (nights >= 90 && eq(m74, 'VAT on < 90 nights'))) {
     r = n80;
   } else if (n54 >= 28) {
     r = n80 * 1.04;
@@ -161,7 +161,7 @@ function grossRate (cur, m144, m74, n80, n54, nights) {
 
 function netRate (cur, m144, m74, n80, n54, nights) {
   if (cur !== '£') return n80;
-  if (eqi(m74, 'No Vat') || eqi(m144, 'Net') || (eqi(m74, 'Vat on < 90 Nights') && nights >= 90)) return n80;
+  if (eq(m74, 'No Vat') || eq(m144, 'Net') || (eq(m74, 'Vat on < 90 Nights') && nights >= 90)) return n80;
   const tot = nights + n54;
   if (tot >= 28) return (28 * n80 / 1.2 + (tot - 28) * n80 / 1.04) / tot;
   if (tot < 28)  return (tot * n80 / 1.2) / tot;
@@ -274,7 +274,12 @@ async function sendDigest (out) {
 function txt (c)  { return (c?.text || '').trim(); }
 function disp (c) { return (c?.display_value || '').trim(); }
 function numOf (v) { const n = parseFloat(String(v).replace(/[£$€,\s]/g, '')); return Number.isFinite(n) ? n : 0; }
-function eqi (a, b) { return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase(); }
+// Monday formula string comparison is CASE-SENSITIVE. The sub-formulas use
+// inconsistent literal casing on purpose-or-by-accident (net-rate checks
+// "No Vat" while the mirror value is "No VAT", so that branch never matches
+// and VAT is stripped). Replicate exactly: compare case-sensitively against
+// the literal each sub-formula actually uses.
+function eq (a, b) { return (a || '').trim() === (b || '').trim(); }
 function round2 (n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 function daysBetween (ci, co) {
   if (!ci || !co) return null;
