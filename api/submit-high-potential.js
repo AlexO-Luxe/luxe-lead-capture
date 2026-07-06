@@ -180,7 +180,11 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, ti
   const firstName = nameParts[0] || '';
   const lastName  = nameParts.slice(1).join(' ');
 
-  const eventTimestamp = (timestamp ? new Date(timestamp) : new Date()).toISOString();
+  // The conversion happens NOW, when the potential status is set and this
+  // webhook fires — not when the lead was created (which can be months ago,
+  // outside Google's acceptable event-time window -> EVENT_TIME_INVALID).
+  // The original `timestamp` is still used below for a stable transactionId.
+  const eventTimestamp = new Date().toISOString();
 
   const adIdentifiers = {};
   if      (gclid)  adIdentifiers.gclid  = gclid;
@@ -234,7 +238,7 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, ti
     return result;
   } catch (err) {
     const msg = String(err.message || err);
-    if (/EXPIRED|TOO_OLD|click.*window/i.test(msg)) {
+    if (/EXPIRED|TOO_OLD|click.*window|EVENT_TIME_INVALID|acceptable time window/i.test(msg)) {
       console.log('Data Manager lead-potential skipped (click outside window):', msg.slice(0, 200));
       return { skipped: true, reason: 'expired_event' };
     }
