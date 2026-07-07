@@ -120,16 +120,16 @@ module.exports = async function handler(req, res) {
         // outer catch, which only has mondayId in scope.
         try {
           const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-          logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+          await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
           if (!result?.skipped) {
-            sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
+            await sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
           }
           await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
           return res.status(200).json({ success: true, itemId, value: cleanValue });
         } catch (uploadErr) {
           console.error('submit-booking upload error:', uploadErr.message);
-          logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
-          sendGadsAlert({
+          await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
+          await sendGadsAlert({
             source:  'Student Luxe booking',
             action:  'Confirmed Booking',
             payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid },
@@ -158,16 +158,16 @@ module.exports = async function handler(req, res) {
       console.log('Revenue filled for PPC booking, uploading. Value: £' + cleanValue);
       try {
         const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-        logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+        await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
         if (!result?.skipped) {
-          sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
+          await sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
         }
         await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
         return res.status(200).json({ success: true, itemId, value: cleanValue });
       } catch (uploadErr) {
         console.error('submit-booking upload error:', uploadErr.message);
-        logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
-        sendGadsAlert({
+        await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
+        await sendGadsAlert({
           source:  'Student Luxe booking',
           action:  'Confirmed Booking',
           payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid },
@@ -180,8 +180,8 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     console.error('submit-booking error:', err.message);
     const mid = req.body?.event?.pulseId || req.body?.event?.itemId;
-    logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: err.message, mondayId: mid });
-    sendGadsAlert({
+    await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: err.message, mondayId: mid });
+    await sendGadsAlert({
       source:  'Student Luxe booking',
       action:  'Confirmed Booking',
       payload: { mondayId: mid },

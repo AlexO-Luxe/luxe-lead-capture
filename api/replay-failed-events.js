@@ -111,10 +111,10 @@ module.exports = async function handler (req, res) {
 
       try {
         const result = await ingestEvents(body);
-        logGadsEvent({ source: job.source + ' (replay)', action: plan.label, ok: true, reason: 'replayed', email: ids.email, value, mondayId: job.mondayId });
+        await logGadsEvent({ source: job.source + ' (replay)', action: plan.label, ok: true, reason: 'replayed', email: ids.email, value, mondayId: job.mondayId });
         out.results.push({ mondayId: job.mondayId, action: plan.label, outcome: 'uploaded', requestId: result?.requestId || null, value });
       } catch (err) {
-        logGadsEvent({ source: job.source + ' (replay)', action: plan.label, ok: false, reason: 'replay_failed', error: err.message, email: ids.email, mondayId: job.mondayId });
+        await logGadsEvent({ source: job.source + ' (replay)', action: plan.label, ok: false, reason: 'replay_failed', error: err.message, email: ids.email, mondayId: job.mondayId });
         out.results.push({ mondayId: job.mondayId, action: plan.label, outcome: 'failed', reason: err.message.slice(0, 300) });
       }
     }

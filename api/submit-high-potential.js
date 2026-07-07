@@ -115,7 +115,7 @@ module.exports = async function handler(req, res) {
         actionId: config.actionId()
       });
 
-      logGadsEvent({
+      await logGadsEvent({
         source:    'Student Luxe lead-potential',
         action:    config.label,
         ok:        !result?.skipped,
@@ -128,7 +128,7 @@ module.exports = async function handler(req, res) {
         mondayId:  itemId
       });
       if (!result?.skipped) {
-        sendGadsSuccess({
+        await sendGadsSuccess({
           source:  'Student Luxe lead-potential',
           action:  config.label,
           payload: { email, mondayId: itemId, value: config.value, hasGclid: !!gclid, hasGbraid: !!gbraid, requestId: result?.requestId }
@@ -138,8 +138,8 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, itemId, gclid, potential: config.label, value: config.value });
     } catch (uploadErr) {
       console.error('submit-high-potential upload error:', uploadErr.message);
-      logGadsEvent({ source: 'Student Luxe lead-potential', action: config.label, ok: false, reason: 'exception', error: uploadErr.message, email, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid });
-      sendGadsAlert({
+      await logGadsEvent({ source: 'Student Luxe lead-potential', action: config.label, ok: false, reason: 'exception', error: uploadErr.message, email, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid });
+      await sendGadsAlert({
         source:  'Student Luxe lead-potential',
         action:  config.label,
         payload: { email, name, mondayId: itemId, value: config.value, hasGclid: !!gclid, hasGbraid: !!gbraid },
@@ -151,8 +151,8 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     console.error('submit-high-potential error:', err.message);
     const mid = req.body?.event?.pulseId || req.body?.event?.itemId;
-    logGadsEvent({ source: 'Student Luxe lead-potential', action: 'High / Moderate Potential', ok: false, reason: 'exception', error: err.message, mondayId: mid });
-    sendGadsAlert({
+    await logGadsEvent({ source: 'Student Luxe lead-potential', action: 'High / Moderate Potential', ok: false, reason: 'exception', error: err.message, mondayId: mid });
+    await sendGadsAlert({
       source:  'Student Luxe lead-potential',
       action:  'High / Moderate Potential',
       payload: { mondayId: mid },

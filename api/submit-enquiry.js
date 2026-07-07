@@ -113,16 +113,16 @@ module.exports = async function handler(req, res) {
   try {
     const dmResult = await uploadGoogleAdsConversion(p);
     console.log('Google Ads conversion uploaded OK');
-    logGadsEvent({ ...gadsCtx, ok: true });
-    sendGadsSuccess({
+    await logGadsEvent({ ...gadsCtx, ok: true });
+    await sendGadsSuccess({
       source:  gadsCtx.source,
       action:  gadsCtx.action,
       payload: { email: p.email, name: p.full_name, mondayId, hasGclid: gadsCtx.hasGclid, hasGbraid: gadsCtx.hasGbraid, requestId: dmResult?.requestId }
     });
   } catch(err) {
     console.error('Google Ads conversion failed (non-fatal):', err.message);
-    logGadsEvent({ ...gadsCtx, ok: false, error: err.message });
-    sendGadsAlert({
+    await logGadsEvent({ ...gadsCtx, ok: false, error: err.message });
+    await sendGadsAlert({
       source:  gadsCtx.source,
       action:  gadsCtx.action,
       payload: { email: p.email, name: p.full_name, mondayId, hasGclid: gadsCtx.hasGclid, hasGbraid: gadsCtx.hasGbraid },
