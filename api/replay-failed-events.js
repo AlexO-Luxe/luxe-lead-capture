@@ -17,7 +17,7 @@ const MONDAY_API     = 'https://api.monday.com/v2';
 const LEADS_BOARD    = 2171015719;
 const BOOKINGS_BOARD = 2171015589;
 
-const { readGadsEvents, logGadsEvent, claimAlert } = require('./_log.js');
+const { readGadsEvents, logGadsEvent, claimAlert, isIgnored } = require('./_log.js');
 const { sendGadsAlert } = require('./_alert.js');
 const {
   conversionDestination,
@@ -86,6 +86,13 @@ module.exports = async function handler (req, res) {
       const plan = classify(job);
       if (!plan) {
         out.results.push({ mondayId: job.mondayId, action: job.action, outcome: 'skipped', reason: 'unrecognised source' });
+        continue;
+      }
+
+      // Explicitly ignored (e.g. a lead mislabelled PPC with no contact info).
+      // Never re-upload, never alert.
+      if (await isIgnored(job.mondayId, plan.label || job.action)) {
+        out.results.push({ mondayId: job.mondayId, action: plan.label, outcome: 'ignored' });
         continue;
       }
 

@@ -71,4 +71,32 @@ async function readGadsEvents (sinceMs, untilMs) {
   }
 }
 
-module.exports = { logGadsEvent, readGadsEvents, claimAlert };
+// Ignore list: mondayId|action pairs the replay must skip entirely (no
+// re-upload, no alert). For bookings/leads that can never upload and are not
+// worth chasing, e.g. a lead mislabelled PPC with no contact details.
+const IGNORE_KEY = 'gads:ignore';
+
+async function isIgnored (mondayId, action) {
+  try {
+    const k = await kv();
+    return !!(await k.sismember(IGNORE_KEY, mondayId + '|' + (action || '')));
+  } catch (err) {
+    console.warn('isIgnored failed:', err.message);
+    return false;
+  }
+}
+
+async function setIgnore (mondayId, action, on = true) {
+  const k = await kv();
+  const m = mondayId + '|' + (action || '');
+  if (on) await k.sadd(IGNORE_KEY, m);
+  else    await k.srem(IGNORE_KEY, m);
+  return m;
+}
+
+async function listIgnored () {
+  try { const k = await kv(); return (await k.smembers(IGNORE_KEY)) || []; }
+  catch { return []; }
+}
+
+module.exports = { logGadsEvent, readGadsEvents, claimAlert, isIgnored, setIgnore, listIgnored };
