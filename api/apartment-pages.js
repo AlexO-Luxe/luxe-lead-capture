@@ -18,6 +18,8 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 let cache = null;
 let cacheTime = 0;
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -143,6 +145,7 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('apartment-pages error:', err);
+    await logError('apartment-pages', err);
     return res.status(500).json({ error: err.message });
   }
 };

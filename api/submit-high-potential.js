@@ -20,6 +20,8 @@ const POTENTIAL_CONFIG = {
   }
 };
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -145,6 +147,7 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('submit-high-potential error:', err.message);
+    await logError('submit-high-potential', err);
     const mid = req.body?.event?.pulseId || req.body?.event?.itemId;
     await logGadsEvent({ source: 'Student Luxe lead-potential', action: 'High / Moderate Potential', ok: false, reason: 'exception', error: err.message, mondayId: mid });
     return res.status(200).json({ error: err.message });

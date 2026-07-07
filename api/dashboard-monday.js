@@ -7,6 +7,8 @@ const MONDAY_API     = 'https://api.monday.com/v2';
 const LEADS_BOARD    = 2171015719;
 const BOOKINGS_BOARD = 2171015589;
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -43,6 +45,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json(result);
   } catch (err) {
     console.error('Dashboard Monday error:', err.message);
+    await logError('dashboard-monday', err);
     return res.status(500).json({ error: err.message });
   }
 };

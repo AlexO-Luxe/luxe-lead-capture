@@ -21,6 +21,8 @@ function recipients() {
     .split(',').map(s => s.trim()).filter(Boolean);
 }
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   try {
     // Health check / accidental browser hit.
@@ -72,6 +74,7 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('lead-qualified-webhook error:', err);
+    await logError('lead-qualified-webhook', err);
     // Return 200 so Monday does not hammer retries on a transient failure;
     // the error is logged for inspection.
     return res.status(200).json({ ok: false, error: err.message });

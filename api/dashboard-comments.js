@@ -10,6 +10,8 @@
 
 const VALID_AUTHORS = ['AO', 'JD', 'AW', 'AK', 'AB'];
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
@@ -53,6 +55,7 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('Comments error:', err.message);
+    await logError('dashboard-comments', err);
     return res.status(500).json({ error: err.message });
   }
 };

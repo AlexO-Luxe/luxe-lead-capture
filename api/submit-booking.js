@@ -7,6 +7,8 @@ const MONDAY_API = 'https://api.monday.com/v2';
 const { sendGadsAlert, sendGadsSuccess } = require('./_alert.js');
 const { logGadsEvent }  = require('./_log.js');
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -170,6 +172,7 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('submit-booking error:', err.message);
+    await logError('submit-booking', err);
     const mid = req.body?.event?.pulseId || req.body?.event?.itemId;
     await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: err.message, mondayId: mid });
     return res.status(200).json({ error: err.message });

@@ -30,6 +30,8 @@ const {
 // the replay just keeps retrying silently (transient Google 400s recover fast).
 const STUCK_MS = 6 * 60 * 60 * 1000;
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler (req, res) {
   const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
   if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET) {
@@ -158,6 +160,7 @@ module.exports = async function handler (req, res) {
     return res.status(200).json(out);
   } catch (err) {
     console.error('replay-failed-events error:', err.message);
+    await logError('replay-failed-events', err);
     return res.status(500).json({ error: err.message });
   }
 };

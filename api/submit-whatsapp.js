@@ -12,6 +12,8 @@
 
 const RESEND_API = 'https://api.resend.com/emails';
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -104,6 +106,7 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('submit-whatsapp error:', err.message);
+    await logError('submit-whatsapp', err);
     return res.status(200).json({ error: err.message });
   }
 };

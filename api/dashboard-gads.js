@@ -41,6 +41,8 @@ const MONTHLY_BUDGETS = {
   '09': 65000, '10': 29000, '11': 28000, '12': 28000
 };
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -88,6 +90,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json(result);
   } catch (err) {
     console.error('Dashboard GAds error:', err.message);
+    await logError('dashboard-gads', err);
     return res.status(500).json({ error: err.message });
   }
 };

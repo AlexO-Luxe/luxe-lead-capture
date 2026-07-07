@@ -8,6 +8,8 @@ const MONDAY_API    = 'https://api.monday.com/v2';
 const RESEND_API    = 'https://api.resend.com/emails';
 const BOOKING_BOARD = 2171015589;
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -66,6 +68,7 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('Weekly summary error:', err.message);
+    await logError('weekly-summary', err);
     return res.status(200).json({ error: err.message });
   }
 };

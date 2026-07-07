@@ -28,6 +28,8 @@ function readSessionId(req) {
   return (req.body && req.body.session_id) || cookies.sl_session_id || null;
 }
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin',  '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -54,6 +56,7 @@ module.exports = async function handler(req, res) {
     });
   } catch (err) {
     console.error('track error:', err.message);
+    await logError('track', err);
     return res.status(200).json({ error: err.message });
   }
 };

@@ -27,6 +27,8 @@ const CACHE_TTL_MS = 60 * 60 * 1000;
 let cache = {};
 let cacheTime = {};
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -188,6 +190,7 @@ module.exports = async function handler(req, res) {
 
   } catch (err) {
     console.error('university-pages error:', err);
+    await logError('university-pages', err);
     return res.status(500).json({ error: err.message });
   }
 };

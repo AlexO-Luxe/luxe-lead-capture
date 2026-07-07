@@ -70,6 +70,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('Submit lead error:', err);
+    await logError('submit-lead', err);
     return res.status(500).json({ error: 'Server error', detail: err.message });
   }
 }

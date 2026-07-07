@@ -37,6 +37,8 @@ const COL_MATCHTYPE = 'text_mm1d87rp';
 const CUSTOMER_ID = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
 const MCC_ID      = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || '6046238343';
 
+const { logError } = require('./_errlog.js');
+
 module.exports = async function handler (req, res) {
   // Auth: manual runs pass ?secret=; the Vercel cron authenticates via the
   // Authorization: Bearer <CRON_SECRET> header it injects automatically, so
@@ -104,6 +106,7 @@ module.exports = async function handler (req, res) {
     return res.status(200).json(out);
   } catch (err) {
     console.error('enrich-attribution error:', err.message);
+    await logError('enrich-attribution', err);
     return res.status(500).json({ error: err.message });
   }
 };
