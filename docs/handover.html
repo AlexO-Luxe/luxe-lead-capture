@@ -187,7 +187,7 @@
 <!-- PAGE 5: STEP 4 BOOKING + FORMULA -->
 <div class="page">
   <h2>5. Stage 4: the confirmed booking upload</h2>
-  <p class="lead"><code>/api/submit-booking</code> is a Monday webhook on the Bookings board. It fires on two triggers: the status column changing to Confirmed Booking, or the revenue column <code>numeric_mm1ge9h4</code> being filled. Only PPC bookings (lead source contains "PPC") upload.</p>
+  <p class="lead"><code>/api/submit-booking</code> is a Monday webhook on the Bookings board. It fires on two triggers: the booking <b>status</b> changing (any status counts as confirmed <b>except "Pending Booking"</b>, a lost or cancelled booking can still carry a retained fee), or the <b>revenue</b> column <code>numeric_mm1ge9h4</code> being filled. Only PPC bookings upload, and only once a value is present. The stable transaction id dedupes the repeat fires across a booking's lifecycle, so Google never double-counts.</p>
 
   <h4>Sequence</h4>
   <ol>
@@ -253,6 +253,7 @@
   <table>
     <tr><th>Job</th><th>When</th><th>Purpose</th></tr>
     <tr><td>replay-failed-events</td><td>Every 4h (cron)</td><td>Re-upload still-failing conversions; alert on the stuck ones</td></tr>
+    <tr><td>error-digest</td><td>Daily 07:00 UTC (cron)</td><td>Email any application errors from the last 24h</td></tr>
     <tr><td>enrich-attribution</td><td>Daily 06:00 UTC (cron)</td><td>Back-fill campaign data from gclid via click_view</td></tr>
     <tr><td>sync-booking-values</td><td>Daily 06:30 UTC (cron)</td><td>Recompute + sync the booking commission value</td></tr>
     <tr><td>gads-daily-summary</td><td>09:30 London (Claude routine)</td><td>Daily digest of all conversion uploads</td></tr>
@@ -270,6 +271,17 @@
     <h4>What triggers an email now</h4>
     <p style="margin-bottom:0">A Step 1 / 2 / 3 / 4 upload that has genuinely stayed broken for 6+ hours: a persistent API error, or a PPC booking/lead with <b>no email or phone</b> on the Monday row (nothing to match on, so it can never upload). Transient blips that the replay fixes stay silent. The daily digest still summarises everything, healed or not.</p>
   </div>
+
+  <h3>Ignoring an unfixable upload</h3>
+  <p>Some conversions can never upload, e.g. a lead mislabelled PPC with no email, phone, or gclid. Left alone they would re-alert forever. <code>/api/gads-ignore</code> manages a small ignore list so the replay skips them entirely:</p>
+  <ul>
+    <li><b>Ignore:</b> <code>/api/gads-ignore?secret=&hellip;&mondayId=123&amp;action=Confirmed%20Booking</code></li>
+    <li><b>Undo:</b> add <code>&amp;remove=1</code> &nbsp;&middot;&nbsp; <b>List:</b> call with no <code>mondayId</code></li>
+  </ul>
+  <p class="muted">Note: ignoring only silences the Google upload. If a lead is mislabelled PPC, also correct its source in Monday so it stops skewing PPC revenue reporting.</p>
+
+  <h3>Application errors (not just Google Ads)</h3>
+  <p>Vercel keeps runtime logs for only ~1 hour, so a daily dashboard scan cannot see 24 hours of errors. Instead every handler's top-level catch writes to a Redis <code>app:errors</code> log (14-day retention). <code>/api/error-digest</code> runs daily at 07:00 UTC, groups the last 24h by endpoint and message, and emails a summary. <b>No email is sent on a zero-error day.</b> This covers any unexpected failure across the whole project (Monday writes, email sends, webhooks, crons), separate from the Google Ads upload alerts. Pure platform errors (function timeout, out-of-memory) do not reach our code and would need a Vercel Log Drain to capture.</p>
 
   <h3>Key Monday columns</h3>
   <table>
