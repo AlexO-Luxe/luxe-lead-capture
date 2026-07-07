@@ -238,8 +238,8 @@
   </div>
 
   <div class="box ok">
-    <h4>Recovery: /api/replay-failed-events</h4>
-    <p style="margin-bottom:0">Scans the KV <code>gads:events</code> fail log, re-fetches each lead/booking from Monday (values pulled fresh, source of truth), and re-uploads via Enhanced Conversions for Leads. Idempotent per Monday item, so re-running never double-counts.</p>
+    <h4>Recovery: /api/replay-failed-events (runs every 4h)</h4>
+    <p style="margin-bottom:0">Scans the KV <code>gads:events</code> fail log, re-fetches each lead/booking from Monday (values pulled fresh, source of truth), and re-uploads via Enhanced Conversions for Leads. Idempotent per Monday item, so re-running never double-counts. This is also the alerting layer: it emails only the failures that stay broken past 6 hours (see Monitoring).</p>
   </div>
 
   <div class="foot"><span>Student Luxe &middot; Enquiry to Conversion Handover</span><span>6</span></div>
@@ -252,14 +252,24 @@
   <h3>Scheduled jobs</h3>
   <table>
     <tr><th>Job</th><th>When</th><th>Purpose</th></tr>
+    <tr><td>replay-failed-events</td><td>Every 4h (cron)</td><td>Re-upload still-failing conversions; alert on the stuck ones</td></tr>
     <tr><td>enrich-attribution</td><td>Daily 06:00 UTC (cron)</td><td>Back-fill campaign data from gclid via click_view</td></tr>
     <tr><td>sync-booking-values</td><td>Daily 06:30 UTC (cron)</td><td>Recompute + sync the booking commission value</td></tr>
     <tr><td>gads-daily-summary</td><td>09:30 London (Claude routine)</td><td>Daily digest of all conversion uploads</td></tr>
     <tr><td>weekly-summary</td><td>Friday 09:00 UTC (cron)</td><td>PPC bookings revenue digest by <code>date9</code> close date</td></tr>
   </table>
 
-  <h3>Alerts</h3>
-  <p>Every conversion-upload failure emails alex@studentluxe.co.uk instantly (<code>sendGadsAlert</code>). Every attempt is logged to the KV <code>gads:events</code> sorted set (35-day retention) that feeds both the daily digest and the replay endpoint.</p>
+  <h3>Failure alerts: only when it does not self-heal</h3>
+  <p>Google's Data Manager API intermittently rejects valid uploads with a transient 400 (~1 in 5). Alerting on every one would be pure noise, because most recover on retry. So the alert model is two-layered:</p>
+  <ul>
+    <li>Every upload attempt is logged to the KV <code>gads:events</code> sorted set (35-day retention). A failure logs but <b>does not email</b>.</li>
+    <li>The <b>replay cron</b> (every 4 hours) re-uploads anything still failing. It skips fails that already recovered (a later success exists for the same booking/lead).</li>
+    <li>Only when a failure is <b>still unrecovered after 6 hours</b> does it email alex@studentluxe.co.uk, once per item (deduped), with the exact failure reason.</li>
+  </ul>
+  <div class="box">
+    <h4>What triggers an email now</h4>
+    <p style="margin-bottom:0">A Step 1 / 2 / 3 / 4 upload that has genuinely stayed broken for 6+ hours: a persistent API error, or a PPC booking/lead with <b>no email or phone</b> on the Monday row (nothing to match on, so it can never upload). Transient blips that the replay fixes stay silent. The daily digest still summarises everything, healed or not.</p>
+  </div>
 
   <h3>Key Monday columns</h3>
   <table>
