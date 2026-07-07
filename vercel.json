@@ -12,6 +12,10 @@
     {
       "path": "/api/sync-booking-values",
       "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/replay-failed-events?hours=8",
+      "schedule": "0 */4 * * *"
     }
   ]
 }

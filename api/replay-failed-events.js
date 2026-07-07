@@ -27,7 +27,8 @@ const {
 } = require('./_dataManager.js');
 
 module.exports = async function handler (req, res) {
-  if (req.query?.secret !== process.env.CRON_SECRET) {
+  const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+  if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
