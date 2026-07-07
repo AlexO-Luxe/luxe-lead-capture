@@ -7,6 +7,14 @@ const MONDAY_API = 'https://api.monday.com/v2';
 const { sendGadsAlert, sendGadsSuccess } = require('./_alert.js');
 const { logGadsEvent }  = require('./_log.js');
 
+// The only booking status that must NOT upload to Google. Every other status
+// (Confirmed, Paying/Approved, Payment Complete, Extensions, Awaiting
+// Commission, Shortened, even Lost/Cancelled) can carry real revenue and is
+// allowed to upload once a value is present.
+function isPendingStatus (s) {
+  return (s || '').toString().toLowerCase().trim() === 'pending booking';
+}
+
 const { logError } = require('./_errlog.js');
 
 module.exports = async function handler(req, res) {
@@ -102,21 +110,24 @@ module.exports = async function handler(req, res) {
 
     console.log('Item data:', { itemId, bookingName, status, gclid, leadSource, revenueRaw, leadEmail: leadEmail ? '✓' : '✗', leadPhone: leadPhone ? '✓' : '✗', leadGbraid: leadGbraid ? '✓' : '✗', leadWbraid: leadWbraid ? '✓' : '✗' });
 
-    // ── TRIGGER A: Status changed to Confirmed Booking ────────
+    // ── TRIGGER A: Status changed ─────────────────────────────
+    // Any status uploads once revenue is present, EXCEPT "Pending Booking"
+    // (not yet real). Lost / Cancelled are allowed: they can still carry
+    // revenue (e.g. a retained cancellation fee).
     if (isStatusTrigger) {
       const newValue = (
         event.value?.label?.text ||
         (typeof event.value?.label === 'string' ? event.value.label : '') || ''
       ).toString();
 
-      if (!newValue.toLowerCase().includes('confirmed booking')) {
-        return res.status(200).json({ skipped: true, reason: 'not confirmed booking' });
+      if (isPendingStatus(newValue)) {
+        return res.status(200).json({ skipped: true, reason: 'pending booking, not uploading' });
       }
 
       const cleanValue = parseFloat((revenueRaw || '').toString().replace(/[£$€,\s]/g, ''));
 
       if (cleanValue > 0 && isPPC) {
-        console.log('Status confirmed + revenue present, uploading. Value: £' + cleanValue);
+        console.log('Confirmed status + revenue present, uploading. Value: £' + cleanValue);
         // Own try/catch so a failure alert carries full lead context
         // (email, name, click ids) instead of falling through to the
         // outer catch, which only has mondayId in scope.
@@ -145,6 +156,7 @@ module.exports = async function handler(req, res) {
     // ── TRIGGER B: Revenue column filled ─────────────────────
     if (isRevenueTrigger) {
       if (!isPPC) return res.status(200).json({ skipped: true, reason: 'not ppc' });
+      if (isPendingStatus(status)) return res.status(200).json({ skipped: true, reason: 'pending booking, not uploading' });
 
       const eventValue = event.value?.value ?? event.value ?? '';
       const cleanValue = parseFloat((String(eventValue || revenueRaw || '0')).replace(/[£$€,\s]/g, ''));
