@@ -17,14 +17,18 @@ const MONDAY_API     = 'https://api.monday.com/v2';
 const LEADS_BOARD    = 2171015719;
 const BOOKINGS_BOARD = 2171015589;
 
-const { readGadsEvents }  = require('./_log.js');
-const { logGadsEvent }    = require('./_log.js');
+const { readGadsEvents, logGadsEvent, claimAlert } = require('./_log.js');
+const { sendGadsAlert } = require('./_alert.js');
 const {
   conversionDestination,
   buildUserIdentifiers,
   ingestEvents,
   CONSENT_GRANTED
 } = require('./_dataManager.js');
+
+// A fail only alerts once it has failed to self-heal for this long. Below it,
+// the replay just keeps retrying silently (transient Google 400s recover fast).
+const STUCK_MS = 6 * 60 * 60 * 1000;
 
 module.exports = async function handler (req, res) {
   const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
@@ -39,19 +43,42 @@ module.exports = async function handler (req, res) {
 
   try {
     const events = await readGadsEvents(sinceMs, untilMs);
-    const fails  = events.filter(e => !e.ok && e.mondayId);
 
-    // Dedupe by mondayId + action (a lead can fail on retry loops repeatedly).
-    const seen = new Set();
-    const jobs = [];
-    for (const f of fails) {
-      const key = f.mondayId + '|' + (f.action || '');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      jobs.push(f);
+    // A fail is "recovered" if a later ok entry exists for the same
+    // mondayId+action (replay success or an organic re-fire). Skip those.
+    const okTs = new Map();
+    for (const e of events) {
+      if (!e.ok || !e.mondayId) continue;
+      const key = e.mondayId + '|' + (e.action || '');
+      okTs.set(key, Math.max(okTs.get(key) || 0, e.ts || 0));
     }
+    const failByKey = new Map();
+    for (const e of events) {
+      if (e.ok || !e.mondayId) continue;
+      const key = e.mondayId + '|' + (e.action || '');
+      if ((okTs.get(key) || 0) >= (e.ts || 0)) continue;      // recovered after this fail
+      const prev = failByKey.get(key);
+      if (!prev || (e.ts || 0) > (prev.ts || 0)) failByKey.set(key, e);
+    }
+    const jobs = [...failByKey.values()];
 
-    const out = { window: `last ${hours}h`, distinctFails: jobs.length, dryRun, results: [] };
+    const out = { window: `last ${hours}h`, unrecovered: jobs.length, dryRun, results: [] };
+
+    // Emails a stuck failure once (deduped), only after it has been failing
+    // longer than STUCK_MS. Younger fails stay silent, still self-healing.
+    async function alertIfStuck (job, plan, reason, payload) {
+      const age = Date.now() - (job.ts || 0);
+      if (age <= STUCK_MS) return 'failed';
+      if (dryRun) return 'would-alert';
+      if (!(await claimAlert(job.mondayId, plan?.label || job.action))) return 'failed';  // already alerted
+      await sendGadsAlert({
+        source:  job.source || 'Google Ads',
+        action:  plan?.label || job.action,
+        payload: { mondayId: job.mondayId, ...payload },
+        error:   reason
+      });
+      return 'alerted';
+    }
 
     for (const job of jobs) {
       const plan = classify(job);
@@ -67,6 +94,7 @@ module.exports = async function handler (req, res) {
           ? await fetchBookingIdentifiers(job.mondayId)
           : await fetchLeadIdentifiers(job.mondayId);
       } catch (err) {
+        // Transient Monday issue, will retry next cycle. Log only, no alert.
         out.results.push({ mondayId: job.mondayId, action: job.action, outcome: 'error', reason: 'monday fetch: ' + err.message });
         continue;
       }
@@ -83,7 +111,11 @@ module.exports = async function handler (req, res) {
         regionCode: 'GB'
       });
       if (!userIdentifiers.length) {
-        out.results.push({ mondayId: job.mondayId, action: job.action, outcome: 'skipped', reason: 'no email/phone to match' });
+        // Never self-heals: no email/phone on the row to match against. Alert.
+        const outcome = await alertIfStuck(job, plan,
+          'Conversion could not upload: no email or phone on the Monday row to match this ' + plan.label + '. Add contact details to the linked lead so it can upload.',
+          { email: ids.email || '', value: job.value });
+        out.results.push({ mondayId: job.mondayId, action: plan.label, outcome: outcome === 'alerted' || outcome === 'would-alert' ? outcome : 'skipped', reason: 'no email/phone to match' });
         continue;
       }
 
@@ -114,8 +146,10 @@ module.exports = async function handler (req, res) {
         await logGadsEvent({ source: job.source + ' (replay)', action: plan.label, ok: true, reason: 'replayed', email: ids.email, value, mondayId: job.mondayId });
         out.results.push({ mondayId: job.mondayId, action: plan.label, outcome: 'uploaded', requestId: result?.requestId || null, value });
       } catch (err) {
-        await logGadsEvent({ source: job.source + ' (replay)', action: plan.label, ok: false, reason: 'replay_failed', error: err.message, email: ids.email, mondayId: job.mondayId });
-        out.results.push({ mondayId: job.mondayId, action: plan.label, outcome: 'failed', reason: err.message.slice(0, 300) });
+        await logGadsEvent({ source: job.source + ' (replay)', action: plan.label, ok: false, reason: 'replay_failed', error: err.message, email: ids.email, value, mondayId: job.mondayId });
+        // Still failing after retries. Alert only if it has been stuck > STUCK_MS.
+        const outcome = await alertIfStuck(job, plan, err.message, { email: ids.email || '', value });
+        out.results.push({ mondayId: job.mondayId, action: plan.label, outcome, reason: err.message.slice(0, 300) });
       }
     }
 

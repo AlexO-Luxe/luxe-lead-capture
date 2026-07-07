@@ -128,13 +128,9 @@ module.exports = async function handler(req, res) {
           return res.status(200).json({ success: true, itemId, value: cleanValue });
         } catch (uploadErr) {
           console.error('submit-booking upload error:', uploadErr.message);
+          // Log only. Alerting is owned by /api/replay-failed-events, which
+          // emails once a fail has not self-healed after STUCK_MS.
           await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
-          await sendGadsAlert({
-            source:  'Student Luxe booking',
-            action:  'Confirmed Booking',
-            payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid },
-            error:   uploadErr.message
-          });
           return res.status(200).json({ error: uploadErr.message, itemId });
         }
       }
@@ -166,13 +162,8 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ success: true, itemId, value: cleanValue });
       } catch (uploadErr) {
         console.error('submit-booking upload error:', uploadErr.message);
+        // Log only. Replay cron owns alerting once a fail fails to self-heal.
         await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
-        await sendGadsAlert({
-          source:  'Student Luxe booking',
-          action:  'Confirmed Booking',
-          payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid },
-          error:   uploadErr.message
-        });
         return res.status(200).json({ error: uploadErr.message, itemId });
       }
     }
@@ -181,12 +172,6 @@ module.exports = async function handler(req, res) {
     console.error('submit-booking error:', err.message);
     const mid = req.body?.event?.pulseId || req.body?.event?.itemId;
     await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: err.message, mondayId: mid });
-    await sendGadsAlert({
-      source:  'Student Luxe booking',
-      action:  'Confirmed Booking',
-      payload: { mondayId: mid },
-      error:   err.message
-    });
     return res.status(200).json({ error: err.message });
   }
 };

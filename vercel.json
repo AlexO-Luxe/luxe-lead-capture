@@ -14,7 +14,7 @@
       "schedule": "30 6 * * *"
     },
     {
-      "path": "/api/replay-failed-events?hours=8",
+      "path": "/api/replay-failed-events?hours=24",
       "schedule": "0 */4 * * *"
     }
   ]

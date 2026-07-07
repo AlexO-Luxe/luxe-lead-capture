@@ -41,6 +41,22 @@ async function logGadsEvent (event) {
   }
 }
 
+// Atomic once-per-window claim, so a stuck upload alerts once, not every
+// replay cycle. Returns true the first time a key is claimed (=> send the
+// alert), false if already claimed within the TTL. Errs toward alerting if
+// KV is unavailable.
+async function claimAlert (mondayId, action, ttlSec = 86400) {
+  try {
+    const k   = await kv();
+    const key = 'gads:alerted:' + mondayId + ':' + (action || '');
+    const res = await k.set(key, Date.now(), { nx: true, ex: ttlSec });
+    return res === 'OK' || res === true;
+  } catch (err) {
+    console.warn('claimAlert failed (alerting anyway):', err.message);
+    return true;
+  }
+}
+
 async function readGadsEvents (sinceMs, untilMs) {
   try {
     const k = await kv();
@@ -55,4 +71,4 @@ async function readGadsEvents (sinceMs, untilMs) {
   }
 }
 
-module.exports = { logGadsEvent, readGadsEvents };
+module.exports = { logGadsEvent, readGadsEvents, claimAlert };

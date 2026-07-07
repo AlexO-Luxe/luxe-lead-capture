@@ -138,13 +138,8 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, itemId, gclid, potential: config.label, value: config.value });
     } catch (uploadErr) {
       console.error('submit-high-potential upload error:', uploadErr.message);
-      await logGadsEvent({ source: 'Student Luxe lead-potential', action: config.label, ok: false, reason: 'exception', error: uploadErr.message, email, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid });
-      await sendGadsAlert({
-        source:  'Student Luxe lead-potential',
-        action:  config.label,
-        payload: { email, name, mondayId: itemId, value: config.value, hasGclid: !!gclid, hasGbraid: !!gbraid },
-        error:   uploadErr.message
-      });
+      // Log only. Replay cron owns alerting once a fail fails to self-heal.
+      await logGadsEvent({ source: 'Student Luxe lead-potential', action: config.label, ok: false, reason: 'exception', error: uploadErr.message, email, value: config.value, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid });
       return res.status(200).json({ error: uploadErr.message, itemId });
     }
 
@@ -152,12 +147,6 @@ module.exports = async function handler(req, res) {
     console.error('submit-high-potential error:', err.message);
     const mid = req.body?.event?.pulseId || req.body?.event?.itemId;
     await logGadsEvent({ source: 'Student Luxe lead-potential', action: 'High / Moderate Potential', ok: false, reason: 'exception', error: err.message, mondayId: mid });
-    await sendGadsAlert({
-      source:  'Student Luxe lead-potential',
-      action:  'High / Moderate Potential',
-      payload: { mondayId: mid },
-      error:   err.message
-    });
     return res.status(200).json({ error: err.message });
   }
 };

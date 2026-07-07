@@ -121,13 +121,9 @@ module.exports = async function handler(req, res) {
     });
   } catch(err) {
     console.error('Google Ads conversion failed (non-fatal):', err.message);
+    // Log only. Alerting is owned by /api/replay-failed-events, which emails
+    // once a fail has not self-healed after STUCK_MS.
     await logGadsEvent({ ...gadsCtx, ok: false, error: err.message });
-    await sendGadsAlert({
-      source:  gadsCtx.source,
-      action:  gadsCtx.action,
-      payload: { email: p.email, name: p.full_name, mondayId, hasGclid: gadsCtx.hasGclid, hasGbraid: gadsCtx.hasGbraid },
-      error:   err.message
-    });
   }
 
   // ── Attach submission summary to KV session (non-fatal) ───
