@@ -148,9 +148,14 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      console.log('Confirmed Booking — revenue not yet filled, sending notification');
-      await sendNotificationEmail({ bookingName, itemId, gclid, leadSource, isPPC, hasGclid });
-      return res.status(200).json({ notified: true, itemId });
+      // Nudge the team to fill revenue, but only at the first confirmation,
+      // not on every later status change (avoids repeat emails).
+      if (newValue.toLowerCase().includes('confirmed booking')) {
+        console.log('Confirmed Booking — revenue not yet filled, sending notification');
+        await sendNotificationEmail({ bookingName, itemId, gclid, leadSource, isPPC, hasGclid });
+        return res.status(200).json({ notified: true, itemId });
+      }
+      return res.status(200).json({ skipped: true, reason: 'no revenue yet' });
     }
 
     // ── TRIGGER B: Revenue column filled ─────────────────────
