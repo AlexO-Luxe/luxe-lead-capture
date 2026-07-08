@@ -20,7 +20,7 @@
   --navy:              #0d1a2e;
   --ink:               #1a1a1a;
   --muted:             #6b6b6b;
-  --title-size:        clamp(40px, 5.8vw, 60px);
+  --title-size:        clamp(36px, 5.2vw, 52px);
   --title-tracking:    -0.06em;
   --sub-size:          14px;
   --stat-num-size:     16px;
@@ -132,7 +132,7 @@
     </div>
   </nav>
   <div class="slr-body">
-    <h1 class="slr-title" id="slrHeroTitle">Check availability or receive apartment options</h1>
+    <h1 class="slr-title" id="slrHeroTitle">Availability &amp; options <em>on request</em></h1>
     <p class="slr-sub" id="slrHeroSub">Fill in the form and one of our accommodation experts will handle your enquiry.</p>
   </div>
 </div>
@@ -1806,7 +1806,7 @@ span.flatpickr-weekday{
 
   var COPY = {
     form: {
-      title: 'Check availability or receive apartment options',
+      title: 'Availability &amp; options <em>on request</em>',
       sub:   'Fill in the form and one of our accommodation experts will handle your enquiry.'
     },
     speak: {
