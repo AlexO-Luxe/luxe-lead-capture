@@ -135,11 +135,22 @@ module.exports = async function handler (req, res) {
         continue;
       }
 
+      // Attach the click id whenever the lead has one. Data Manager matching
+      // via hashed user data alone (EC for Leads) has produced ZERO matched
+      // conversions in this account (verified 2026-07-08: ~40 ingested
+      // SUCCESS, none recorded), while click-id events match daily. The click
+      // id is the signal that actually lands; user data rides along.
+      const adIdentifiers = {};
+      if      (ids.gclid)  adIdentifiers.gclid  = ids.gclid;
+      else if (ids.gbraid) adIdentifiers.gbraid = ids.gbraid;
+      else if (ids.wbraid) adIdentifiers.wbraid = ids.wbraid;
+
       const event = {
         destinationReferences: ['sl-replay'],
         transactionId:         'replay:' + job.mondayId + ':' + plan.actionId,
         eventTimestamp:        new Date().toISOString(),
         eventSource:           'WEB',
+        ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),
         userData:              { userIdentifiers },
         currency:              'GBP',
         conversionValue:       value
@@ -205,14 +216,18 @@ async function mondayQuery (query) {
 async function fetchLeadIdentifiers (itemId) {
   const q = `query { items(ids: [${itemId}]) {
     id
-    column_values(ids: ["email", "phone_1", "text37", "text60"]) { id text }
+    column_values(ids: ["email", "phone_1", "text37", "text60", "text4__1", "text_mm4ncd41", "text_mm4n9t2x"]) { id text }
   } }`;
   const d = await mondayQuery(q);
   const it = d?.data?.items?.[0];
   if (!it) return null;
   const c = {};
-  it.column_values.forEach(x => { c[x.id] = x.text || ''; });
-  return { email: c.email, phone: c.phone_1, firstName: c.text37, lastName: c.text60 };
+  it.column_values.forEach(x => { c[x.id] = (x.text || '').trim(); });
+  return {
+    email: c.email, phone: c.phone_1, firstName: c.text37, lastName: c.text60,
+    gclid: cleanGclid(c.text4__1, c.text_mm4ncd41, c.text_mm4n9t2x),
+    gbraid: c.text_mm4ncd41, wbraid: c.text_mm4n9t2x
+  };
 }
 
 async function fetchBookingIdentifiers (itemId) {
@@ -222,7 +237,7 @@ async function fetchBookingIdentifiers (itemId) {
     relation: column_values(ids: ["link_to_leads26"]) {
       id
       ... on BoardRelationValue {
-        linked_items { id column_values(ids: ["email", "phone_1", "text37", "text60"]) { id text } }
+        linked_items { id column_values(ids: ["email", "phone_1", "text37", "text60", "text4__1", "text_mm4ncd41", "text_mm4n9t2x"]) { id text } }
       }
     }
   } }`;
@@ -231,7 +246,24 @@ async function fetchBookingIdentifiers (itemId) {
   const lead = it?.relation?.[0]?.linked_items?.[0];
   if (!lead) return null;
   const c = {};
-  lead.column_values.forEach(x => { c[x.id] = x.text || ''; });
+  lead.column_values.forEach(x => { c[x.id] = (x.text || '').trim(); });
   const value = parseFloat((it?.revenue?.[0]?.text || '').replace(/[£$€,\s]/g, ''));
-  return { email: c.email, phone: c.phone_1, firstName: c.text37, lastName: c.text60, value: Number.isFinite(value) ? value : null };
+  return {
+    email: c.email, phone: c.phone_1, firstName: c.text37, lastName: c.text60,
+    gclid: cleanGclid(c.text4__1, c.text_mm4ncd41, c.text_mm4n9t2x),
+    gbraid: c.text_mm4ncd41, wbraid: c.text_mm4n9t2x,
+    value: Number.isFinite(value) ? value : null
+  };
+}
+
+// text4__1 stores gclid || gbraid || wbraid || fbclid (gclid first). Only
+// treat it as a gclid when it isn't one of the braids and doesn't look like
+// a Meta fbclid (IwAR/IwZX/PA prefixes, _aem_ segment).
+function cleanGclid (v, gbraid, wbraid) {
+  if (!v) return '';
+  if (v === gbraid || v === wbraid) return '';
+  if (/^0AAAA/.test(v)) return '';
+  if (/^(IwAR|IwZX|PA)/.test(v) || v.includes('_aem_')) return '';
+  if (/['"\\\s]/.test(v)) return '';
+  return v;
 }
