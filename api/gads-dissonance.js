@@ -147,7 +147,12 @@ async function fetchHighPotential (sinceMs) {
       items { id name created_at updated_at column_values(ids: ["text4__1","text_mm1c3b5w","text3__1","color_mkxk8y67","text_mm4ncd41","text_mm4n9t2x"]) { id text } } } } }`;
   const d = await mondayQuery(q);
   const items = d?.data?.boards?.[0]?.items_page?.items || [];
-  return items.filter(it => new Date(it.updated_at || 0).getTime() >= sinceMs).map(it => {
+  // Audit leads CREATED in the window (this week's new HP leads), not merely
+  // re-touched. An old lead an automation nudged this week would otherwise
+  // false-flag "no upload logged" because its real Step 3 upload predates the
+  // KV log window. Trade-off: a lead created earlier but marked HP this week
+  // is missed; rare for a weekly cadence, widen `days` to catch it.
+  return items.filter(it => new Date(it.created_at || 0).getTime() >= sinceMs).map(it => {
     const c = {}; it.column_values.forEach(x => { c[x.id] = (x.text || '').trim(); });
     if (!/ppc/i.test(c.color_mkxk8y67 || '')) return null;
     const raw = c.text4__1 || '';
