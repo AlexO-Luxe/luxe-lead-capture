@@ -186,7 +186,7 @@
 .sl-enq .sl-eq-card{
   display:block;
   background:#fff;border:1px solid rgba(184,150,110,0.35);
-  border-radius:var(--radius-lg);padding:0.95rem 1.1rem;cursor:pointer;
+  border-radius:var(--radius-lg);padding:1.4rem 1.25rem;cursor:pointer;
   transition:border-color 0.2s,background 0.2s;height:100%;
   animation:sl-bgfill 2.4s ease-in-out infinite;
 }
@@ -196,9 +196,9 @@
 .sl-enq .sl-eq-card:hover{border-color:var(--gold);background:var(--gold-pale);}
 .sl-enq .sl-eq-option input:checked + .sl-eq-card{border:1.5px solid var(--gold);background:var(--gold-pale);}
 
-.sl-enq .sl-eq-tag{font-size:9.5px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);margin-bottom:4px;}
-.sl-enq .sl-eq-title{font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;font-size:19px;font-weight:400;color:var(--ink);margin-bottom:0;line-height:1.1;letter-spacing:-0.02em;}
-.sl-enq .sl-eq-desc{font-size:12px;color:var(--muted);line-height:1.4;margin-top:4px;}
+.sl-enq .sl-eq-tag{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
+.sl-enq .sl-eq-title{font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;font-size:26px;font-weight:400;color:var(--ink);margin-bottom:0;line-height:1.05;letter-spacing:-0.03em;}
+.sl-enq .sl-eq-desc{font-size:12.5px;color:var(--muted);line-height:1.35;margin-top:8px;}
 
 .sl-enq .sl-err-msg{font-size:11.5px;color:var(--error);display:none;margin-top:6px;padding-left:2px;}
 .sl-enq .sl-err-msg.sl-show{display:block;}
@@ -755,7 +755,11 @@ span.flatpickr-weekday{
           <span class="sl-eq-card">
             <div class="sl-eq-tag">Option A</div>
             <div class="sl-eq-title">Check availability</div>
-            <div class="sl-eq-desc">Have a specific apartment in mind? Enquire and get a quote for your dates.</div>
+            <div class="sl-eq-desc">Enquire about a specific apartment</div>
+            <ul style="list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;">
+              <li style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);"><span style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(184,150,110,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;color:var(--gold);">✓</span>Already have a property in mind</li>
+              <li style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);"><span style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(184,150,110,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;color:var(--gold);">✓</span>Get a quote for your exact dates</li>
+            </ul>
           </span>
         </label>
         <label class="sl-eq-option">
@@ -763,7 +767,11 @@ span.flatpickr-weekday{
           <span class="sl-eq-card">
             <div class="sl-eq-tag">Option B</div>
             <div class="sl-eq-title">Send me options</div>
-            <div class="sl-eq-desc">Not sure yet? Tell us your budget and we'll curate matches for you.</div>
+            <div class="sl-eq-desc">Curated to your budget &amp; preferences</div>
+            <ul style="list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;">
+              <li style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);"><span style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(184,150,110,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;color:var(--gold);">✓</span>Let our team do the searching</li>
+              <li style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);"><span style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(184,150,110,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;color:var(--gold);">✓</span>Bespoke, tailored to your needs</li>
+            </ul>
           </span>
         </label>
       </div>
