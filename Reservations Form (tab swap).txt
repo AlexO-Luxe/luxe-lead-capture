@@ -237,7 +237,9 @@
 .sl-enq .sl-field input,
 .sl-enq .sl-field select,
 .sl-enq .sl-field textarea{
-  font-family:'DM Sans',sans-serif;font-size:14px;padding:11px 14px;
+  /* 16px, not 14px: iOS Safari auto-zooms any focused field under 16px.
+     Keeps tapping check-in/out, name, email, phone, notes from zooming. */
+  font-family:'DM Sans',sans-serif;font-size:16px;padding:11px 14px;
   background:#e6f1fb;border:1px solid #b5d4f4;
   border-radius:var(--radius-md);color:var(--ink);
   outline:none;transition:border-color 0.18s,background 0.18s;width:100%;
@@ -352,7 +354,7 @@ span.flatpickr-weekday{
 /* ── PHONE FIELD ── */
 .sl-enq .sl-dial-full{
   width:100%;
-  font-family:'DM Sans',sans-serif;font-size:14px;
+  font-family:'DM Sans',sans-serif;font-size:16px;
   padding:11px 30px 11px 14px;
   background:#e6f1fb;border:1px solid #b5d4f4;
   border-radius:var(--radius-md);color:var(--ink);
@@ -368,7 +370,7 @@ span.flatpickr-weekday{
 /* ── SEARCHABLE DIAL DROPDOWN ── */
 .sl-enq .sl-dial-wrap{position:relative;width:100%;}
 .sl-enq .sl-dial-trigger{
-  width:100%;font-family:inherit;font-size:14px;
+  width:100%;font-family:inherit;font-size:16px;
   padding:11px 30px 11px 14px;
   background:#e6f1fb;border:1px solid #b5d4f4;
   border-radius:var(--radius-md);color:var(--ink);
@@ -436,7 +438,7 @@ span.flatpickr-weekday{
   flex:1;min-width:0;
   border:none!important;border-radius:0!important;
   background:transparent!important;padding:10px 14px!important;
-  font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);
+  font-family:'DM Sans',sans-serif;font-size:16px;color:var(--ink);
   outline:none;
 }
 .sl-enq .sl-phone-digits-hint{
@@ -3035,6 +3037,14 @@ span.flatpickr-weekday{
     if(!document.querySelector('input[name="responseMethod"]:checked')){showErr('slErr-responseMethod',true);valid=false;}
 
     if(valid){
+      // ── DOUBLE-SUBMIT GUARD ─────────────────────────────────────────
+      // A fast double-tap would otherwise fire two enquiries (two Monday
+      // rows, two Google conversions). Latch on the first valid submit.
+      if(window.__slSubmitting) return;
+      window.__slSubmitting = true;
+      var _sbtn = document.getElementById('slSubmitBtn');
+      if(_sbtn){ _sbtn.disabled = true; _sbtn.style.opacity = '0.6'; _sbtn.style.pointerEvents = 'none'; _sbtn.textContent = 'Sending…'; }
+
       // ── BUILD FULL PAYLOAD ──────────────────────────────────────────
       var tracking = slGetTrackingData();
       var formPayload = {
