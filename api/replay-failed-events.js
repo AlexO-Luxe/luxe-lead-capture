@@ -23,6 +23,7 @@ const {
   conversionDestination,
   buildUserIdentifiers,
   ingestEvents,
+  cleanGclid,
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 
@@ -40,6 +41,11 @@ module.exports = async function handler (req, res) {
 
   const hours   = Math.max(1, Math.min(840, parseInt(req.query?.hours || '168', 10)));
   const dryRun  = req.query?.dryRun === '1';
+  // force=1: re-send even items whose earlier replay "succeeded". Needed
+  // after the 2026-07-08 finding that userData-only replays ingested OK but
+  // matched zero conversions; the resend reuses the same transactionId so a
+  // genuinely-recorded conversion cannot double count. Alerts are suppressed.
+  const force   = req.query?.force === '1';
   const untilMs = Date.now();
   const sinceMs = untilMs - hours * 60 * 60 * 1000;
 
@@ -50,6 +56,7 @@ module.exports = async function handler (req, res) {
     // mondayId+action (replay success or an organic re-fire). Skip those.
     const okTs = new Map();
     for (const e of events) {
+      if (force) break;
       if (!e.ok || !e.mondayId) continue;
       const key = e.mondayId + '|' + (e.action || '');
       okTs.set(key, Math.max(okTs.get(key) || 0, e.ts || 0));
@@ -256,14 +263,3 @@ async function fetchBookingIdentifiers (itemId) {
   };
 }
 
-// text4__1 stores gclid || gbraid || wbraid || fbclid (gclid first). Only
-// treat it as a gclid when it isn't one of the braids and doesn't look like
-// a Meta fbclid (IwAR/IwZX/PA prefixes, _aem_ segment).
-function cleanGclid (v, gbraid, wbraid) {
-  if (!v) return '';
-  if (v === gbraid || v === wbraid) return '';
-  if (/^0AAAA/.test(v)) return '';
-  if (/^(IwAR|IwZX|PA)/.test(v) || v.includes('_aem_')) return '';
-  if (/['"\\\s]/.test(v)) return '';
-  return v;
-}

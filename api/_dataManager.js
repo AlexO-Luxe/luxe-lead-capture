@@ -170,6 +170,21 @@ function consentForLead (marketingOptIn) {
   return marketingOptIn === false ? CONSENT_DENIED : CONSENT_GRANTED;
 }
 
+// The lead's click-id column (text4__1) stores gclid || gbraid || wbraid ||
+// fbclid, whichever arrived first. Only treat the value as a gclid when it
+// isn't one of the braids and doesn't look like a Meta fbclid (IwAR/IwZX/PA
+// prefixes, _aem_ segment). Shipping a braid or fbclid as adIdentifiers.gclid
+// sends Google a click id it can never match.
+function cleanGclid (v, gbraid, wbraid) {
+  v = (v || '').trim();
+  if (!v) return '';
+  if (v === (gbraid || '').trim() || v === (wbraid || '').trim()) return '';
+  if (/^0AAAA/.test(v)) return '';
+  if (/^(IwAR|IwZX|PA)/.test(v) || v.includes('_aem_')) return '';
+  if (/['"\\\s]/.test(v)) return '';
+  return v;
+}
+
 // ──────────────────────────────────────────────────────────────
 //  POST + retry on 5xx / 429
 // ──────────────────────────────────────────────────────────────
@@ -255,6 +270,7 @@ module.exports = {
   conversionDestination,
   userListDestination,
   consentForLead,
+  cleanGclid,
   ingestEvents,
   ingestAudienceMembers,
   CONSENT_GRANTED,

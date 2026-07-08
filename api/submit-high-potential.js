@@ -78,7 +78,9 @@ module.exports = async function handler(req, res) {
     const cols = {};
     item.column_values.forEach(c => { cols[c.id] = c.text || ''; });
 
-    const gclid      = cols['text4__1'];
+    // text4__1 can hold a braid or fbclid instead of a gclid; guard it so we
+    // never ship an unmatchable id as adIdentifiers.gclid.
+    const gclid      = cleanGclid(cols['text4__1'], cols['text_mm4ncd41'], cols['text_mm4n9t2x']);
     const leadSource = cols['color_mkxk8y67'];
     const timestamp  = cols['mirror28__1'] || item.created_at;
     const email      = cols['email'];
@@ -161,6 +163,7 @@ const {
   conversionDestination,
   buildUserIdentifiers,
   ingestEvents,
+  cleanGclid,
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 

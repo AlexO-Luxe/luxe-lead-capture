@@ -85,12 +85,10 @@ module.exports = async function handler(req, res) {
 
     const bookingName = item.name;
     const status      = cols['status'];
-    const gclid       = cols['mirror21__1'];
     const leadSource  = cols['lookup_mkxtxk48'];
     const revenueRaw  = cols['numeric_mm1ge9h4'];
     const timestamp   = item.created_at;
     const isPPC       = (leadSource || '').toLowerCase().includes('ppc');
-    const hasGclid    = !!gclid;
 
     // Extract email + phone + click IDs from linked lead for enhanced matching
     const relationCol  = (item.relation || []).find(c => c.id === 'link_to_leads26');
@@ -107,6 +105,9 @@ module.exports = async function handler(req, res) {
       });
     }
     const leadName = [leadFirst, leadLast].filter(Boolean).join(' ').trim();
+    // The mirror can surface a braid or fbclid; never ship those as a gclid.
+    const gclid    = cleanGclid(cols['mirror21__1'], leadGbraid, leadWbraid);
+    const hasGclid = !!gclid;
 
     console.log('Item data:', { itemId, bookingName, status, gclid, leadSource, revenueRaw, leadEmail: leadEmail ? '✓' : '✗', leadPhone: leadPhone ? '✓' : '✗', leadGbraid: leadGbraid ? '✓' : '✗', leadWbraid: leadWbraid ? '✓' : '✗' });
 
@@ -206,6 +207,7 @@ const {
   conversionDestination,
   buildUserIdentifiers,
   ingestEvents,
+  cleanGclid,
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 
