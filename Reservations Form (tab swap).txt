@@ -20,7 +20,7 @@
   --navy:              #0d1a2e;
   --ink:               #1a1a1a;
   --muted:             #6b6b6b;
-  --title-size:        clamp(38px, 5.5vw, 56px);
+  --title-size:        clamp(40px, 5.8vw, 60px);
   --title-tracking:    -0.06em;
   --sub-size:          14px;
   --stat-num-size:     16px;
@@ -96,6 +96,7 @@
   letter-spacing: -0.05em;
   line-height: 0.95;
   margin: 0 0 18px;
+  text-align: center;
 }
 .slr-title em { font-style: italic; color: var(--gold); }
 .slr-sub {
@@ -103,7 +104,8 @@
   color: rgba(255,255,255,0.72);   /* light — readable on the dark page bg */
   line-height: var(--sub-line-height);
   max-width: 560px;
-  margin: 0;
+  margin: 0 auto;
+  text-align: center;
 }
 @media(max-width:580px){
   .slr-sub { line-height: 1.45; }
@@ -130,8 +132,8 @@
     </div>
   </nav>
   <div class="slr-body">
-    <h1 class="slr-title" id="slrHeroTitle">Your apartment,<br><em>found for you.</em></h1>
-    <p class="slr-sub" id="slrHeroSub">Fill in the form, choose a specific apartment or let us curate options. Either way, your enquiry is personally handled by one of our experts.</p>
+    <h1 class="slr-title" id="slrHeroTitle">Check availability or receive apartment options</h1>
+    <p class="slr-sub" id="slrHeroSub">Fill in the form and one of our accommodation experts will handle your enquiry.</p>
   </div>
 </div>
 
@@ -1804,8 +1806,8 @@ span.flatpickr-weekday{
 
   var COPY = {
     form: {
-      title: 'Your apartment,<br><em>found for you.</em>',
-      sub:   'Fill in the form, choose a specific apartment or let us curate options. Either way, your enquiry is personally handled by one of our experts.'
+      title: 'Check availability or receive apartment options',
+      sub:   'Fill in the form and one of our accommodation experts will handle your enquiry.'
     },
     speak: {
       title: 'Get in touch with<br>our <em>Head Office.</em>',
