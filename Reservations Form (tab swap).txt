@@ -922,12 +922,12 @@ span.flatpickr-weekday{
       <div class="sl-form-row">
         <div class="sl-field">
           <label>Full name <span class="sl-req">*</span></label>
-          <input type="text" id="slFullName" name="fullName" placeholder="Alexandra Chen" autocomplete="name">
+          <input type="text" id="slFullName" name="fullName" placeholder="Alexandra Chen" autocomplete="name" enterkeyhint="next">
           <div class="sl-err-msg" id="slErr-fullName">Please enter your full name</div>
         </div>
         <div class="sl-field">
           <label>Email address <span class="sl-req">*</span></label>
-          <input type="email" id="slEmail" name="email" placeholder="your@email.com" autocomplete="email">
+          <input type="email" id="slEmail" name="email" placeholder="your@email.com" autocomplete="email" inputmode="email" enterkeyhint="next">
           <div class="sl-err-msg" id="slErr-email">Please enter a valid email address</div>
           <div id="slEmailDomainHint" style="display:none;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--gold);cursor:pointer;letter-spacing:0.02em;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-7v2m0-10v6"/></svg>
@@ -1349,7 +1349,7 @@ span.flatpickr-weekday{
           <label>Phone number <span class="sl-req">*</span></label>
           <div class="sl-phone-wrap" id="slPhoneWrap">
             <span class="sl-dial-prefix" id="slDialPrefix">+44</span>
-            <input type="tel" id="slPhone" class="sl-phone-num" name="phone" placeholder="7700 900000" autocomplete="tel-national" inputmode="tel">
+            <input type="tel" id="slPhone" class="sl-phone-num" name="phone" placeholder="7700 900000" autocomplete="tel-national" inputmode="tel" enterkeyhint="next">
           </div>
           <div style="display:flex;align-items:center;gap:6px;min-height:16px;">
             <div id="slPhoneZeroHint" style="display:none;" class="sl-phone-digits-hint sl-good">✓ Leading zero removed</div>
