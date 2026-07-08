@@ -20,6 +20,10 @@
     {
       "path": "/api/error-digest?hours=24",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/gads-dissonance?days=7",
+      "schedule": "0 8 * * 1"
     }
   ]
 }
