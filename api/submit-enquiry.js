@@ -1189,7 +1189,13 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text43__1:     p.utm_adgroup   || '',
     text3__1:      p.utm_term      || '',
     text_mm1d87rp: p.utm_matchtype || '',
-    text4__1:      p.gclid || p.gbraid || p.wbraid || p.fbclid || '',
+    // Prefer the FIRST-touch gclid (the click that originally acquired this
+    // lead) over the current session's. A returning enquirer re-clicks a
+    // different keyword/ad; the later Step 3/4 conversions should credit the
+    // campaign that actually won them, not the re-click. Step 1 above still
+    // uses the current-session gclid (that click drove this enquiry). Falls
+    // back to the current click id when there is no first-touch gclid.
+    text4__1:      p.first_gclid || p.gclid || p.gbraid || p.wbraid || p.fbclid || '',
     text_mm1jhhe7: p.landing_page  || '',
     long_text__1:  p.visited_paths || '',
     text_mm2y2ah2: submitterIp     || '',

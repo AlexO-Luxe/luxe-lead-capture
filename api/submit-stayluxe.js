@@ -1157,7 +1157,9 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text43__1:           p.utm_adgroup   || '',
     text3__1:            p.utm_term      || '',
     text_mm1d87rp:       p.utm_matchtype || '',
-    text4__1:            p.gclid || p.gbraid || p.wbraid || p.fbclid || '',
+    // Prefer the first-touch gclid (acquiring click) so later-stage
+    // conversions credit the campaign that won the lead, not a re-click.
+    text4__1:            p.first_gclid || p.gclid || p.gbraid || p.wbraid || p.fbclid || '',
     // Attribution columns (added 2026-06-25)
     text_mm4n6987:       p.device     || '',                                                       // device
     text_mm4n61bc:       p.country    || '',                                                       // country
