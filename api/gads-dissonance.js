@@ -82,8 +82,8 @@ function auditRow (item, clickMap, events, action) {
   else if (!item.gclid)                  flags.push('click id is a braid/fbclid (not a gclid)');
   else if (!click)                       flags.push('gclid not a matchable Search click (Display-only or expired)');
   else {
-    if (item.campaign && norm(item.campaign) !== norm(click.campaign)) flags.push(`campaign drift: Monday "${item.campaign}" vs Google "${click.campaign}"`);
-    if (item.keyword  && click.keyword && norm(item.keyword) !== norm(click.keyword)) flags.push(`keyword drift: Monday "${item.keyword}" vs Google "${click.keyword}"`);
+    if (item.campaign && !looseMatch(item.campaign, click.campaign)) flags.push(`campaign drift: Monday "${item.campaign}" vs Google "${click.campaign}"`);
+    if (item.keyword  && click.keyword && !looseMatch(item.keyword, click.keyword)) flags.push(`keyword drift: Monday "${item.keyword}" vs Google "${click.keyword}"`);
   }
 
   // upload status from our KV log (latest entry for this mondayId + action)
@@ -173,11 +173,10 @@ async function mondayQuery (query) {
 async function buildClickMap (token, gclids, items) {
   const map = {};
   if (!gclids.length) return map;
-  let minMs = Date.now();
-  items.forEach(x => { const t = new Date(x.leadCreated || Date.now()).getTime(); if (t < minMs) minMs = t; });
-  let start = new Date(minMs - 3 * 86400000);
-  const floor = new Date(Date.now() - 100 * 86400000);
-  if (start < floor) start = floor;
+  // Scan the FULL click_view retention window (~90d). A first-touch gclid can
+  // be much older than the lead it's stored on (returning enquirer), so we
+  // can't anchor the scan to the lead's creation date.
+  const start   = new Date(Date.now() - 92 * 86400000);
   const inList = gclids.map(g => `"${g}"`).join(',');
 
   for (let d = new Date(start); d <= new Date(); d.setDate(d.getDate() + 1)) {
@@ -272,4 +271,13 @@ async function sendReport (out, days) {
 
 // ── helpers ────────────────────────────────────────────────────
 function norm (s) { return (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' '); }
+// Loose compare: lowercase, collapse spaces, strip trailing junk (Google
+// campaign names carry stray "  -" suffixes). Treat prefix containment as a
+// match so a truncated/suffixed variant of the same name doesn't false-flag.
+function normLoose (s) { return norm(s).replace(/[^a-z0-9]+$/, '').replace(/^[^a-z0-9]+/, ''); }
+function looseMatch (a, b) {
+  const x = normLoose(a), y = normLoose(b);
+  if (!x || !y) return true;
+  return x === y || x.startsWith(y) || y.startsWith(x);
+}
 function round2 (n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
