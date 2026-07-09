@@ -1,0 +1,640 @@
+<style>
+  .sl-bh{
+    --h1-ls:-.06em;
+    --navy:#0d1a2e; --gold:#B8966E; --gold-lt:#D4B896; --txt:#eadfce; --txt-soft:rgba(234,223,206,.72);
+    --serif:'baskerville-display-pt','Baskerville Display PT',Georgia,'Times New Roman',serif;
+    --sans:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --ease:cubic-bezier(.23,1,.32,1);
+    font-family:var(--sans); color:var(--txt); -webkit-font-smoothing:antialiased; text-align:center;
+    max-width:880px; margin:0 auto; padding:10px 20px;
+  }
+  .sl-bh *{box-sizing:border-box; margin:0; padding:0}
+  .sl-bh .eyebrow{font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-lt)}
+  .sl-bh h1{font-family:var(--serif); font-weight:300; color:#fff; letter-spacing:var(--h1-ls); font-size:clamp(40px,6vw,72px); line-height:1.02; margin-top:28px}
+  .sl-bh h1 em{font-style:italic; color:var(--gold-lt)}
+
+  .sl-bh .val{margin-top:28px; color:#fff; font-size:clamp(21px,1.6vw,19px); min-height:1.4em}
+  .sl-bh .val-rot .item{display:none; will-change:opacity}
+  .sl-bh .val-rot .item:first-child{display:inline}
+  .sl-bh .val-rot b{color:var(--gold-lt); font-weight:400}
+  .sl-bh .val-sub{margin-top:2px; color:var(--txt-soft); font-size:13px; letter-spacing:.02em}
+
+  .sl-bh .cta{display:inline-flex; align-items:center; gap:10px; margin-top:28px; padding:17px 38px; background:var(--gold); color:#0d1a2e; font-size:13.5px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; border:none; border-radius:10px; cursor:pointer; font-family:var(--sans); transition:background .2s var(--ease), transform .2s var(--ease)}
+  .sl-bh .cta:hover{background:var(--gold-lt); transform:translateY(-1px)}
+
+  .sl-bh .stripB{display:flex; flex-wrap:wrap; gap:14px 22px; justify-content:center; margin-top:30px}
+  .sl-bh .stripB .it{display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:rgba(234,223,206,.82); letter-spacing:.02em}
+  .sl-bh .stripB .it svg{width:16px; height:16px; stroke:var(--gold-lt); fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; flex:none}
+
+  .sl-bm{position:fixed; inset:0; z-index:99999; display:none; align-items:flex-start; justify-content:center; padding:64px 16px 48px; background:rgba(8,15,26,.72); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain}
+  .sl-bm.sl-open{display:flex}
+  .sl-bm-panel{position:relative; width:100%; max-width:560px; animation:slPop .2s var(--ease)}
+  @keyframes slPop{from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none}}
+  .sl-bm-close{position:fixed; top:16px; right:16px; z-index:100000; width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,.5); background:rgba(8,15,26,.55); color:#fff; font-size:20px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
+  .sl-bm-close:hover{background:rgba(8,15,26,.85)}
+  @media (prefers-reduced-motion:reduce){ .sl-bm-panel{animation:none} }
+</style>
+
+<div class="sl-bh">
+  <div class="eyebrow">Professionally-managed apartments</div>
+  <h1>Luxury stays in New York with <em>everything</em>&nbsp; included</h1>
+  <div class="val">
+    <span class="val-rot" id="slBValRot">
+      <span class="item">Studios from <b>$5,000 per month</b></span>
+      <span class="item">1 Beds from <b>$6,000 per month</b></span>
+      <span class="item">2 Beds from <b>$9,000 per month</b></span>
+      <span class="item">3 Beds from <b>$12,000 per month</b></span>
+    </span>
+  </div>
+  <div class="val-sub">All bills included · 1 month minimum stay</div>
+  <button type="button" class="cta" id="slOpenEnq">Find out more ↓</button>
+  <div class="stripB">
+    <span class="it"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><polyline points="8 14 11 17 16 12"/></svg> 3,400+ bookings since 2019</span>
+    <span class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg> 6+ languages</span>
+    <span class="it"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4-3 6.5-7 9-4-2.5-7-5-7-9V6z"/><polyline points="9 12 11.5 14.5 15.5 10"/></svg> ASAP &amp; CHPA accredited</span>
+    <span class="it"><svg viewBox="0 0 24 24"><polygon points="12 3 14.5 9 21 9.3 16 13.5 17.5 20 12 16.3 6.5 20 8 13.5 3 9.3 9.5 9"/></svg> 4.9 / 5 on Google</span>
+  </div>
+</div>
+
+<div class="sl-bm" id="slEnqModal">
+  <div class="sl-bm-panel">
+    <button type="button" class="sl-bm-close" id="slCloseEnq" aria-label="Close">×</button>
+
+    <div style="text-align:center;margin-bottom:18px;">
+      <h2 style="font-family:'baskerville-display-pt','Baskerville Display PT',Georgia,serif;font-weight:300;color:#fff;font-size:28px;letter-spacing:-.02em;margin:0;">Make an <em style="font-style:italic;color:#D4B896;">enquiry</em></h2>
+      <p style="font-family:'DM Sans',sans-serif;color:rgba(234,223,206,.72);font-size:13px;margin:8px 0 0;">A real member of our team will reply, usually within a day.</p>
+    </div>
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+<style>
+.sl-enq *{box-sizing:border-box;margin:0;padding:0;}
+.sl-enq{
+  box-sizing:border-box; font-family:'DM Sans',sans-serif; width:100%; max-width:100%; margin:0;
+  padding:1.6rem 1.6rem 1.9rem; background:#ffffff;
+  border:0.5px solid rgba(184,150,110,0.35); border-radius:12px;
+  --gold:#B8966E; --gold-light:#D4B896; --gold-pale:#F7F2EB; --gold-dk:#8F6E4A;
+  --navy:#0d1a2e; --ink:#1a1a1a; --muted:#6b6b6b; --hint:#9b9b9b;
+  --border:rgba(0,0,0,0.08); --border-gold:rgba(184,150,110,0.4);
+  --surface:#ffffff; --surface2:#fdfcfb; --error:#c0392b; --success:#4CAF50;
+  --radius-md:8px; --radius-lg:12px;
+}
+.sl-enq .sl-intro{font-size:13px;color:var(--muted);line-height:1.55;margin:0 0 1.2rem;}
+.sl-enq .sl-prog{display:flex;align-items:center;gap:10px;margin-bottom:1.2rem;}
+.sl-enq .sl-prog-bars{display:flex;gap:5px;flex:1;}
+.sl-enq .sl-bar{height:3px;flex:1;border-radius:2px;background:rgba(184,150,110,0.22);transition:background 0.3s;}
+.sl-enq .sl-bar.sl-on{background:var(--gold);}
+.sl-enq .sl-prog-lbl{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);white-space:nowrap;}
+.sl-enq .sl-back{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--gold);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0;margin-bottom:14px;}
+.sl-enq .sl-continue-row{margin-top:1.2rem;}
+.sl-enq .sl-call-line{font-size:12px;color:var(--muted);text-align:center;margin-top:14px;}
+.sl-enq .sl-call-line a{color:var(--gold);text-decoration:none;}
+.sl-enq .sl-step{transition:opacity 0.25s ease, transform 0.25s ease;}
+.sl-enq .sl-step.sl-fade{opacity:0;transform:translateY(6px);}
+.sl-enq .sl-err-msg{font-size:11.5px;color:var(--error);display:none;margin-top:6px;padding-left:2px;}
+.sl-enq .sl-err-msg.sl-show{display:block;}
+.sl-enq .sl-section{background:var(--surface);padding:1.1rem 0;}
+.sl-enq .sl-section:first-of-type{padding-top:0;}
+.sl-enq .sl-sec-label{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);margin-bottom:1.1rem;display:flex;align-items:center;gap:10px;}
+.sl-enq .sl-sec-label::after{content:'';flex:1;height:0.5px;background:var(--border-gold);}
+.sl-enq .sl-form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px;}
+@media(max-width:500px){.sl-enq .sl-form-row{grid-template-columns:1fr;}}
+.sl-enq .sl-field{display:flex;flex-direction:column;gap:5px;position:relative;}
+.sl-enq .sl-field label{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);}
+.sl-enq .sl-field .sl-req{color:var(--gold);}
+.sl-enq .sl-field input,.sl-enq .sl-field select{font-family:'DM Sans',sans-serif;font-size:14px;padding:11px 14px;background:#e6f1fb;border:1px solid #b5d4f4;border-radius:var(--radius-md);color:var(--ink);outline:none;transition:border-color 0.18s,background 0.18s;width:100%;-webkit-appearance:none;appearance:none;}
+.sl-enq .sl-field input::placeholder{color:var(--hint);}
+.sl-enq .sl-field input:focus,.sl-enq .sl-field select:focus{border-color:#7ab8f0;background:#ddeefb;}
+.sl-enq .sl-field input.sl-err,.sl-enq .sl-field select.sl-err{border-color:var(--error);background:#fdf3f2;}
+.sl-enq .sl-field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239b9b9b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;}
+.sl-enq .sl-date-wrap{position:relative;width:100%;}
+.sl-enq .sl-date-wrap input.flatpickr-input{width:100%;cursor:pointer;background:#e6f1fb;border:1px solid #b5d4f4;}
+.sl-enq .sl-date-wrap input.flatpickr-input.sl-filled{border-color:var(--gold);background:var(--gold-pale);}
+.flatpickr-calendar{font-family:'DM Sans',sans-serif;background:#fff;border:0.5px solid rgba(184,150,110,0.4);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.10);padding:4px;}
+.flatpickr-months{padding:8px 4px 4px;align-items:center;}
+.flatpickr-month{background:transparent;color:#1a1a1a;height:36px;}
+.flatpickr-current-month{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:#1a1a1a;padding-top:6px;}
+.flatpickr-prev-month,.flatpickr-next-month{padding:6px 10px;color:#B8966E !important;fill:#B8966E !important;}
+.flatpickr-prev-month:hover svg,.flatpickr-next-month:hover svg{fill:#1a1a1a !important;}
+span.flatpickr-weekday{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;color:#9b9b9b;letter-spacing:0.05em;background:transparent;}
+.flatpickr-day{font-family:'DM Sans',sans-serif;font-size:13px;border-radius:6px;color:#1a1a1a;border:none;}
+.flatpickr-day:hover{background:#F7F2EB;border-color:#F7F2EB;}
+.flatpickr-day.selected,.flatpickr-day.selected:hover,.flatpickr-day.startRange,.flatpickr-day.endRange{background:#B8966E;border-color:#B8966E;color:#fff;font-weight:500;}
+.flatpickr-day.inRange{background:#F7F2EB;border-color:#F7F2EB;box-shadow:-5px 0 0 #F7F2EB,5px 0 0 #F7F2EB;}
+.flatpickr-day.today{border-color:#D4B896;}
+.flatpickr-day.disabled,.flatpickr-day.disabled:hover{color:#d1d1d1;}
+.numInputWrapper span{color:#B8966E;}
+.sl-enq .sl-dial-wrap{position:relative;width:100%;}
+.sl-enq .sl-dial-trigger{width:100%;font-family:inherit;font-size:14px;padding:11px 30px 11px 14px;background:#e6f1fb;border:1px solid #b5d4f4;border-radius:var(--radius-md);color:var(--ink);outline:none;transition:border-color 0.18s,background 0.18s;cursor:pointer;text-align:left;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239b9b9b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;}
+.sl-enq .sl-dial-trigger.sl-filled{border-color:var(--gold);background:var(--gold-pale);}
+.sl-enq .sl-dial-trigger.sl-open{border-color:#7ab8f0;background:#ddeefb;}
+.sl-enq .sl-dial-dropdown{display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#fff;border:1px solid #b5d4f4;border-top:none;border-radius:0 0 var(--radius-md) var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.10);max-height:260px;overflow:hidden;flex-direction:column;}
+.sl-enq .sl-dial-dropdown.sl-open{display:flex;}
+.sl-enq .sl-dial-search{font-family:'DM Sans',sans-serif;font-size:13px;padding:9px 14px;border:none;border-bottom:0.5px solid rgba(184,150,110,0.25);outline:none;background:#fafafa;color:var(--ink);flex-shrink:0;width:100%;}
+.sl-enq .sl-dial-list{overflow-y:auto;flex:1;}
+.sl-enq .sl-dial-opt{padding:9px 14px;font-size:13px;color:var(--ink);cursor:pointer;transition:background 0.1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sl-enq .sl-dial-opt:hover{background:var(--gold-pale);}
+.sl-enq .sl-dial-opt.sl-selected{background:var(--gold-pale);color:var(--gold);font-weight:500;}
+.sl-enq .sl-dial-opt.sl-hidden{display:none;}
+.sl-enq .sl-dial-no-results{padding:12px 14px;font-size:13px;color:var(--hint);font-style:italic;}
+.sl-enq .sl-phone-wrap{display:flex;align-items:center;background:#e6f1fb;border:1px solid #b5d4f4;border-radius:var(--radius-md);overflow:hidden;transition:border-color 0.18s,background 0.18s;}
+.sl-enq .sl-phone-wrap:focus-within{border-color:#7ab8f0;background:#ddeefb;}
+.sl-enq .sl-phone-wrap.sl-filled{border-color:var(--gold);background:var(--gold-pale);}
+.sl-enq .sl-phone-wrap.sl-err{border-color:var(--error);background:#fdf3f2;}
+.sl-enq .sl-dial-prefix{flex-shrink:0;padding:10px 8px 10px 14px;font-size:14px;color:var(--gold);font-weight:500;border-right:0.5px solid rgba(0,0,0,0.1);white-space:nowrap;user-select:none;}
+.sl-enq .sl-phone-num{flex:1;min-width:0;border:none!important;border-radius:0!important;background:transparent!important;padding:10px 14px!important;font-size:14px;color:var(--ink);outline:none;}
+.sl-enq .sl-phone-digits-hint{font-size:11px;color:var(--hint);margin-top:4px;min-height:16px;transition:color 0.15s;}
+.sl-enq .sl-phone-digits-hint.sl-warn{color:var(--error);}
+.sl-enq .sl-phone-digits-hint.sl-good{color:var(--success);}
+.sl-enq .sl-submit-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:1.25rem;}
+.sl-enq .sl-submit-note{font-size:12px;color:var(--hint);}
+.sl-enq .sl-mkt-row{display:flex;align-items:center;gap:10px;margin-top:0;flex:1;padding-right:20px;}
+.sl-enq .sl-mkt-text{font-size:11px;color:var(--hint);line-height:1.55;flex:1;}
+.sl-enq .sl-toggle-wrap{position:relative;flex-shrink:0;}
+.sl-enq .sl-toggle-wrap input{position:absolute;opacity:0;width:0;height:0;}
+.sl-enq .sl-toggle{display:block;width:36px;height:20px;border-radius:10px;background:#d0d0d0;cursor:pointer;transition:background 0.2s;position:relative;}
+.sl-enq .sl-toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
+.sl-enq .sl-toggle-wrap input:checked + .sl-toggle{background:var(--gold);}
+.sl-enq .sl-toggle-wrap input:checked + .sl-toggle::after{transform:translateX(16px);}
+@media(max-width:580px){
+  .sl-enq .sl-submit-row{flex-direction:column;align-items:center;}
+  .sl-enq .sl-mkt-row{width:100%;padding-right:0;order:2;margin-top:14px;}
+  .sl-enq .sl-btn-gold{order:1;width:100%;text-align:center;}
+  .sl-enq .sl-mkt-text{font-size:10px;}
+}
+.sl-enq .sl-btn-gold{padding:13px 30px;background:var(--gold);color:#fff;font-size:12.5px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;border:none;cursor:pointer;border-radius:8px;transition:background 0.18s,opacity 0.18s;}
+.sl-enq .sl-btn-gold:hover{background:var(--gold-light);}
+.sl-enq .sl-btn-gold:disabled{opacity:0.4;cursor:not-allowed;background:var(--gold);}
+.sl-enq .sl-budget-sorry{display:none;background:#fdf3f2;border:1px solid rgba(192,57,43,0.25);border-radius:var(--radius-md);padding:1rem 1.25rem;margin-top:10px;font-size:13px;color:#8b2a1d;line-height:1.6;}
+.sl-enq .sl-success{display:none;background:var(--surface);border:0.5px solid var(--border-gold);border-radius:var(--radius-lg);padding:2.2rem 1.6rem;}
+.sl-enq .sl-success.sl-show{display:block;}
+.sl-enq .sl-success-icon{width:48px;height:48px;border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.1rem;}
+.sl-enq .sl-success h3{font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;font-size:24px;font-weight:400;color:var(--ink);margin:0 0 6px;text-align:center;}
+.sl-enq .sl-success-divider{border:none;border-top:0.5px solid rgba(184,150,110,0.25);margin:20px 0;}
+.sl-enq .sl-status-row{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
+.sl-enq .sl-status-dot{width:7px;height:7px;border-radius:50%;}
+.sl-enq .sl-status-dot.green{background:#639922;}.sl-enq .sl-status-dot.amber{background:#BA7517;}
+.sl-enq .sl-status-pill{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;padding:3px 8px;border-radius:20px;font-weight:500;}
+.sl-enq .sl-status-pill.green{background:#EAF3DE;color:#3B6D11;}.sl-enq .sl-status-pill.amber{background:#FAEEDA;color:#854F0B;}
+.sl-enq .sl-resp-time{font-family:'Baskerville Display PT','Baskerville',Georgia,serif;font-size:20px;color:var(--ink);margin:0 0 10px;}
+.sl-enq .sl-resp-why{font-size:12px;color:var(--muted);line-height:1.7;margin:0;padding-left:10px;border-left:2px solid rgba(184,150,110,0.35);}
+.sl-enq .sl-resp-notice{font-size:12px;line-height:1.6;padding:10px 12px;border-radius:8px;margin:10px 0 0;background:#FAEEDA;color:#854F0B;border-left:3px solid #BA7517;}
+.sl-enq .sl-lang-eyebrow{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin:0 0 14px;}
+.sl-team-strip{display:flex;gap:10px;flex-wrap:nowrap;margin-top:4px;}
+.sl-team-member{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;min-width:0;}
+.sl-team-avatar{width:100%;aspect-ratio:1;border-radius:50%;overflow:hidden;border:1.5px solid rgba(184,150,110,0.3);background:#F7F2EB;position:relative;}
+.sl-team-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+.sl-team-avatar.sl-dark-overlay{background:rgba(13,26,46,0.85);}
+.sl-team-avatar.sl-dark-overlay::after{content:attr(data-count);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:rgba(255,255,255,0.75);}
+.sl-team-name{font-size:11px;font-weight:500;color:#1a1a1a;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}
+@keyframes sl-autofill-start{from{}to{}}@keyframes sl-autofill-cancel{from{}to{}}
+.sl-enq .sl-field input:-webkit-autofill{animation-name:sl-autofill-start;}
+.sl-enq .sl-field input:not(:-webkit-autofill){animation-name:sl-autofill-cancel;}
+.sl-enq .sl-field input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px var(--gold-pale) inset !important;-webkit-text-fill-color:var(--ink) !important;border-color:var(--gold) !important;}
+.sl-enq .sl-field input.sl-filled,.sl-enq .sl-field select.sl-filled{border-color:var(--gold);background:var(--gold-pale);color:var(--ink);}
+.sl-enq .sl-field[data-filled]::after{content:'✓';position:absolute;right:12px;top:38px;font-size:12px;color:var(--gold);pointer-events:none;animation:sl-tick-in 0.2s ease forwards;}
+@keyframes sl-tick-in{to{opacity:1;}}
+.sl-enq .sl-field input.sl-err,.sl-enq .sl-field select.sl-err,.sl-enq .sl-phone-wrap.sl-err{border-color:var(--error) !important;background:#fdf3f2 !important;}
+@media(max-width:580px){.sl-enq{padding:1.3rem 1.1rem 1.6rem;}}
+</style>
+
+<div class="sl-enq">
+
+  <div class="sl-success" id="slEnqSuccess">
+    <div class="sl-success-icon"><svg width="18" height="18" fill="none" stroke="#B8966E" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <h3>Thank you, your enquiry has been sent.</h3>
+    <hr class="sl-success-divider">
+    <div class="sl-status-row"><span class="sl-status-dot" id="slStatusDot"></span><span class="sl-status-pill" id="slStatusPill"></span></div>
+    <p class="sl-resp-time" id="slRespTime"></p>
+    <p class="sl-resp-why">Give our team time to personally review and handle your request. We will respond as quickly as we can.</p>
+    <div class="sl-resp-notice" id="slRespNotice" style="display:none;"></div>
+    <hr class="sl-success-divider">
+    <p class="sl-lang-eyebrow">Who's handling your enquiry</p>
+    <p style="font-family:'Baskerville Display PT','Baskerville',Georgia,serif;font-size:20px;color:#0d1a2e;margin:0 0 6px;">Experts at your service</p>
+    <p style="font-size:13px;color:#6b6b6b;line-height:1.6;margin:0 0 18px;">A team of real people who genuinely care about finding and securing your perfect stay.</p>
+    <div class="sl-team-strip" id="slSuccessTeam"></div>
+  </div>
+
+  <form id="slEnqForm" novalidate method="POST" action="#">
+
+    <p class="sl-intro">Tell us a little and a real member of our team will reply ASAP. No pressure, no placement fee.</p>
+
+    <div class="sl-prog">
+      <div class="sl-prog-bars"><span class="sl-bar sl-on" id="slBar1"></span><span class="sl-bar" id="slBar2"></span></div>
+      <span class="sl-prog-lbl" id="slProgLbl">Step 1 of 2 · your stay</span>
+    </div>
+
+    <!-- ===== STEP 1: STAY DETAILS ===== -->
+    <div class="sl-step" id="slStep1">
+      <div class="sl-section">
+        <div class="sl-sec-label">Stay details</div>
+
+        <div class="sl-field" style="margin-bottom:12px;">
+          <label>Preferred neighbourhood</label>
+          <select id="slArea" name="area">
+            <option value="">No preference, help me choose</option>
+            <option value="tribeca">Tribeca</option>
+            <option value="soho">SoHo</option>
+            <option value="west-village">West Village</option>
+            <option value="chelsea">Chelsea</option>
+            <option value="gramercy">Gramercy</option>
+            <option value="upper-east-side">Upper East Side</option>
+            <option value="upper-west-side">Upper West Side</option>
+            <option value="midtown">Midtown</option>
+            <option value="murray-hill">Murray Hill</option>
+            <option value="financial-district">Financial District</option>
+            <option value="dumbo">DUMBO</option>
+            <option value="brooklyn-heights">Brooklyn Heights</option>
+          </select>
+        </div>
+
+        <div class="sl-form-row">
+          <div class="sl-field">
+            <label>Apartment type <span class="sl-req">*</span></label>
+            <select id="slAptType" name="apartmentType">
+              <option value="">Select type…</option>
+              <option value="studio">Studio</option>
+              <option value="1bed">1 bedroom</option>
+              <option value="2bed">2 bedroom</option>
+              <option value="3bed">3 bedroom</option>
+              <option value="4bed">4 bedroom</option>
+              <option value="flexible">Flexible / not sure yet</option>
+            </select>
+            <div class="sl-err-msg" id="slErr-aptType">Please select an apartment type</div>
+          </div>
+          <div class="sl-field">
+            <label>Budget per month <span class="sl-req">*</span></label>
+            <select id="slBudget" name="budget">
+              <option value="">Select budget…</option>
+              <option value="under-5000">Under $5,000 per month</option>
+              <option value="5000-8000">$5,000 – $8,000 per month</option>
+              <option value="8000-15000">$8,000 – $15,000 per month</option>
+              <option value="15000-30000">$15,000 – $30,000 per month</option>
+              <option value="30000-plus">$30,000+ per month</option>
+            </select>
+            <div class="sl-err-msg" id="slErr-budget">Please select a budget range</div>
+          </div>
+        </div>
+        <div class="sl-budget-sorry" id="slBudgetSorry" style="display:none;">Apologies — our New York apartments start from $5,000 per month, so we're unable to assist at this budget. All bills, taxes and Wi-Fi are included in this price.</div>
+
+        <div class="sl-form-row" style="margin-bottom:0;">
+          <div class="sl-field">
+            <label>Check-in date <span class="sl-req">*</span></label>
+            <div class="sl-date-wrap"><input type="text" id="slCheckIn" name="checkIn" placeholder="DD / MM / YYYY" readonly autocomplete="off"></div>
+            <div class="sl-err-msg" id="slErr-checkIn">Please select a check-in date</div>
+          </div>
+          <div class="sl-field">
+            <label>Check-out date <span class="sl-req">*</span></label>
+            <div class="sl-date-wrap"><input type="text" id="slCheckOut" name="checkOut" placeholder="DD / MM / YYYY" readonly autocomplete="off"></div>
+            <div class="sl-err-msg" id="slErr-checkOut">Please select a check-out date after check-in</div>
+          </div>
+        </div>
+        <div id="slStayDuration" style="display:none;margin-top:10px;align-items:center;gap:6px;">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#4CAF50;"></span>
+          <span id="slStayDurationText" style="font-size:12px;color:var(--gold);letter-spacing:0.04em;"></span>
+        </div>
+        <div class="sl-budget-sorry" id="slStayMinSorry" style="display:none;">Apologies, we have a minimum length of stay of 30 nights in New York. Please adjust your dates.</div>
+      </div>
+
+      <div class="sl-continue-row">
+        <button type="button" id="slContinueBtn" class="sl-btn-gold" style="width:100%;" disabled>Continue →</button>
+      </div>
+    </div>
+
+    <!-- ===== STEP 2: YOUR DETAILS ===== -->
+    <div class="sl-step" id="slStep2" style="display:none;">
+      <button type="button" class="sl-back" id="slBackBtn"><span aria-hidden="true">←</span> Edit stay details</button>
+      <div class="sl-section">
+        <div class="sl-sec-label">Your details</div>
+        <div class="sl-form-row">
+          <div class="sl-field">
+            <label>Full name <span class="sl-req">*</span></label>
+            <input type="text" id="slFullName" name="fullName" placeholder="Alexandra Chen" autocomplete="name">
+            <div class="sl-err-msg" id="slErr-fullName">Please enter your full name</div>
+          </div>
+          <div class="sl-field">
+            <label>Email address <span class="sl-req">*</span></label>
+            <input type="email" id="slEmail" name="email" placeholder="your@email.com" autocomplete="email">
+            <div class="sl-err-msg" id="slErr-email">Please enter a valid email address</div>
+            <div id="slEmailDomainHint" style="display:none;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--gold);cursor:pointer;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-7v2m0-10v6"/></svg><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="sl-form-row" style="margin-bottom:0;">
+          <div class="sl-field">
+            <label>Calling code <span class="sl-req">*</span></label>
+            <div class="sl-dial-wrap" id="slDialWrap">
+              <select id="slDialCode" style="display:none;" aria-hidden="true" autocomplete="off">
+                <option value="">Select calling code…</option>
+              </select>
+              <button type="button" class="sl-dial-trigger" id="slDialTrigger" aria-haspopup="listbox" aria-expanded="false" style="color:var(--hint);">Select calling code…</button>
+              <div class="sl-dial-dropdown" id="slDialDropdown" role="listbox">
+                <input type="text" class="sl-dial-search" id="slDialSearch" placeholder="Search country or code…" autocomplete="off" spellcheck="false">
+                <div class="sl-dial-list" id="slDialList">
+                  <div class="sl-dial-no-results" id="slDialNoResults" style="display:none;">No results</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="sl-field">
+            <label>Phone number <span class="sl-req">*</span></label>
+            <div class="sl-phone-wrap" id="slPhoneWrap">
+              <span class="sl-dial-prefix" id="slDialPrefix">+</span>
+              <input type="tel" id="slPhone" class="sl-phone-num" name="phone" placeholder="Enter phone number" autocomplete="tel-national" inputmode="tel">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;min-height:16px;">
+              <div id="slPhoneZeroHint" style="display:none;" class="sl-phone-digits-hint sl-good">✓ Leading zero removed</div>
+              <span id="slPhoneHintSep" style="display:none;color:#ccc;font-size:11px;">·</span>
+              <div class="sl-phone-digits-hint" id="slPhoneHint"></div>
+            </div>
+            <div class="sl-err-msg" id="slErr-phone">Please enter a valid phone number</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sl-submit-row">
+        <div class="sl-mkt-row">
+          <label class="sl-toggle-wrap">
+            <input type="checkbox" id="slMarketingOptIn" name="marketingOptIn">
+            <span class="sl-toggle"></span>
+          </label>
+          <span class="sl-mkt-text">Your details are never shared. We'd also like to send updates about our apartments and tips for your stay. Toggle off if you'd rather not hear from us.</span>
+        </div>
+        <button type="button" id="slSubmitBtn" class="sl-btn-gold">Send enquiry →</button>
+      </div>
+      <p class="sl-call-line">Or call <a href="tel:+442030070017">+44 20 3007 0017</a> · we also reply on WhatsApp</p>
+    </div>
+
+  </form>
+</div>
+
+<script>
+(function(){
+  function showErr(id,s){var e=document.getElementById(id);if(e)e.classList.toggle('sl-show',s);}
+  function setFs(el,st){if(!el)return;el.classList.remove('sl-err','sl-ok');if(st)el.classList.add('sl-'+st);}
+  function slGetCookie(n){var m=document.cookie.match(new RegExp('(?:^|; )'+n+'=([^;]*)'));return m?decodeURIComponent(m[1]):'';}
+  function slGetTrackingData(){
+    function gc(n){return slGetCookie(n);}
+    function ls(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
+    return {utm_source:gc('sl_utm_source')||ls('ct_utm_source'),utm_medium:gc('sl_utm_medium')||ls('ct_utm_medium'),utm_campaign:gc('sl_utm_campaign')||ls('ct_utm_campaign'),utm_adgroup:gc('sl_utm_adgroup')||ls('ct_utm_adgroup'),utm_term:gc('sl_utm_term')||ls('ct_utm_term'),utm_matchtype:gc('sl_utm_matchtype')||ls('ct_utm_matchtype'),utm_content:gc('sl_utm_content')||ls('ct_utm_content'),gclid:gc('sl_gclid')||ls('ct_gclid'),gbraid:gc('sl_gbraid'),wbraid:gc('sl_wbraid'),fbclid:gc('sl_fbclid')||ls('ct_fbclid'),session_id:gc('sl_session_id'),landing_page:gc('sl_landing_page')||ls('ct_first_landing_page_url'),last_page:gc('sl_last_page'),visited_paths:ls('sl_visited_paths'),submit_page:window.location.pathname,first_gclid:gc('sl_first_gclid'),first_gbraid:gc('sl_first_gbraid'),first_wbraid:gc('sl_first_wbraid'),first_campaign:gc('sl_first_campaign')||gc('sl_first_utm_campaign'),first_adgroup:gc('sl_first_adgroup')||gc('sl_first_utm_adgroup'),first_term:gc('sl_first_term')||gc('sl_first_utm_term'),first_matchtype:gc('sl_first_matchtype')||gc('sl_first_utm_matchtype'),first_utm_source:gc('sl_first_utm_source'),first_utm_medium:gc('sl_first_utm_medium'),first_referrer:gc('sl_first_referrer'),first_landing_page:gc('sl_first_landing_page'),first_seen:gc('sl_first_seen')};
+  }
+
+  var MIN_NIGHTS=30;
+  var ciEl=document.getElementById('slCheckIn'),coEl=document.getElementById('slCheckOut');
+
+  // ── DIAL CODE DATA (US first for NY) ──
+  var DIAL=[
+    {c:'+1',n:'United States',f:'🇺🇸',d:10,ph:'(212) 555-0100'},
+    {c:'+44',n:'United Kingdom',f:'🇬🇧',d:10,ph:'7700 900000'},
+    {c:'+93',n:'Afghanistan',f:'🇦🇫',d:9},{c:'+355',n:'Albania',f:'🇦🇱',d:9},{c:'+213',n:'Algeria',f:'🇩🇿',d:9},{c:'+376',n:'Andorra',f:'🇦🇩',d:6},{c:'+244',n:'Angola',f:'🇦🇴',d:9},{c:'+54',n:'Argentina',f:'🇦🇷',d:10},{c:'+374',n:'Armenia',f:'🇦🇲',d:8},
+    {c:'+61',n:'Australia',f:'🇦🇺',d:9,ph:'412 345 678'},{c:'+43',n:'Austria',f:'🇦🇹',d:11,dmin:10,dmax:13},{c:'+994',n:'Azerbaijan',f:'🇦🇿',d:9},{c:'+973',n:'Bahrain',f:'🇧🇭',d:8},{c:'+880',n:'Bangladesh',f:'🇧🇩',d:10},{c:'+375',n:'Belarus',f:'🇧🇾',d:9},{c:'+32',n:'Belgium',f:'🇧🇪',d:9},{c:'+501',n:'Belize',f:'🇧🇿',d:7},{c:'+229',n:'Benin',f:'🇧🇯',d:8},{c:'+975',n:'Bhutan',f:'🇧🇹',d:8},{c:'+591',n:'Bolivia',f:'🇧🇴',d:8},{c:'+387',n:'Bosnia and Herzegovina',f:'🇧🇦',d:8},{c:'+267',n:'Botswana',f:'🇧🇼',d:8},
+    {c:'+55',n:'Brazil',f:'🇧🇷',d:11,dmin:10,dmax:11},{c:'+673',n:'Brunei',f:'🇧🇳',d:7},{c:'+359',n:'Bulgaria',f:'🇧🇬',d:9},{c:'+226',n:'Burkina Faso',f:'🇧🇫',d:8},{c:'+855',n:'Cambodia',f:'🇰🇭',d:9,dmin:8,dmax:9},{c:'+237',n:'Cameroon',f:'🇨🇲',d:9},{c:'+1',n:'Canada',f:'🇨🇦',d:10,ph:'(416) 555-0100'},{c:'+238',n:'Cape Verde',f:'🇨🇻',d:7},{c:'+56',n:'Chile',f:'🇨🇱',d:9},{c:'+86',n:'China',f:'🇨🇳',d:11,ph:'131 2345 6789'},{c:'+57',n:'Colombia',f:'🇨🇴',d:10},{c:'+506',n:'Costa Rica',f:'🇨🇷',d:8},{c:'+385',n:'Croatia',f:'🇭🇷',d:9,dmin:8,dmax:9},{c:'+357',n:'Cyprus',f:'🇨🇾',d:8},{c:'+420',n:'Czech Republic',f:'🇨🇿',d:9},
+    {c:'+45',n:'Denmark',f:'🇩🇰',d:8},{c:'+1',n:'Dominican Republic',f:'🇩🇴',d:10},{c:'+593',n:'Ecuador',f:'🇪🇨',d:9},{c:'+20',n:'Egypt',f:'🇪🇬',d:10},{c:'+503',n:'El Salvador',f:'🇸🇻',d:8},{c:'+372',n:'Estonia',f:'🇪🇪',d:8,dmin:7,dmax:8},{c:'+251',n:'Ethiopia',f:'🇪🇹',d:9},{c:'+679',n:'Fiji',f:'🇫🇯',d:7},{c:'+358',n:'Finland',f:'🇫🇮',d:9,dmin:6,dmax:10},{c:'+33',n:'France',f:'🇫🇷',d:9,ph:'6 12 34 56 78'},{c:'+995',n:'Georgia',f:'🇬🇪',d:9},{c:'+49',n:'Germany',f:'🇩🇪',d:11,dmin:10,dmax:13,ph:'1512 3456789'},{c:'+233',n:'Ghana',f:'🇬🇭',d:9},{c:'+350',n:'Gibraltar',f:'🇬🇮',d:8},{c:'+30',n:'Greece',f:'🇬🇷',d:10},{c:'+502',n:'Guatemala',f:'🇬🇹',d:8},{c:'+504',n:'Honduras',f:'🇭🇳',d:8},
+    {c:'+852',n:'Hong Kong',f:'🇭🇰',d:8,ph:'9123 4567'},{c:'+36',n:'Hungary',f:'🇭🇺',d:9},{c:'+354',n:'Iceland',f:'🇮🇸',d:7},{c:'+91',n:'India',f:'🇮🇳',d:10,ph:'98765 43210'},{c:'+62',n:'Indonesia',f:'🇮🇩',d:10,dmin:9,dmax:11},{c:'+98',n:'Iran',f:'🇮🇷',d:10},{c:'+964',n:'Iraq',f:'🇮🇶',d:10},{c:'+353',n:'Ireland',f:'🇮🇪',d:9,ph:'85 123 4567'},{c:'+972',n:'Israel',f:'🇮🇱',d:9},{c:'+39',n:'Italy',f:'🇮🇹',d:10,ph:'312 345 6789'},{c:'+225',n:'Ivory Coast',f:'🇨🇮',d:10},{c:'+1',n:'Jamaica',f:'🇯🇲',d:10},{c:'+81',n:'Japan',f:'🇯🇵',d:10,ph:'90 1234 5678'},{c:'+962',n:'Jordan',f:'🇯🇴',d:9},{c:'+7',n:'Kazakhstan',f:'🇰🇿',d:10},{c:'+254',n:'Kenya',f:'🇰🇪',d:9},{c:'+965',n:'Kuwait',f:'🇰🇼',d:8},{c:'+996',n:'Kyrgyzstan',f:'🇰🇬',d:9},
+    {c:'+856',n:'Laos',f:'🇱🇦',d:9,dmin:8,dmax:10},{c:'+371',n:'Latvia',f:'🇱🇻',d:8},{c:'+961',n:'Lebanon',f:'🇱🇧',d:8,dmin:7,dmax:8},{c:'+218',n:'Libya',f:'🇱🇾',d:9},{c:'+423',n:'Liechtenstein',f:'🇱🇮',d:7},{c:'+370',n:'Lithuania',f:'🇱🇹',d:8},{c:'+352',n:'Luxembourg',f:'🇱🇺',d:9,dmin:8,dmax:9},{c:'+853',n:'Macau',f:'🇲🇴',d:8},{c:'+261',n:'Madagascar',f:'🇲🇬',d:9},{c:'+60',n:'Malaysia',f:'🇲🇾',d:9,dmin:9,dmax:10},{c:'+960',n:'Maldives',f:'🇲🇻',d:7},{c:'+356',n:'Malta',f:'🇲🇹',d:8},{c:'+230',n:'Mauritius',f:'🇲🇺',d:8},{c:'+52',n:'Mexico',f:'🇲🇽',d:10},{c:'+373',n:'Moldova',f:'🇲🇩',d:8},{c:'+377',n:'Monaco',f:'🇲🇨',d:9,dmin:8,dmax:9},{c:'+976',n:'Mongolia',f:'🇲🇳',d:8},{c:'+382',n:'Montenegro',f:'🇲🇪',d:8},{c:'+212',n:'Morocco',f:'🇲🇦',d:9},{c:'+258',n:'Mozambique',f:'🇲🇿',d:9},{c:'+95',n:'Myanmar',f:'🇲🇲',d:9,dmin:8,dmax:9},
+    {c:'+264',n:'Namibia',f:'🇳🇦',d:9},{c:'+977',n:'Nepal',f:'🇳🇵',d:10},{c:'+31',n:'Netherlands',f:'🇳🇱',d:9,ph:'6 12 34 56 78'},{c:'+64',n:'New Zealand',f:'🇳🇿',d:9,dmin:8,dmax:10},{c:'+505',n:'Nicaragua',f:'🇳🇮',d:8},{c:'+234',n:'Nigeria',f:'🇳🇬',d:10,dmin:8,dmax:10},{c:'+389',n:'North Macedonia',f:'🇲🇰',d:8},{c:'+47',n:'Norway',f:'🇳🇴',d:8},{c:'+968',n:'Oman',f:'🇴🇲',d:8},{c:'+92',n:'Pakistan',f:'🇵🇰',d:10},{c:'+970',n:'Palestine',f:'🇵🇸',d:9},{c:'+507',n:'Panama',f:'🇵🇦',d:8},{c:'+595',n:'Paraguay',f:'🇵🇾',d:9},{c:'+51',n:'Peru',f:'🇵🇪',d:9},{c:'+63',n:'Philippines',f:'🇵🇭',d:10},{c:'+48',n:'Poland',f:'🇵🇱',d:9},{c:'+351',n:'Portugal',f:'🇵🇹',d:9},{c:'+1',n:'Puerto Rico',f:'🇵🇷',d:10},
+    {c:'+974',n:'Qatar',f:'🇶🇦',d:8,ph:'3312 3456'},{c:'+40',n:'Romania',f:'🇷🇴',d:9},{c:'+7',n:'Russia',f:'🇷🇺',d:10},{c:'+250',n:'Rwanda',f:'🇷🇼',d:9},{c:'+966',n:'Saudi Arabia',f:'🇸🇦',d:9,ph:'51 234 5678'},{c:'+221',n:'Senegal',f:'🇸🇳',d:9},{c:'+381',n:'Serbia',f:'🇷🇸',d:9,dmin:8,dmax:9},{c:'+65',n:'Singapore',f:'🇸🇬',d:8,ph:'8123 4567'},{c:'+421',n:'Slovakia',f:'🇸🇰',d:9},{c:'+386',n:'Slovenia',f:'🇸🇮',d:8},{c:'+27',n:'South Africa',f:'🇿🇦',d:9},{c:'+82',n:'South Korea',f:'🇰🇷',d:10,dmin:9,dmax:10},{c:'+34',n:'Spain',f:'🇪🇸',d:9,ph:'612 345 678'},{c:'+94',n:'Sri Lanka',f:'🇱🇰',d:9},{c:'+249',n:'Sudan',f:'🇸🇩',d:9},{c:'+46',n:'Sweden',f:'🇸🇪',d:9,dmin:7,dmax:9},{c:'+41',n:'Switzerland',f:'🇨🇭',d:9,ph:'76 123 45 67'},{c:'+963',n:'Syria',f:'🇸🇾',d:9},
+    {c:'+886',n:'Taiwan',f:'🇹🇼',d:9},{c:'+255',n:'Tanzania',f:'🇹🇿',d:9},{c:'+66',n:'Thailand',f:'🇹🇭',d:9},{c:'+1',n:'Trinidad and Tobago',f:'🇹🇹',d:10},{c:'+216',n:'Tunisia',f:'🇹🇳',d:8},{c:'+90',n:'Turkey',f:'🇹🇷',d:10},{c:'+993',n:'Turkmenistan',f:'🇹🇲',d:8},{c:'+256',n:'Uganda',f:'🇺🇬',d:9},{c:'+380',n:'Ukraine',f:'🇺🇦',d:9},{c:'+971',n:'United Arab Emirates',f:'🇦🇪',d:9,ph:'50 123 4567'},{c:'+598',n:'Uruguay',f:'🇺🇾',d:8},{c:'+998',n:'Uzbekistan',f:'🇺🇿',d:9},{c:'+58',n:'Venezuela',f:'🇻🇪',d:10},{c:'+84',n:'Vietnam',f:'🇻🇳',d:9,dmin:9,dmax:10},{c:'+967',n:'Yemen',f:'🇾🇪',d:9,dmin:7,dmax:9},{c:'+260',n:'Zambia',f:'🇿🇲',d:9},{c:'+263',n:'Zimbabwe',f:'🇿🇼',d:9}
+  ];
+  (function(){
+    var sel=document.getElementById('slDialCode'),list=document.getElementById('slDialList'),nores=document.getElementById('slDialNoResults');
+    DIAL.forEach(function(o,idx){
+      var label=o.f+' '+o.n+' ('+o.c+')';
+      var opt=document.createElement('option');opt.value=o.c;opt.setAttribute('data-d',o.d);if(o.dmin)opt.setAttribute('data-dmin',o.dmin);if(o.dmax)opt.setAttribute('data-dmax',o.dmax);if(o.ph)opt.setAttribute('data-ph',o.ph);opt.textContent=label;sel.appendChild(opt);
+      var div=document.createElement('div');div.className='sl-dial-opt';div.setAttribute('data-idx',idx+1);div.setAttribute('data-value',o.c);div.setAttribute('data-d',o.d);if(o.dmin)div.setAttribute('data-dmin',o.dmin);if(o.dmax)div.setAttribute('data-dmax',o.dmax);if(o.ph)div.setAttribute('data-ph',o.ph);div.setAttribute('data-label',label);div.textContent=label;list.insertBefore(div,nores);
+    });
+  })();
+
+  // ── PHONE ──
+  var dialSel=document.getElementById('slDialCode'),phoneInp=document.getElementById('slPhone'),phoneWrap=document.getElementById('slPhoneWrap'),phoneHint=document.getElementById('slPhoneHint'),dialPrefix=document.getElementById('slDialPrefix');
+  function getDialData(){var o=dialSel.options[dialSel.selectedIndex];var d=parseInt(o.getAttribute('data-d'),10)||9;var dmin=o.getAttribute('data-dmin')?parseInt(o.getAttribute('data-dmin'),10):d;var dmax=o.getAttribute('data-dmax')?parseInt(o.getAttribute('data-dmax'),10):d;return{code:dialSel.value||'',digits:d,dmin:dmin,dmax:dmax,ph:o.getAttribute('data-ph')||''};}
+  function updatePlaceholder(){var d=getDialData();phoneInp.placeholder=d.ph||'Enter phone number';dialPrefix.textContent=d.code||'+';}
+  var TRUNK=['+44','+33','+49','+39','+34','+31','+32','+41','+43','+46','+47','+45','+353','+61','+64','+351','+48','+30','+90','+380','+40','+36','+420','+358','+370','+371','+372','+381','+385','+386','+421','+60','+62','+63','+66','+84','+95','+94','+92','+880','+977'];
+  var zeroHint=document.getElementById('slPhoneZeroHint'),hintSep=document.getElementById('slPhoneHintSep');
+  function updateSep(){if(hintSep){var zv=zeroHint&&zeroHint.style.display!=='none';var hv=phoneHint.textContent.trim().length>0;hintSep.style.display=(zv&&hv)?'inline':'none';}}
+  function stripZero(){var c=dialSel.value;if(TRUNK.indexOf(c)===-1)return;var v=phoneInp.value.replace(/\s/g,'');if(v.charAt(0)==='0'){phoneInp.value=phoneInp.value.replace(/^(\s*)0/,'$1');if(zeroHint){zeroHint.style.display='flex';clearTimeout(zeroHint._t);zeroHint._t=setTimeout(function(){zeroHint.style.display='none';updateSep();},3000);updateSep();}}}
+  function stripD(v){return v.replace(/\D/g,'');}
+  function updateHint(dig,req,touched,dmin,dmax){dmin=dmin||req;dmax=dmax||req;if(!touched||dig.length===0){phoneHint.textContent='';phoneHint.className='sl-phone-digits-hint';updateSep();return;}var l=dig.length;if(l<dmin){var r=dmin-l;phoneHint.textContent=r+' more digit'+(r===1?'':'s')+' needed';phoneHint.className='sl-phone-digits-hint sl-warn';}else if(l>dmax){var o=l-dmax;phoneHint.textContent=o+' digit'+(o===1?'':'s')+' too many';phoneHint.className='sl-phone-digits-hint sl-warn';}else{phoneHint.textContent='✓ Looks good';phoneHint.className='sl-phone-digits-hint sl-good';}updateSep();}
+  function validatePhone(showE){var d=getDialData();var dig=stripD(phoneInp.value);var l=dig.length;var valid=l>=d.dmin&&l<=d.dmax;var t=phoneInp.value.length>0;setFs(phoneWrap,valid?'ok':(showE&&t?'err':null));if(showE&&!valid&&t){showErr('slErr-phone',true);var m=document.getElementById('slErr-phone');if(l<d.dmin){var r=d.dmin-l;m.textContent='Too short, '+r+' more digit'+(r===1?'':'s')+' needed for '+d.code;}else if(l>d.dmax){var o=l-d.dmax;m.textContent=o+' digit'+(o===1?'':'s')+' too many, please remove '+o;}else m.textContent='Please enter a valid phone number';phoneHint.textContent='';phoneHint.className='sl-phone-digits-hint';}else{if(showE)showErr('slErr-phone',false);updateHint(dig,d.digits,t,d.dmin,d.dmax);}return valid;}
+  phoneInp.addEventListener('input',function(){this.value=this.value.replace(/[^\d\s\-().+]/g,'');stripZero();var d=getDialData();updateHint(stripD(this.value),d.digits,this.value.length>0,d.dmin,d.dmax);setFs(phoneWrap,null);showErr('slErr-phone',false);});
+  phoneInp.addEventListener('blur',function(){stripZero();if(this.value.length>0)validatePhone(true);});
+  phoneInp.addEventListener('focus',function(){showErr('slErr-phone',false);});
+  dialSel.addEventListener('change',function(){updatePlaceholder();phoneInp.value='';phoneHint.textContent='';phoneHint.className='sl-phone-digits-hint';setFs(phoneWrap,null);showErr('slErr-phone',false);phoneInp.focus();applyFilled(dialSel);});
+  dialPrefix.textContent='+';phoneInp.placeholder='Enter phone number';
+
+  // ── DIAL DROPDOWN ──
+  (function(){
+    var trigger=document.getElementById('slDialTrigger'),dropdown=document.getElementById('slDialDropdown'),searchInp=document.getElementById('slDialSearch'),list=document.getElementById('slDialList'),noResults=document.getElementById('slDialNoResults');
+    var opts=list?Array.prototype.slice.call(list.querySelectorAll('.sl-dial-opt')):[];var isOpen=false;
+    function open(){isOpen=true;dropdown.classList.add('sl-open');trigger.classList.add('sl-open');trigger.setAttribute('aria-expanded','true');searchInp.value='';filter('');setTimeout(function(){searchInp.focus();},10);}
+    function close(){isOpen=false;dropdown.classList.remove('sl-open');trigger.classList.remove('sl-open');trigger.setAttribute('aria-expanded','false');}
+    function filter(q){q=q.toLowerCase().trim();var any=false;opts.forEach(function(o){var lab=(o.getAttribute('data-label')||o.textContent).toLowerCase();var val=(o.getAttribute('data-value')||'').toLowerCase();var show=!q||lab.indexOf(q)>-1||val.indexOf(q)>-1;o.classList.toggle('sl-hidden',!show);if(show)any=true;});noResults.style.display=any?'none':'';}
+    function select(o){var idx=parseInt(o.getAttribute('data-idx'),10);var lab=o.getAttribute('data-label')||o.textContent;if(!isNaN(idx))dialSel.selectedIndex=idx;trigger.textContent=lab;trigger.style.color='';trigger.classList.add('sl-filled');opts.forEach(function(x){x.classList.remove('sl-selected');});o.classList.add('sl-selected');close();dialSel.dispatchEvent(new Event('change'));}
+    if(trigger)trigger.addEventListener('click',function(e){e.stopPropagation();isOpen?close():open();});
+    if(searchInp){searchInp.addEventListener('input',function(){filter(this.value);});searchInp.addEventListener('mousedown',function(e){e.stopPropagation();});}
+    opts.forEach(function(o){o.addEventListener('mousedown',function(e){e.preventDefault();select(o);});});
+    document.addEventListener('click',function(e){if(isOpen&&!document.getElementById('slDialWrap').contains(e.target))close();});
+    document.addEventListener('keydown',function(e){if(isOpen&&e.key==='Escape')close();});
+  })();
+
+  // ── EMAIL ──
+  var DISPOSABLE=['mailinator.com','guerrillamail.com','tempmail.com','temp-mail.org','throwaway.email','yopmail.com','trashmail.com','maildrop.cc','sharklasers.com','getairmail.com','dispostable.com','fakeinbox.com','tempinbox.com','spam4.me','mailnesia.com','discard.email','10minutemail.com'];
+  var ROLE=['info','admin','noreply','no-reply','support','help','contact','sales','marketing','hello','enquiries','enquiry','office','team','webmaster','postmaster','abuse'];
+  var TYPO={'gmial.com':'gmail.com','gmal.com':'gmail.com','gmail.co':'gmail.com','gmail.con':'gmail.com','gmai.com':'gmail.com','gnail.com':'gmail.com','gamil.com':'gmail.com','hotmial.com':'hotmail.com','hotmail.co':'hotmail.com','hotmail.con':'hotmail.com','hotmal.com':'hotmail.com','outlok.com':'outlook.com','outlook.co':'outlook.com','outlook.con':'outlook.com','yaho.com':'yahoo.com','yahoo.co':'yahoo.com','yahoo.con':'yahoo.com','iclod.com':'icloud.com','icloud.co':'icloud.com','icould.com':'icloud.com'};
+  function validateEmail(doShow){var el=document.getElementById('slEmail');var err=document.getElementById('slErr-email');var v=el.value.trim().toLowerCase();var hint=document.getElementById('slEmailDomainHint');if(hint)hint.style.display='none';if(!v){if(doShow){showErr('slErr-email',true);err.textContent='Please enter your email address';setFs(el,'err');}return false;}if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)){if(doShow){showErr('slErr-email',true);err.textContent='Please enter a valid email address';setFs(el,'err');}return false;}var p=v.split('@');var pre=p[0];var dom=p[1];if(TYPO[dom]&&hint){var hs=hint.querySelector('span');if(hs)hs.textContent='Did you mean '+pre+'@'+TYPO[dom]+'? Tap to fix';hint.style.display='flex';var f=el.closest?el.closest('.sl-field'):null;if(f)f.removeAttribute('data-filled');hint.onclick=function(){el.value=pre+'@'+TYPO[dom];hint.style.display='none';applyFilled(el,true);setFs(el,'ok');showErr('slErr-email',false);};}if(DISPOSABLE.indexOf(dom)>-1){if(doShow){showErr('slErr-email',true);err.textContent='Please use a personal email address, temporary inboxes are not accepted';setFs(el,'err');}return false;}if(ROLE.indexOf(pre)>-1){if(doShow){showErr('slErr-email',true);err.textContent='Please use your personal email rather than a shared inbox';setFs(el,'err');}return false;}if(doShow){showErr('slErr-email',false);setFs(el,'ok');}return !TYPO[dom];}
+  document.getElementById('slEmail').addEventListener('blur',function(){validateEmail(true);});
+  document.getElementById('slEmail').addEventListener('input',function(){if(this.classList.contains('sl-err'))validateEmail(true);});
+
+  // ── FLATPICKR ──
+  var stayWrap=document.getElementById('slStayDuration'),stayText=document.getElementById('slStayDurationText'),stayMin=document.getElementById('slStayMinSorry');
+  function updateStayDuration(ci,co){if(!ci||!co){stayWrap.style.display='none';stayMin.style.display='none';refreshContinue();return;}var s=new Date(ci),e=new Date(co);var n=Math.round((e-s)/(864e5));if(n<=0){stayWrap.style.display='none';stayMin.style.display='none';refreshContinue();return;}var tooShort=n<MIN_NIGHTS;stayWrap.style.display=tooShort?'none':'flex';if(!tooShort)stayText.textContent='You\'re staying '+n+' night'+(n===1?'':'s');stayMin.style.display=tooShort?'block':'none';refreshContinue();}
+  ciEl.addEventListener('change',function(){if(this.value)showErr('slErr-checkIn',false);});
+  coEl.addEventListener('change',function(){if(this.value)showErr('slErr-checkOut',false);});
+  function loadFlatpickr(){var today=new Date();today.setHours(0,0,0,0);
+    var fpOut=flatpickr(coEl,{dateFormat:'Y-m-d',altInput:true,altFormat:'d M Y',minDate:today,disableMobile:true,onChange:function(sd,ds){showErr('slErr-checkOut',false);applyFilledDate(coEl,ds);updateStayDuration(fpIn.selectedDates[0]?fpIn.input.value:null,ds||null);}});
+    var fpIn=flatpickr(ciEl,{dateFormat:'Y-m-d',altInput:true,altFormat:'d M Y',minDate:today,disableMobile:true,onChange:function(sd,ds){showErr('slErr-checkIn',false);applyFilledDate(ciEl,ds);if(ds){fpOut.set('minDate',ds);if(fpOut.selectedDates[0]&&fpOut.selectedDates[0]<=sd[0]){fpOut.clear();applyFilledDate(coEl,'');}setTimeout(function(){fpOut.open();},120);}updateStayDuration(ds||null,fpOut.selectedDates[0]?fpOut.input.value:null);}});
+    window._fpIn=fpIn;window._fpOut=fpOut;}
+  var fpScript=document.createElement('script');fpScript.src='https://cdn.jsdelivr.net/npm/flatpickr';fpScript.onload=loadFlatpickr;document.head.appendChild(fpScript);
+
+  // ── FILLED STATE ──
+  function applyFilled(el,onBlur){if(!el)return;var filled=el.value&&el.value.trim()!=='';el.classList.toggle('sl-filled',!!filled);var f=el.closest?el.closest('.sl-field'):null;if(f){var hasErr=el.classList.contains('sl-err');var hasWarn=f.querySelector('.sl-phone-digits-hint.sl-warn')!==null;var hasHint=f.querySelector('[id$="DomainHint"]')&&f.querySelector('[id$="DomainHint"]').style.display!=='none';if(filled&&!hasErr&&!hasWarn&&!hasHint&&onBlur!==false)f.setAttribute('data-filled','');else f.removeAttribute('data-filled');}}
+  function applyFilledDate(el,ds){var filled=!!ds;el.classList.toggle('sl-filled',filled);var f=el.closest?el.closest('.sl-field'):null;if(f){if(filled)f.setAttribute('data-filled','');else f.removeAttribute('data-filled');}}
+  Array.prototype.forEach.call(document.querySelectorAll('#slEnqForm input,#slEnqForm select'),function(el){if(el.type==='radio'||el.type==='checkbox')return;if(el.id==='slCheckIn'||el.id==='slCheckOut')return;el.addEventListener('input',function(){applyFilled(el,false);});el.addEventListener('change',function(){applyFilled(el,true);});el.addEventListener('blur',function(){applyFilled(el,true);});el.addEventListener('animationstart',function(e){if(e.animationName==='sl-autofill-start')applyFilled(el,true);if(e.animationName==='sl-autofill-cancel'){el.classList.remove('sl-filled');var f=el.closest?el.closest('.sl-field'):null;if(f)f.removeAttribute('data-filled');}});applyFilled(el,true);});
+  function applyPhoneFilled(){var filled=phoneInp.value.trim().length>0;phoneWrap.classList.toggle('sl-filled',filled);var f=phoneWrap.closest?phoneWrap.closest('.sl-field'):null;if(f){var w=f.querySelector('.sl-phone-digits-hint.sl-warn')!==null;if(filled&&!w)f.setAttribute('data-filled','');else f.removeAttribute('data-filled');}updatePlaceholder();}
+  phoneInp.addEventListener('input',applyPhoneFilled);phoneInp.addEventListener('blur',applyPhoneFilled);
+  var afc=0;var afi=setInterval(function(){afc++;Array.prototype.forEach.call(document.querySelectorAll('#slEnqForm input:not([type=radio]):not([type=checkbox]),#slEnqForm select'),function(el){if(el.id==='slCheckIn'||el.id==='slCheckOut')return;applyFilled(el);});applyPhoneFilled();applyFilled(dialSel);if(afc>=8)clearInterval(afi);},250);
+
+  // ── STEP / WIZARD CONTROL ──
+  var slStep1=document.getElementById('slStep1'),slStep2=document.getElementById('slStep2'),slBar2=document.getElementById('slBar2'),slProgLbl=document.getElementById('slProgLbl');
+  function stayStepValid(){var apt=document.getElementById('slAptType').value;var bud=document.getElementById('slBudget').value;var ci=ciEl.value,co=coEl.value;if(!apt||!bud||bud==='under-5000'||!ci||!co)return false;if(co<=ci)return false;var n=Math.round((new Date(co)-new Date(ci))/(864e5));return n>=MIN_NIGHTS;}
+  function refreshContinue(){var b=document.getElementById('slContinueBtn');if(b)b.disabled=!stayStepValid();}
+  function validateStep1(showE){var ok=true;var aptEl=document.getElementById('slAptType');if(!aptEl.value){if(showE){showErr('slErr-aptType',true);setFs(aptEl,'err');}ok=false;}else setFs(aptEl,'ok');var budEl=document.getElementById('slBudget');var budSorry=document.getElementById('slBudgetSorry');if(!budEl.value){if(showE){showErr('slErr-budget',true);setFs(budEl,'err');}ok=false;}else if(budEl.value==='under-5000'){if(showE){if(budSorry)budSorry.style.display='block';setFs(budEl,'err');}ok=false;}else{if(budSorry)budSorry.style.display='none';setFs(budEl,'ok');}if(!ciEl.value){if(showE){showErr('slErr-checkIn',true);setFs(ciEl,'err');}ok=false;}else setFs(ciEl,'ok');if(!coEl.value||coEl.value<=ciEl.value){if(showE){showErr('slErr-checkOut',true);document.getElementById('slErr-checkOut').textContent='Please select a check-out date after check-in';setFs(coEl,'err');}ok=false;}else{var n=Math.round((new Date(coEl.value)-new Date(ciEl.value))/(864e5));if(n<MIN_NIGHTS){if(showE){showErr('slErr-checkOut',true);document.getElementById('slErr-checkOut').textContent='Please select dates that are at least 30 nights apart';setFs(coEl,'err');}ok=false;}else setFs(coEl,'ok');}return ok;}
+  function validateStep2(showE){var ok=true;var nameEl=document.getElementById('slFullName');if(!nameEl.value.trim()||nameEl.value.trim().split(' ').filter(Boolean).length<2){if(showE){showErr('slErr-fullName',true);setFs(nameEl,'err');}ok=false;}else setFs(nameEl,'ok');if(!validateEmail(showE))ok=false;if(!validatePhone(showE)){if(showE&&!phoneInp.value.trim()){showErr('slErr-phone',true);document.getElementById('slErr-phone').textContent='Please enter a phone number';setFs(phoneWrap,'err');}ok=false;}return ok;}
+  function goToStep(n){var outEl=(n===2)?slStep1:slStep2;var inEl=(n===2)?slStep2:slStep1;outEl.classList.add('sl-fade');setTimeout(function(){outEl.style.display='none';outEl.classList.remove('sl-fade');if(n===2){slBar2.classList.add('sl-on');slProgLbl.textContent='Step 2 of 2 · your details';}else{slBar2.classList.remove('sl-on');slProgLbl.textContent='Step 1 of 2 · your stay';}inEl.style.display='block';inEl.classList.add('sl-fade');void inEl.offsetWidth;inEl.classList.remove('sl-fade');try{document.querySelector('.sl-enq').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}},250);}
+  document.getElementById('slContinueBtn').addEventListener('click',function(){if(validateStep1(true)){goToStep(2);}else{var f=document.querySelector('#slStep1 .sl-err,#slStep1 .sl-err-msg.sl-show');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});}});
+  document.getElementById('slBackBtn').addEventListener('click',function(){goToStep(1);});
+
+  document.getElementById('slAptType').addEventListener('change',function(){if(this.value){showErr('slErr-aptType',false);setFs(this,'ok');}refreshContinue();});
+  document.getElementById('slBudget').addEventListener('change',function(){var sorry=document.getElementById('slBudgetSorry');var lock=this.value==='under-5000';if(sorry)sorry.style.display=lock?'block':'none';if(this.value){showErr('slErr-budget',false);setFs(this,lock?'err':'ok');}refreshContinue();});
+  document.getElementById('slFullName').addEventListener('input',function(){if(this.value.trim().split(' ').filter(Boolean).length>=2){showErr('slErr-fullName',false);setFs(this,'ok');}});
+
+  // ── SUBMIT ──
+  function handleSubmit(e){if(e)e.preventDefault();
+    if(slStep2.style.display==='none'){if(validateStep1(true)){goToStep(2);}else{var fa=document.querySelector('#slStep1 .sl-err,#slStep1 .sl-err-msg.sl-show');if(fa)fa.scrollIntoView({behavior:'smooth',block:'center'});}return;}
+    if(!validateStep1(true)){goToStep(1);var f1=document.querySelector('#slStep1 .sl-err,#slStep1 .sl-err-msg.sl-show');if(f1)setTimeout(function(){f1.scrollIntoView({behavior:'smooth',block:'center'});},350);return;}
+    if(!validateStep2(true)){var f2=document.querySelector('#slStep2 .sl-err,#slStep2 .sl-err-msg.sl-show');if(f2)f2.scrollIntoView({behavior:'smooth',block:'center'});return;}
+    var t=slGetTrackingData();
+    var payload={
+      enquiry_type:'B',enquiry_source:'new-york-landing',city:'new-york',
+      full_name:document.getElementById('slFullName').value.trim(),email:document.getElementById('slEmail').value.trim(),
+      phone:dialPrefix.textContent+' '+phoneInp.value.trim(),
+      check_in:ciEl.value,check_out:coEl.value,
+      apartment_type:document.getElementById('slAptType').value,budget:document.getElementById('slBudget').value,
+      areas:document.getElementById('slArea').value,
+      marketing_opt_in:document.getElementById('slMarketingOptIn') ? !document.getElementById('slMarketingOptIn').checked : true,
+      utm_source:t.utm_source,utm_medium:t.utm_medium,utm_campaign:t.utm_campaign,utm_adgroup:t.utm_adgroup,utm_term:t.utm_term,utm_matchtype:t.utm_matchtype,utm_content:t.utm_content,gclid:t.gclid,gbraid:t.gbraid,wbraid:t.wbraid,fbclid:t.fbclid,session_id:t.session_id,first_gclid:t.first_gclid,first_gbraid:t.first_gbraid,first_wbraid:t.first_wbraid,first_campaign:t.first_campaign,first_adgroup:t.first_adgroup,first_term:t.first_term,first_matchtype:t.first_matchtype,first_utm_source:t.first_utm_source,first_utm_medium:t.first_utm_medium,first_referrer:t.first_referrer,first_landing_page:t.first_landing_page,first_seen:t.first_seen,landing_page:t.landing_page,visited_paths:t.visited_paths,submit_page:t.submit_page,referrer:document.referrer||'',submitted_at:new Date().toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||''
+    };
+    fetch('https://luxe-lead-capture.vercel.app/api/submit-enquiry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(d){if(!d.success)console.warn('[Student Luxe] Submit warning:',d);}).catch(function(err){console.error('[Student Luxe] Submit error:',err);});
+
+    var MARKETING_URL='https://script.google.com/macros/s/AKfycbyi88UT1-xYXYr2fSmrJ2hp3UMn-R0LvEM7TtGTCy-HUCuxykVekD_zBmAI8ybCEG-g/exec';
+    if(payload.marketing_opt_in !== false){
+      var mkt=new URLSearchParams();
+      mkt.append('full_name',payload.full_name);mkt.append('email',payload.email);mkt.append('phone',payload.phone);mkt.append('nationality','');mkt.append('city',payload.city);
+      fetch(MARKETING_URL,{method:'POST',mode:'no-cors',body:mkt}).catch(function(err){console.error('[Student Luxe] Marketing list error:',err);});
+    }
+
+    window.dataLayer=window.dataLayer||[];window.dataLayer.push({event:'reservations_form_success',email:payload.email,phone:payload.phone});
+    document.getElementById('slEnqForm').style.display='none';
+    document.getElementById('slEnqSuccess').classList.add('sl-show');updateResponseStatus();slBuildTeamStrip();
+    document.getElementById('slEnqSuccess').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  document.getElementById('slSubmitBtn').addEventListener('click',handleSubmit);
+  document.getElementById('slEnqForm').addEventListener('submit',handleSubmit);
+
+  // ── URL CAPTURE: UTM + gclid/gbraid/wbraid/fbclid + session + first-touch (90-day) ──
+  (function(){
+    var params    = new URLSearchParams(window.location.search);
+    var expiry    = new Date();
+    expiry.setDate(expiry.getDate() + 90);
+    var expiryStr = '; path=/; expires=' + expiry.toUTCString();
+
+    function setCookie(name, value){
+      if(!value) return;
+      document.cookie = name + '=' + encodeURIComponent(value) + expiryStr;
+    }
+    function setFirstTouch(name, value){
+      if(value && !slGetCookie(name)) setCookie(name, value);
+    }
+
+    var mappings = {
+      'sl_utm_source':    params.get('utm_source'),
+      'sl_utm_medium':    params.get('utm_medium'),
+      'sl_utm_campaign':  params.get('utm_campaign'),
+      'sl_utm_adgroup':   params.get('utm_adgroup'),
+      'sl_utm_term':      params.get('utm_term'),
+      'sl_utm_matchtype': params.get('utm_matchtype'),
+      'sl_utm_content':   params.get('utm_content'),
+      'sl_gclid':         params.get('gclid'),
+      'sl_gbraid':        params.get('gbraid'),
+      'sl_wbraid':        params.get('wbraid'),
+      'sl_fbclid':        params.get('fbclid')
+    };
+
+    var hasAny = Object.keys(mappings).some(function(k){ return mappings[k]; });
+    if(hasAny){
+      Object.keys(mappings).forEach(function(k){
+        if(mappings[k]){
+          setCookie(k, mappings[k]);
+          setFirstTouch('sl_first_' + k.replace(/^sl_/, ''), mappings[k]);
+        }
+      });
+    }
+
+    if(!slGetCookie('sl_session_id')){
+      var sid = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'sl-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+      setCookie('sl_session_id', sid);
+    }
+    if(!slGetCookie('sl_first_seen')) setCookie('sl_first_seen', new Date().toISOString());
+
+    if(!slGetCookie('sl_landing_page')) setCookie('sl_landing_page', window.location.pathname);
+    setCookie('sl_last_page', window.location.pathname);
+
+    if(document.referrer && document.referrer.indexOf(location.host) === -1){
+      setFirstTouch('sl_first_referrer', document.referrer);
+    }
+    setFirstTouch('sl_first_landing_page', window.location.pathname);
+  })();
+
+  // ── URL PREFILL ──
+  (function(){var p=new URLSearchParams(window.location.search);function g(k){return p.get(k);}
+    var apt=g('apt');if(apt){var a=document.getElementById('slAptType');if(a){a.value=apt;a.dispatchEvent(new Event('change'));applyFilled(a);}}
+    var bud=g('budget');if(bud){var b=document.getElementById('slBudget');if(b){b.value=bud;b.dispatchEvent(new Event('change'));applyFilled(b);}}
+    var nm=g('name');if(nm){var n=document.getElementById('slFullName');if(n){n.value=nm;applyFilled(n);}}
+    var em=g('email');if(em){var e=document.getElementById('slEmail');if(e){e.value=em;applyFilled(e);}}
+    var area=g('area');if(area){var as=document.getElementById('slArea');if(as){as.value=area;applyFilled(as);}}
+    var ci=g('checkin'),co=g('checkout');if(ci||co){var att=0;var wf=setInterval(function(){att++;if((window._fpIn&&window._fpOut)||att>20){clearInterval(wf);if(ci&&window._fpIn)window._fpIn.setDate(ci,true);if(co&&window._fpOut)window._fpOut.setDate(co,true);}},150);}
+    setTimeout(refreshContinue,700);
+  })();
+
+  // ── RESPONSE STATUS ──
+  var CLOSURES=[{name:'New Year',closed:'2026-01-01',reopen:'2026-01-02'},{name:'Easter',closed:'2026-04-03',reopen:'2026-04-07'},{name:'Early May Bank Holiday',closed:'2026-05-04',reopen:'2026-05-05'},{name:'Spring Bank Holiday',closed:'2026-05-25',reopen:'2026-05-26'},{name:'Summer Bank Holiday',closed:'2026-08-31',reopen:'2026-09-01'},{name:'Christmas',closed:'2026-12-25',reopen:'2026-12-29'},{name:'New Year',closed:'2027-01-01',reopen:'2027-01-04'},{name:'Easter',closed:'2027-03-26',reopen:'2027-03-31'},{name:'Spring Bank Holiday',closed:'2027-05-31',reopen:'2027-06-01'},{name:'Summer Bank Holiday',closed:'2027-08-30',reopen:'2027-08-31'},{name:'Christmas',closed:'2027-12-27',reopen:'2027-12-30'}];
+  function updateResponseStatus(){var dot=document.getElementById('slStatusDot'),pill=document.getElementById('slStatusPill'),time=document.getElementById('slRespTime'),notice=document.getElementById('slRespNotice');if(!dot)return;var today=new Date();today.setHours(0,0,0,0);var active=null;for(var i=0;i<CLOSURES.length;i++){var c=CLOSURES[i];var cl=new Date(c.closed);cl.setHours(0,0,0,0);var ro=new Date(c.reopen);ro.setHours(0,0,0,0);if(today>=cl&&today<ro){active=c;break;}}if(active){dot.className='sl-status-dot amber';pill.className='sl-status-pill amber';pill.textContent=active.name+' period';time.textContent='Current response time: 2 to 3 business days';var rd=new Date(active.reopen);var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];notice.textContent='Our offices are closed for '+active.name+'. We will respond to all enquiries from '+rd.getDate()+' '+mo[rd.getMonth()]+'.';notice.style.display='block';}else{dot.className='sl-status-dot green';pill.className='sl-status-pill green';pill.textContent='Normal';time.textContent='Current response time: one business day';notice.style.display='none';}}
+
+  // ── TEAM STRIP ──
+  var SALES_TEAM=[{name:'Sam',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/1576ec6c-4743-4e3f-998f-11ed3e818e74/team%3ASam.jpg'},{name:'Edo',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/2ed7e4c3-9b2b-496c-aaef-14d174695a9e/edo-team.jpg'},{name:'Mo',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/590522ad-084e-4144-b6fa-9729ed1c9767/Mo-student-luxe.webp'},{name:'Lina',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/149f2c5c-4d51-47e6-beea-be191c82e207/Lina-student-luxe-team.jpg'},{name:'Rongrong',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/9be6b8d9-399a-41ea-9820-7292033a2680/rongrong-student-luxe.jpg'},{name:'Stefan',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/80aa6dbf-ddda-472f-855e-2d5329001a3a/stefan-student-luxe.jpg'},{name:'Jessica',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/838f97f6-69cc-4a46-b19a-880b56d37ca4/Jessica-Student-Luxe-1.JPG'},{name:'Joe',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/73adf913-5d3e-480d-b381-6c725ff98d80/joe-team.jpg'},{name:'Michele',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/8b5b6bdb-8804-43fb-a877-157601e05709/michele-team.jpg'},{name:'Sarika',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/d1ae4835-54bb-4c05-b133-e599aa2a19d8/sarika-team.jpg'},{name:'Paige',img:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/54094f14-2f02-479b-b1ba-5e01bbab2afd/Paige-student-luxe-1.jpg'}];
+  function slBuildTeamStrip(){var strip=document.getElementById('slSuccessTeam');if(!strip)return;var r=SALES_TEAM.slice();for(var i=r.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=r[i];r[i]=r[j];r[j]=t;}var shown=r.slice(0,4);var rem=SALES_TEAM.length-4;strip.innerHTML='';shown.forEach(function(m){var el=document.createElement('div');el.className='sl-team-member';el.innerHTML='<div class="sl-team-avatar"><img src="'+m.img+'" alt="'+m.name+'" loading="lazy"></div><div class="sl-team-name">'+m.name+'</div>';strip.appendChild(el);});var ex=document.createElement('div');ex.className='sl-team-member';ex.innerHTML='<div class="sl-team-avatar sl-dark-overlay" data-count="+'+rem+'"></div><div class="sl-team-name" style="color:#9b9b9b;">& more</div>';strip.appendChild(ex);}
+
+  updateResponseStatus();refreshContinue();
+})();
+</script>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var modal=document.getElementById('slEnqModal');
+  var openBtn=document.getElementById('slOpenEnq');
+  var closeBtn=document.getElementById('slCloseEnq');
+  if(modal && modal.parentNode !== document.body){ document.body.appendChild(modal); }
+  function open(){ modal.classList.add('sl-open'); document.body.style.overflow='hidden'; }
+  function close(){ modal.classList.remove('sl-open'); document.body.style.overflow=''; }
+  if(openBtn) openBtn.addEventListener('click', function(){
+    var apt=document.getElementById('apartment-categories');
+    if(apt){ apt.scrollIntoView({behavior:'smooth',block:'start'}); }
+    else { open(); }
+  });
+  if(closeBtn) closeBtn.addEventListener('click', close);
+  modal.addEventListener('click', function(e){ if(e.target===modal) close(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && modal.classList.contains('sl-open')) close(); });
+
+  var INTERVAL=2500, FADE=550, EASE='ease-in-out';
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var rot=document.getElementById('slBValRot');
+  if(rot){
+    var items=Array.prototype.slice.call(rot.querySelectorAll('.item'));
+    if(items.length){
+      var ri=0;
+      function renderVal(fade){
+        items.forEach(function(it,k){
+          if(k===ri){it.style.display='inline';if(fade){it.style.transition='none';it.style.opacity='0';void it.offsetWidth;it.style.transition='opacity '+FADE+'ms '+EASE;it.style.opacity='1';}else{it.style.transition='none';it.style.opacity='1';}}
+          else{it.style.transition='none';it.style.display='none';it.style.opacity='0';}
+        });
+      }
+      renderVal(false);
+      if(items.length>1 && !reduce){
+        setInterval(function(){
+          if(document.hidden) return;
+          var cur=items[ri];cur.style.transition='opacity '+FADE+'ms '+EASE;cur.style.opacity='0';
+          setTimeout(function(){ri=(ri+1)%items.length;renderVal(true);},FADE+20);
+        },INTERVAL);
+        document.addEventListener('visibilitychange',function(){if(!document.hidden){renderVal(false);}});
+      }
+    }
+  }
+})();
+</script>
