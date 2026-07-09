@@ -22,7 +22,7 @@
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/gads-dissonance?days=7",
+      "path": "/api/gads-dissonance?days=7&fix=1",
       "schedule": "0 8 * * 1"
     }
   ]

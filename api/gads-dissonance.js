@@ -26,8 +26,11 @@ const RESEND_API     = 'https://api.resend.com/emails';
 const TO             = 'alex@studentluxe.co.uk';
 const FROM           = 'Student Luxe Alerts <alerts@studentluxe.co.uk>';
 
-const { readGadsEvents } = require('./_log.js');
-const { cleanGclid }     = require('./_dataManager.js');
+const { readGadsEvents, logGadsEvent } = require('./_log.js');
+const { cleanGclid, conversionDestination, buildUserIdentifiers, ingestEvents, CONSENT_GRANTED } = require('./_dataManager.js');
+
+const BOOKING_ACTION = () => process.env.GOOGLE_ADS_BOOKING_ACTION_ID;
+const HP_ACTION      = () => process.env.GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID;
 
 module.exports = async function handler (req, res) {
   const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
@@ -36,6 +39,7 @@ module.exports = async function handler (req, res) {
   }
   const days   = Math.max(1, Math.min(31, parseInt(req.query?.days || '7', 10)));
   const dryRun = req.query?.dryRun === '1';
+  const fix    = req.query?.fix === '1';
   const untilMs = Date.now();
   const sinceMs = untilMs - days * 86400000;
   const sinceIso = new Date(sinceMs).toISOString().slice(0, 10);
@@ -64,6 +68,44 @@ module.exports = async function handler (req, res) {
       bookings: bookRows,
       hpleads:  hpRows
     };
+
+    // Auto-remediation: upload the conversion for any dissonant row that has a
+    // matchable Search click but never recorded (never uploaded, or upload
+    // failed). Stable replay transaction id so nothing double-counts.
+    if (fix && !dryRun) {
+      out.fixed = [];
+      const jobs = [
+        ...bookings.map((b, i) => ({ item: b, row: bookRows[i], actionId: BOOKING_ACTION(), value: b.value })),
+        ...hpleads.map((l, i)  => ({ item: l, row: hpRows[i],   actionId: HP_ACTION(),      value: 300 }))
+      ];
+      for (const j of jobs) {
+        const it = j.item, r = j.row;
+        if (r.verdict === 'ok' || r.uploaded === 'ok') continue;   // already fine
+        if (!it.gclid || !clickMap[it.gclid]) continue;            // no matchable click, EC seed's job
+        if (!(Number(j.value) > 0)) continue;                      // nothing to value
+        const ids = buildUserIdentifiers({ email: it.email, phone: it.phone, regionCode: 'GB' });
+        try {
+          const result = await ingestEvents({
+            destinations: [ conversionDestination({ conversionActionId: j.actionId, reference: 'sl-fix' }) ],
+            events: [{
+              destinationReferences: ['sl-fix'],
+              transactionId: 'replay:' + it.id + ':' + j.actionId,
+              eventTimestamp: new Date().toISOString(),
+              eventSource: 'WEB',
+              adIdentifiers: { gclid: it.gclid },
+              userData: { userIdentifiers: ids },
+              currency: 'GBP',
+              conversionValue: Number(j.value)
+            }],
+            consent: CONSENT_GRANTED
+          });
+          await logGadsEvent({ source: 'gads-dissonance (fix)', action: j.actionId === BOOKING_ACTION() ? 'Confirmed Booking' : 'High Potential', ok: true, reason: 'dissonance_fix', value: j.value, mondayId: it.id });
+          out.fixed.push({ id: it.id, name: it.name, value: j.value, requestId: result?.requestId || null });
+        } catch (err) {
+          out.fixed.push({ id: it.id, name: it.name, value: j.value, error: err.message.slice(0, 160) });
+        }
+      }
+    }
 
     if (!dryRun) await sendReport(out, days).catch(e => console.warn('report send failed:', e.message));
     return res.status(200).json(out);
@@ -118,7 +160,7 @@ function summarize (rows, gTotals) {
 // ── Monday ─────────────────────────────────────────────────────
 async function fetchBookings (sinceIso) {
   const frag = `id name column_values(ids: ["numeric_mm1ge9h4","date9","lookup_mkxtxk48","status"]) { id text ... on MirrorValue { display_value } }
-    relation: column_values(ids: ["link_to_leads26"]) { ... on BoardRelationValue { linked_items { id created_at column_values(ids: ["text4__1","text_mm1c3b5w","text3__1","text_mm4ncd41","text_mm4n9t2x"]) { id text } } } }`;
+    relation: column_values(ids: ["link_to_leads26"]) { ... on BoardRelationValue { linked_items { id created_at column_values(ids: ["text4__1","text_mm1c3b5w","text3__1","text_mm4ncd41","text_mm4n9t2x","email","phone_1"]) { id text } } } }`;
   const q = `query { boards(ids: ${BOOKINGS_BOARD}) { items_page(limit: 200, query_params: {
       rules: [{ column_id: "date9", compare_value: ["${sinceIso}"], operator: greater_than_or_equals }] }) {
       items { ${frag} } } } }`;
@@ -135,6 +177,7 @@ async function fetchBookings (sinceIso) {
       id: it.id, name: it.name, value: Number.isFinite(value) ? value : null,
       gclidRaw: raw, gclid: cleanGclid(raw, lc.text_mm4ncd41, lc.text_mm4n9t2x),
       campaign: lc.text_mm1c3b5w || '', keyword: lc.text3__1 || '',
+      email: lc.email || '', phone: lc.phone_1 || '',
       leadCreated: lead?.created_at || null
     };
   }).filter(Boolean);
@@ -144,7 +187,7 @@ async function fetchHighPotential (sinceMs) {
   const q = `query { boards(ids: ${LEADS_BOARD}) { items_page(limit: 200, query_params: {
       rules: [{ column_id: "color_mkt29g1r", compare_value: ["High Potential"], operator: contains_text }],
       order_by: [{ column_id: "__last_updated__", direction: desc }] }) {
-      items { id name created_at updated_at column_values(ids: ["text4__1","text_mm1c3b5w","text3__1","color_mkxk8y67","text_mm4ncd41","text_mm4n9t2x"]) { id text } } } } }`;
+      items { id name created_at updated_at column_values(ids: ["text4__1","text_mm1c3b5w","text3__1","color_mkxk8y67","text_mm4ncd41","text_mm4n9t2x","email","phone_1"]) { id text } } } } }`;
   const d = await mondayQuery(q);
   const items = d?.data?.boards?.[0]?.items_page?.items || [];
   // Audit leads CREATED in the window (this week's new HP leads), not merely
@@ -160,6 +203,7 @@ async function fetchHighPotential (sinceMs) {
       id: it.id, name: it.name, value: 300,
       gclidRaw: raw, gclid: cleanGclid(raw, c.text_mm4ncd41, c.text_mm4n9t2x),
       campaign: c.text_mm1c3b5w || '', keyword: c.text3__1 || '',
+      email: c.email || '', phone: c.phone_1 || '',
       leadCreated: it.created_at || null
     };
   }).filter(Boolean);
