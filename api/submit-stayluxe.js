@@ -66,6 +66,18 @@ module.exports = async function handler(req, res) {
   p.first_touch = firstTouch;
   p.last_touch  = touch;
 
+  // Fallback: the journey fields (landing_page, visited_paths) are populated
+  // client-side from localStorage / cookies. When those are empty (storage
+  // blocked, direct landing, or the site tracker did not run on the entry
+  // page) the lead arrives with a blank journey. Rebuild from the KV session
+  // journal that /api/track recorded server-side, keyed by sl_session_id.
+  if (!p.landing_page && firstTouch?.landing) p.landing_page = firstTouch.landing;
+  if (!p.visited_paths && session?.touches?.length) {
+    p.visited_paths = session.touches
+      .map(t => `${t.source || 'Direct'} ${t.path || ''}`.trim())
+      .join(' 👉 ');
+  }
+
   // Duplicate check — 4 signals (email, phone, IP, name). Flags when 2+ match.
   let duplicateOf = null;
   try {
