@@ -147,6 +147,8 @@ span.flatpickr-weekday{font-family:'DM Sans',sans-serif;font-size:11px;font-weig
 .stl-enq .stl-phone-wrap.stl-err{border-color:var(--error);background:#fdf3f2;}
 .stl-enq .stl-dial-prefix{flex-shrink:0;padding:10px 8px 10px 14px;font-size:14px;color:var(--gold);font-weight:500;border-right:0.5px solid rgba(0,0,0,0.1);white-space:nowrap;user-select:none;}
 .stl-enq .stl-phone-num{flex:1;min-width:0;border:none!important;border-radius:0!important;background:transparent!important;padding:10px 14px!important;font-size:14px;color:var(--ink);outline:none;}
+/* iOS/Safari focus-zoom fix: every typeable control >=16px so tapping name, dates, email, phone, dial search does not zoom the page */
+.stl-enq .stl-field input,.stl-enq .stl-field select,.stl-enq .stl-field textarea,.stl-enq .stl-dial-trigger,.stl-enq .stl-dial-search,.stl-enq .stl-phone-num{font-size:16px;}
 .stl-enq .stl-phone-digits-hint{font-size:11px;color:var(--hint);margin-top:4px;min-height:16px;transition:color 0.15s;}
 .stl-enq .stl-phone-digits-hint.stl-warn{color:var(--error);}
 .stl-enq .stl-phone-digits-hint.stl-good{color:var(--success);}

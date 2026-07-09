@@ -164,6 +164,8 @@ span.flatpickr-weekday{font-family:'DM Sans',sans-serif;font-size:11px;font-weig
 .sl-enq .sl-phone-wrap.sl-err{border-color:var(--error);background:#fdf3f2;}
 .sl-enq .sl-dial-prefix{flex-shrink:0;padding:10px 8px 10px 14px;font-size:14px;color:var(--gold);font-weight:500;border-right:0.5px solid rgba(0,0,0,0.1);white-space:nowrap;user-select:none;}
 .sl-enq .sl-phone-num{flex:1;min-width:0;border:none!important;border-radius:0!important;background:transparent!important;padding:10px 14px!important;font-size:14px;color:var(--ink);outline:none;}
+/* iOS/Safari focus-zoom fix: every typeable control >=16px so tapping name, dates, email, phone, dial search does not zoom the page */
+.sl-enq .sl-field input,.sl-enq .sl-field select,.sl-enq .sl-field textarea,.sl-enq .sl-dial-trigger,.sl-enq .sl-dial-search,.sl-enq .sl-phone-num{font-size:16px;}
 .sl-enq .sl-phone-digits-hint{font-size:11px;color:var(--hint);margin-top:4px;min-height:16px;transition:color 0.15s;}
 .sl-enq .sl-phone-digits-hint.sl-warn{color:var(--error);}
 .sl-enq .sl-phone-digits-hint.sl-good{color:var(--success);}
