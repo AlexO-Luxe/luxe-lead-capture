@@ -100,6 +100,7 @@ module.exports = async function handler (req, res) {
             consent: CONSENT_GRANTED
           });
           await logGadsEvent({ source: 'gads-dissonance (fix)', action: j.actionId === BOOKING_ACTION() ? 'Confirmed Booking' : 'High Potential', ok: true, reason: 'dissonance_fix', value: j.value, mondayId: it.id });
+          r.autoFixed = true;   // so the email shows it as resolved this run, not stale-broken
           out.fixed.push({ id: it.id, name: it.name, value: j.value, requestId: result?.requestId || null });
         } catch (err) {
           out.fixed.push({ id: it.id, name: it.name, value: j.value, error: err.message.slice(0, 160) });
@@ -280,19 +281,27 @@ async function sendReport (out, days) {
 
   const section = (title, s, rows) => {
     const diss = rows.filter(r => r.verdict !== 'ok');
+    const af = rows.filter(r => r.autoFixed).length;
     const head = `<h3 style="font-family:Georgia,serif;color:#0d1a2e;font-size:16px;margin:22px 0 4px;">${title}</h3>
       <p style="font-size:12px;color:#555;margin:0 0 10px;">
         Monday: <b>${s.mondayCount}</b> (${money(s.mondayValue)}) &middot; clean <b style="color:#417505;">${s.clean}</b> &middot;
-        dissonant <b style="color:#c0392b;">${s.dissonant}</b> &middot;
+        dissonant <b style="color:#c0392b;">${s.dissonant}</b>${af ? ` &middot; <b style="color:#417505;">${af} auto-fixed this run</b>` : ''} &middot;
         Google recorded this window (by click date, sanity only): ${s.googleRecorded?.conv ?? '?'} / ${money(s.googleRecorded?.value)}
       </p>`;
     if (!diss.length) return head + `<p style="font-size:13px;color:#417505;">All ${s.mondayCount} matched cleanly. No dissonance.</p>`;
-    const body = diss.map(r => `
+    const body = diss.map(r => {
+      const fixed = r.autoFixed;
+      const badge = fixed ? '🔧✅' : (r.uploaded === 'ok' ? '✅' : r.uploaded === 'failed' ? '❌' : '—');
+      const note = fixed
+        ? `<div style="font-size:11.5px;color:#2f6b16;background:#f2f8ee;padding:7px 9px;border-radius:4px;">Auto-fixed this run, conversion uploaded now.<br><span style="color:#9b9b9b;">flagged because: ${r.flags.map(safe).join('; ')}</span></div>`
+        : `<div style="font-size:11.5px;color:#8b2a1d;background:#fdf3f2;padding:7px 9px;border-radius:4px;">${r.flags.map(safe).join('<br>')}</div>`;
+      return `
       <tr><td style="padding:7px 9px;border-bottom:1px solid #eee;font-weight:600;color:#0d1a2e;">${safe(r.name)}</td>
         <td style="padding:7px 9px;border-bottom:1px solid #eee;text-align:right;">${money(r.value)}</td>
         <td style="padding:7px 9px;border-bottom:1px solid #eee;color:#9b9b9b;">${safe(r.mondayCampaign || '—')}</td>
-        <td style="padding:7px 9px;border-bottom:1px solid #eee;">${r.uploaded === 'ok' ? '✅' : r.uploaded === 'failed' ? '❌' : '—'}</td></tr>
-      <tr><td colspan="4" style="padding:0 9px 9px;border-bottom:1px solid #eee;"><div style="font-size:11.5px;color:#8b2a1d;background:#fdf3f2;padding:7px 9px;border-radius:4px;">${r.flags.map(safe).join('<br>')}</div></td></tr>`).join('');
+        <td style="padding:7px 9px;border-bottom:1px solid #eee;">${badge}</td></tr>
+      <tr><td colspan="4" style="padding:0 9px 9px;border-bottom:1px solid #eee;">${note}</td></tr>`;
+    }).join('');
     return head + `<table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr>
       <th style="text-align:left;padding:7px 9px;color:#9b9b9b;">Name</th><th style="text-align:right;padding:7px 9px;color:#9b9b9b;">Value</th>
       <th style="text-align:left;padding:7px 9px;color:#9b9b9b;">Campaign (Monday)</th><th style="text-align:left;padding:7px 9px;color:#9b9b9b;">Upload</th>
