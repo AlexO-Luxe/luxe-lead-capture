@@ -2973,6 +2973,16 @@ span.flatpickr-weekday{
   var fpScript = document.createElement('script');
   fpScript.src = 'https://cdn.jsdelivr.net/npm/flatpickr';
   fpScript.onload = loadFlatpickr;
+  fpScript.onerror = function(){
+    // CDN unreachable (some networks and regions block jsdelivr): the inputs
+    // are readonly and only usable via Flatpickr, so without this fallback the
+    // guest can never pick dates and can never submit. Native date inputs
+    // produce the same YYYY-MM-DD values the validation and payload expect.
+    [ciEl, coEl].forEach(function(el){
+      el.removeAttribute('readonly');
+      try { el.type = 'date'; } catch(e) {}
+    });
+  };
   document.head.appendChild(fpScript);
 
   // Submit
@@ -3270,8 +3280,16 @@ span.flatpickr-weekday{
       return false;
     }
 
+    if(TYPO_MAP[domain]){
+      // Block submit on a suspected typo domain, but say so loudly. Previously
+      // this returned false while marking the field green, so the submit button
+      // silently did nothing: no error, no scroll, form looked fully valid.
+      if(doShow){ showErr('slErr-email', true); emailErr.textContent = 'Please double-check your email address, or tap the suggestion below to fix it'; setFs(emailEl,'err'); }
+      return false;
+    }
+
     if(doShow){ showErr('slErr-email', false); setFs(emailEl,'ok'); }
-    return !TYPO_MAP[domain];
+    return true;
   }
 
   document.getElementById('slEmail').addEventListener('blur', function(){ validateEmail(true); });
