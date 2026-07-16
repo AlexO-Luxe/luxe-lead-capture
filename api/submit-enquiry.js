@@ -59,6 +59,12 @@ module.exports = async function handler(req, res) {
   p.city_geo   = touch.city;
   p.region     = touch.region;
   p.session_id = sessionId;
+
+  // Partner portals serve a single campus, so the guest is never asked which
+  // city and the portal's own city is authoritative. Set here, before anything
+  // downstream reads p.city (Monday city + currency columns, email subjects).
+  const portalCfg = partnerPortal(p);
+  if (portalCfg?.city) p.city = portalCfg.city;
   p.first_touch = firstTouch;
   p.last_touch  = touch;
 
@@ -611,6 +617,12 @@ function responseStatusHtml(status) {
 }
 
 async function sendGuestConfirmation(p) {
+  // Partner portals get their own confirmation. Kept as a separate template
+  // rather than branches inside this one: the two differ in header, structure
+  // and voice, and the standard email must not be at risk from partner edits.
+  const portal = partnerPortal(p);
+  if (portal) return sendPartnerGuestConfirmation(p, portal);
+
   const firstName = (p.full_name || '').split(' ')[0] || 'there';
   const siteUrl   = process.env.SITE_URL || 'https://www.studentluxe.co.uk';
   const isTypeA   = p.enquiry_type === 'A';
@@ -621,11 +633,11 @@ async function sendGuestConfirmation(p) {
     isTypeA && p.apartment_ref && ['Apartment',            p.apartment_ref],
     !isTypeA && p.city         && ['City',                 formatCity(p.city)],
     p.apartment_type           && ['Apartment type',       formatAptType(p.apartment_type)],
-    !isTypeA && p.budget       && ['Budget per week',      formatBudget(p.budget)],
+    !isTypeA && p.budget       && ['Budget per week',      formatBudget(p.budget, p)],
     p.check_in                 && ['Check-in',             formatDate(p.check_in)],
     p.check_out                && ['Check-out',            formatDate(p.check_out)],
     nights(p)                  && ['Stay length',          nights(p) + ' nights'],
-    !isTypeA && p.areas        && ['Areas of interest',    p.areas],
+    !isTypeA && p.areas        && ['Areas of interest',    formatArea(p.areas)],
     p.response_methods         && ["We\u2019ll try to respond via", p.response_methods],
   ].filter(Boolean);
 
@@ -647,7 +659,9 @@ async function sendGuestConfirmation(p) {
 
   const _submittedDate = new Date(p.submitted_at || Date.now()).toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Europe/London'});
   // Format: "21 May 2026, 4:57 pm" → "on 21 May 2026 at 4:57 pm"
-  const _dateParts = _submittedDate.match(/^(\d+ \w+ \d+),?\s+(.+)$/);
+  // Node 20+ ICU renders "21 May 2026 at 4:57 pm" instead of using a comma, so
+  // the optional "at" is swallowed here rather than doubled up in the output.
+  const _dateParts = _submittedDate.match(/^(\d+ \w+ \d+),?\s+(?:at\s+)?(.+)$/);
   const _dateFormatted = _dateParts ? `on ${_dateParts[1]} at ${_dateParts[2]}` : _submittedDate;
 
   const html = `<!DOCTYPE html>
@@ -785,12 +799,168 @@ async function sendGuestConfirmation(p) {
   });
 }
 // ──────────────────────────────────────────────────────────────
+//  EMAIL 1b — Guest confirmation, partner portals
+// ──────────────────────────────────────────────────────────────
+async function sendPartnerGuestConfirmation(p, portal) {
+  if (!p.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) {
+    console.warn('Partner guest confirmation skipped — invalid email:', p.email);
+    return;
+  }
+
+  const firstName  = (p.full_name || '').split(' ')[0] || 'there';
+  const nightCount = nights(p);
+
+  const _submitted = new Date(p.submitted_at || Date.now()).toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Europe/London'});
+  // Node 20+ ICU already renders "16 July 2026 at 4:57 pm"; older builds used a
+  // comma. Swallow either separator so we don't emit "at at".
+  const _parts     = _submitted.match(/^(\d+ \w+ \d+),?\s+(?:at\s+)?(.+)$/);
+  const _dateFmt   = _parts ? `on ${_parts[1]} at ${_parts[2]}` : _submitted;
+
+  // Each cell renders only when we actually hold the value, so a sparse
+  // enquiry produces a tidy card rather than a grid of dashes.
+  const cell = (label, value, accent) => value ? `
+            <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:16px;">
+              <p style="margin:0 0 3px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+              <p style="margin:0;font-size:13.5px;color:${accent ? '#B8966E' : '#1a1a1a'};font-weight:500;">${escHtml(String(value))}</p>
+            </td>` : '<td class="sl-half" width="50%"></td>';
+
+  const step = (n, title, body) => `
+          <tr>
+            <td width="26" style="vertical-align:top;padding:0 0 16px;"><span style="font-family:Georgia,serif;font-size:15px;color:#B8966E;">${n}</span></td>
+            <td style="vertical-align:top;padding:0 0 16px;">
+              <p style="margin:0 0 3px;font-size:13px;color:#1a1a1a;font-weight:500;">${title}</p>
+              <p style="margin:0;font-size:12px;color:#6b6b6b;line-height:1.5;">${body}</p>
+            </td>
+          </tr>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your accommodation enquiry — ${escHtml(portal.school)}</title>
+<style>
+@media only screen and (max-width:600px){
+  .sl-outer-wrap { padding:0 !important; }
+  .sl-card { border-radius:0 !important; border-left:none !important; border-right:none !important; }
+  .sl-body-cell { padding:22px 20px 0 !important; }
+  .sl-half { display:block !important; width:100% !important; padding-bottom:14px !important; }
+}
+</style>
+</head>
+<body style="margin:0;padding:0;background:#f4f1ec;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" class="sl-outer-wrap" style="background:#f4f1ec;padding:32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" class="sl-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(0,0,0,0.15);">
+
+  <!-- HEADER -->
+  <tr><td style="background:#000000;padding:24px 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="vertical-align:middle;">
+        <p style="margin:0 0 7px;font-size:9.5px;letter-spacing:0.2em;text-transform:uppercase;color:#D4B896;">${escHtml(portal.school)}</p>
+        <p style="margin:0 0 5px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">Your accommodation enquiry.</p>
+        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.5);">${_dateFmt}</p>
+      </td>
+      <td style="text-align:right;vertical-align:middle;">
+        <p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.45);line-height:1.6;">Managed by</p>
+        <p style="margin:0;font-family:Georgia,serif;font-style:italic;font-size:17px;color:#ffffff;">Student Luxe</p>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <!-- BODY -->
+  <tr><td class="sl-body-cell" style="background:#ffffff;padding:28px 32px 0;">
+
+    <p style="margin:0 0 14px;font-size:14px;color:#1a1a1a;line-height:1.5;">Dear ${escHtml(firstName)},</p>
+    <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.5;">Thank you for your enquiry. We are the accommodation office for <strong>${escHtml(portal.school)}</strong>, and we will put together a shortlist of options matched to your needs, budget and lifestyle.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr><td style="border-top:0.5px solid #ede9e3;"></td></tr></table>
+
+    <!-- WHAT HAPPENS NEXT -->
+    <p style="margin:18px 0 10px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">What happens next</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;">
+      <tr><td style="padding:20px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          ${step('01', 'A Student Luxe advisor makes contact', 'On your preferred channel, to talk through areas, budget and dates.')}
+          ${step('02', 'Get a shortlist of recommendations', 'Receive options for your preferences &amp; price-range. In-person &amp; virtual viewings possible.')}
+          <tr>
+            <td width="26" style="vertical-align:top;"><span style="font-family:Georgia,serif;font-size:15px;color:#B8966E;">03</span></td>
+            <td style="vertical-align:top;">
+              <p style="margin:0 0 3px;font-size:13px;color:#1a1a1a;font-weight:500;">Book an accommodation option</p>
+              <p style="margin:0;font-size:12px;color:#6b6b6b;line-height:1.5;">Time to begin your exciting new chapter at ${escHtml(portal.school)}.</p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr><td style="border-top:0.5px solid #ede9e3;"></td></tr></table>
+
+    <!-- YOUR ENQUIRY -->
+    <p style="margin:18px 0 10px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Your enquiry</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid rgba(184,150,110,0.35);border-radius:10px;">
+      <tr><td style="padding:20px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            ${cell('Accommodation type', formatAptType(p.apartment_type))}
+            ${cell('Guide price', p.budget ? formatBudget(p.budget, p) + ' /week' : '', true)}
+          </tr>
+          <tr>
+            ${cell('Check-in', formatDate(p.check_in))}
+            ${cell('Check-out', formatDate(p.check_out))}
+          </tr>
+          <tr>
+            ${cell('Course', p.course)}
+            ${cell('Preferred area', formatArea(p.areas))}
+          </tr>
+        </table>
+        ${nightCount ? `
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
+          <tr><td style="border-top:0.5px solid rgba(184,150,110,0.25);padding-top:12px;">
+            <p style="margin:0;font-size:11.5px;color:#9b9b9b;">Staying <span style="color:#B8966E;">${nightCount} nights</span></p>
+          </td></tr>
+        </table>` : ''}
+      </td></tr>
+    </table>
+
+    <p style="margin:12px 0 0;font-size:11.5px;color:#9b9b9b;line-height:1.6;">Anything to change? Just reply to this email and we will update it.</p>
+
+    <div style="height:28px;"></div>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td style="background:#000000;padding:26px 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;"><tr>
+      <td style="vertical-align:top;">
+        <p style="margin:0 0 3px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#D4B896;">Accommodation office</p>
+        <p style="margin:0 0 12px;font-family:Georgia,serif;font-size:15px;color:#ffffff;">${escHtml(portal.school)} <span style="color:rgba(255,255,255,0.35);">&#215;</span> <em>Student Luxe</em></p>
+        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.55);line-height:1.85;">Dog &amp; Duck Yard, Princeton St<br>London, WC1R 4BH<br>+44 (0)203 007 0017<br>Mon–Fri, 10am–6pm GMT</p>
+      </td>
+    </tr></table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid rgba(255,255,255,0.15);"><tr>
+      <td style="padding-top:16px;"><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.35);line-height:1.6;">&copy; ${new Date().getFullYear()} Student Luxe Apartments. All rights reserved.</p></td>
+      <td style="text-align:right;padding-top:16px;"><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.35);line-height:1.6;">If you didn’t submit this enquiry, please disregard.</p></td>
+    </tr></table>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+
+  return resendSend({
+    from:    `${portal.fromName} <${portal.fromEmail}>`,
+    to:      [p.email],
+    subject: `Your ${portal.school} accommodation enquiry`,
+    html
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
 //  EMAIL 2 — Team notification
 // ──────────────────────────────────────────────────────────────
 async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submitterIp, leadSource, leadChannel) {
   const isTypeA    = p.enquiry_type === 'A';
   const guestName  = p.full_name || 'New enquiry';
   const nightCount = nights(p);
+  const portal     = partnerPortal(p);
 
   const submittedFormatted = p.submitted_at
     ? new Date(p.submitted_at).toLocaleString('en-GB', {
@@ -912,6 +1082,14 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(String(value))}</p>
     </td>` : '';
 
+  // Same as field(), but the value renders as a pill. Used for the one fact the
+  // team triages a partner lead on.
+  const fieldPill = (label, value) => value ? `
+    <td style="padding:0 20px 14px 0;vertical-align:top;width:50%;">
+      <p style="margin:0 0 5px;font-size:10px;letter-spacing:0.1em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
+      <span style="display:inline-block;padding:7px 16px;border-radius:100px;background:rgba(184,150,110,0.14);border:0.5px solid rgba(184,150,110,0.45);font-size:13.5px;font-weight:500;color:#8a6540;line-height:1.3;">${escHtml(String(value))}</span>
+    </td>` : '';
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New enquiry — ${escHtml(guestName)}</title>
@@ -944,7 +1122,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     <p style="margin:0 0 10px;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.12)' : 'rgba(184,150,110,0.12)'};color:${isTypeA ? '#0F6E56' : '#8a6540'};border:0.5px solid ${isTypeA ? 'rgba(29,158,117,0.4)' : 'rgba(184,150,110,0.4)'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
     <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.75;">${isTypeA
       ? `${escHtml(p.apartment_ref || '')}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}`
-      : `${formatCity(p.city) || ''}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget) + '/wk' : ''}`
+      : `${formatCity(p.city) || ''}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget, p) + '/wk' : ''}`
     }</p>
   </td></tr>
   <tr><td style="background:#ffffff;padding:0 32px;"><hr style="border:none;border-top:0.5px solid #ede9e3;margin:18px 0;"></td></tr>
@@ -959,13 +1137,19 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
   <tr><td style="background:#ffffff;padding:0 32px 18px;">
     <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Stay details</p>
     <table width="100%" cellpadding="0" cellspacing="0">
+      ${portal ? `
+      <tr>${field('City', formatCity(p.city))}${fieldPill('Accommodation type', formatAptType(p.apartment_type))}</tr>
+      <tr>${field('Course', p.course)}${field('Guide price', formatBudget(p.budget, p))}</tr>
+      <tr>${field('Check-in', formatDate(p.check_in))}${field('Check-out', formatDate(p.check_out))}</tr>
+      <tr>${field('Nights', nightCount)}${field('Areas', formatArea(p.areas))}</tr>
+      <tr>${field('University', portal.channel)}</tr>` : `
       ${isTypeA
         ? `<tr>${field('Apartment', p.apartment_ref)}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`
         : `<tr>${field('City', formatCity(p.city))}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`}
       <tr>${field('Check-in', formatDate(p.check_in))}${field('Check-out', formatDate(p.check_out))}</tr>
-      <tr>${field('Nights', nightCount)}${field('Budget / week', p.enquiry_type !== 'A' ? formatBudget(p.budget) : '')}</tr>
-      <tr>${field('Areas', p.areas)}${field('Type of stay', formatStayType(p.stay_type, p.university))}</tr>
-      <tr>${field('Country of residence', p.nationality)}${field('Lived in city before', p.lived_before)}</tr>
+      <tr>${field('Nights', nightCount)}${field('Budget / week', p.enquiry_type !== 'A' ? formatBudget(p.budget, p) : '')}</tr>
+      <tr>${field('Areas', formatArea(p.areas))}${field('Type of stay', formatStayType(p.stay_type, p.university))}</tr>
+      <tr>${field('Country of residence', p.nationality)}${field('Lived in city before', p.lived_before)}</tr>`}
     </table>
   </td></tr>
   ${p.message ? `
@@ -997,10 +1181,16 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 </body></html>`;
 
   return resendSend({
-    from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
+    from:    portal
+      ? `${portal.fromName} <${portal.fromEmail}>`
+      : `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
     to:      [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
+    // Reply goes to the guest, not back to the partner alias (which is itself an
+    // alias of the team inbox, so Reply would otherwise be self-addressed).
     replyTo: p.email,
-    subject: isTypeA
+    subject: portal
+      ? `Marangoni Enquiry - ${formatAptType(p.apartment_type) || 'Accommodation'}${nightCount ? ', ' + nightCount + ' nights' : ''}`
+      : isTypeA
       ? `New Guest Enquiry — ${p.apartment_ref || 'Specific Apartment'}${nightCount ? ', ' + nightCount + ' Nights' : ''}`
       : `New Guest Enquiry — ${formatCity(p.city) || 'Unknown City'}${nightCount ? ', ' + nightCount + ' Nights' : ''}`,
     html
@@ -1010,7 +1200,36 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 // ──────────────────────────────────────────────────────────────
 //  LEAD SOURCE
 // ──────────────────────────────────────────────────────────────
+// Co-branded partner portals, keyed by the enquiry_source their form block
+// sends. Every lead from one of these is filed as Source "Partnerships".
+// Add one entry per new partner portal; all labels must already exist on the
+// Leads board or Monday rejects the create.
+const PARTNER_PORTALS = {
+  'istituto-marangoni-landing': {
+    channel:   'Istituto Marangoni',    // dropdown_mkxkfbff + university column
+    formName:  'Marangoni Modal Form',  // dropdown_mm1v31yb
+    city:      'london',                // text8 + currency, via formatCity(p.city)
+    school:    'Istituto Marangoni London',
+    // Sends as the partner's own accommodation office. The mailbox is an alias
+    // of reservations@, so guest replies land with the team. Domain is verified
+    // in Resend, so DKIM/DMARC alignment is unaffected by the display name.
+    fromName:  'Marangoni Accommodation Office',
+    fromEmail: 'marangoni@studentluxe.co.uk',
+  },
+};
+
+function partnerPortal(p) {
+  return PARTNER_PORTALS[(p.enquiry_source || '').trim()] || null;
+}
+
 function computeLeadSource(p) {
+  // Partnership portals (co-branded pages hosted for a partner institution)
+  // are always credited to the partner, never to the ad or search that first
+  // brought the guest to that partner's own site. Checked before every other
+  // signal so a stray gclid cannot reclassify the lead as PPC.
+  const partner = partnerPortal(p);
+  if (partner) return { leadSource: 'Partnerships', leadChannel: partner.channel };
+
   const hasGclid     = !!p.gclid;
   const hasFbclid    = !!p.fbclid;
   const hasCampaign  = !!(p.utm_campaign || '').trim();
@@ -1175,7 +1394,7 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     })() : {},
     date47:            p.check_in  ? { date: p.check_in  } : {},
     date_1:            p.check_out ? { date: p.check_out } : {},
-    budget_per_week:   p.budget ? formatBudget(p.budget) : '',
+    budget_per_week:   p.budget ? formatBudget(p.budget, p) : '',
     text8:             p.city === 'other' ? (p.other_city || '') : (formatCity(p.city) || ''),
     dropdown6:         p.apartment_ref     || '',
     apt_type_mkmn4bgg: formatAptType(p.apartment_type) || '',
@@ -1194,7 +1413,10 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
       'working-professional':'Working professional','corporate':'Corporate',
       'medical':'Medical','tourism':'Tourism','agent':'Agent (on behalf of client)'
     }[p.stay_type] || p.stay_type } : {},
-    text_mknfnmsb: p.university  || '',
+    // Partner portals only ever serve one institution, so the partner name is
+    // authoritative here and the form's own university field is a fallback.
+    text_mknfnmsb: partnerPortal(p)?.channel || p.university || '',
+    text_mm5asah0: p.course      || '',
     text9__1:      p.nationality || '',
     long_text7:    p.message     || '',
     text_mm1c3b5w: bestCampaign(p),
@@ -1225,7 +1447,7 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     }),
     ...(leadSource  && { color_mkxk8y67: { label: leadSource } }),
     ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
-    dropdown_mm1v31yb: { labels: ['/Reservations Form'] },
+    dropdown_mm1v31yb: { labels: [partnerPortal(p)?.formName || '/Reservations Form'] },
     ...(p.city && currencyForCity(p.city, p.other_city) && { status0__1: { label: currencyForCity(p.city, p.other_city) } }),
   };
 
@@ -1310,13 +1532,46 @@ function formatCity(city) {
 }
 function formatAptType(t) {
   if (!t) return '';
-  const map = {'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom','3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible'};
+  const map = {'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom','3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible',
+    // Partner portals ask for a living category rather than a unit size.
+    'shared':'Shared student living','private':'Private rooms & studios','serviced':'Luxury serviced apartments'};
   return map[t] || t;
 }
-function formatBudget(b) {
+// Area selects post slugs ('city-clerkenwell'), so anything guest-facing needs
+// this or it reads like a URL. Unknown slugs title-case rather than fall
+// through raw.
+function formatArea(a) {
+  if (!a) return '';
+  const map = {
+    'city-clerkenwell':   'The City & Clerkenwell',
+    'kensington-chelsea': 'Kensington & Chelsea',
+    'soho-covent-garden': 'Soho & Covent Garden',
+  };
+  if (map[a]) return map[a];
+  return String(a).split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function formatBudget(b, p) {
   if (!b) return '';
-  const map = {'under-650':'Under £650','650-1000':'£650 – £1,000','1000-2000':'£1,000 – £2,000','2000-4000':'£2,000 – £4,000','5000+':'£5,000+','under-550':'Under £550','550-900':'£550 – £900','900-1350':'£900 – £1,350','1350-2000':'£1,350 – £2,000','2000+':'£2,000+','850-1200':'£850 – £1,200','1200-2000':'£1,200 – £2,000','2000-3500':'£2,000 – £3,500','3500-5000':'£3,500 – £5,000','under-1250':'Under £1,250','1250-1800':'£1,250 – £1,800','1800-2500':'£1,800 – £2,500','2500-4000':'£2,500 – £4,000'};
-  return map[b] || b;
+  const map = {'under-650':'Under £650','650-1000':'£650 – £1,000','1000-2000':'£1,000 – £2,000','2000-4000':'£2,000 – £4,000','5000+':'£5,000+','under-550':'Under £550','550-900':'£550 – £900','900-1350':'£900 – £1,350','1350-2000':'£1,350 – £2,000','2000+':'£2,000+','850-1200':'£850 – £1,200','1200-2000':'£1,200 – £2,000','2000-3500':'£2,000 – £3,500','3500-5000':'£3,500 – £5,000','under-1250':'Under £1,250','1250-1800':'£1,250 – £1,800','1800-2500':'£1,800 – £2,500','2500-4000':'£2,500 – £4,000',
+    // Marangoni portal. NOTE: its option values are stale against the labels
+    // the guest actually sees (value "350-500" is shown as "£350 – £650"), so
+    // these map to the shown label, not the value. '350-650'/'650-1000' are
+    // here too so nothing breaks if the form values are ever corrected.
+    '350-500':'£350 – £650','350-650':'£350 – £650','500-1000':'£650 – £1,000','1000-plus':'£1,000+'};
+  if (map[b]) return map[b];
+
+  // Anything not spelled out above is parsed generically rather than dumped
+  // raw into Monday. The currency comes from the enquiry's city: '5000-10000'
+  // is £ from the London forms but € from the worldwide one, so a fixed
+  // symbol would mislabel half of them.
+  const sym = (p && currencyForCity(p.city, p.other_city)) || '£';
+  const n   = s => Number(s).toLocaleString('en-GB');
+  let m;
+  if ((m = /^under-(\d+)$/.exec(b)))       return `Under ${sym}${n(m[1])}`;
+  if ((m = /^(\d+)-(\d+)$/.exec(b)))       return `${sym}${n(m[1])} – ${sym}${n(m[2])}`;
+  if ((m = /^(\d+)(?:\+|-plus)$/.exec(b))) return `${sym}${n(m[1])}+`;
+  return b;
 }
 function formatStayType(type, university) {
   if (!type) return '';
