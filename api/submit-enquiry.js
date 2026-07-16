@@ -920,6 +920,14 @@ async function sendPartnerGuestConfirmation(p, portal) {
       </td></tr>
     </table>
 
+    ${p.message ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
+      <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;padding:12px 16px;">
+        <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Your message</p>
+        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">"${escHtml(p.message)}"</p>
+      </td></tr>
+    </table>` : ''}
+
     <p style="margin:12px 0 0;font-size:11.5px;color:#9b9b9b;line-height:1.6;">Anything to change? Just reply to this email and we will update it.</p>
 
     <div style="height:28px;"></div>
