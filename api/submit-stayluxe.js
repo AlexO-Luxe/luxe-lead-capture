@@ -475,6 +475,20 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     </table>
   </td></tr>` : '';
 
+  // Row WAS created, but Monday rejected specific column values (e.g. a
+  // malformed email) and they were omitted from the row. Tell the team
+  // exactly what is missing and what the guest actually typed.
+  const omittedBanner = (!mondayError && p._omittedFields?.length) ? `
+  <tr><td style="padding:0 28px 20px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff3cd;border:1px solid #f0ad4e;border-radius:8px;">
+      <tr><td style="padding:12px 16px;">
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#856404;">⚠️ Lead saved to Monday, but ${p._omittedFields.length === 1 ? 'one field was' : 'some fields were'} rejected and left blank — fix manually</p>
+        ${p._omittedFields.map(f => `<p style="margin:0;font-size:11px;color:#856404;line-height:1.6;"><strong>${escHtml(f.label)}</strong>: guest entered <code style="font-size:10px;background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;">${escHtml(f.value || '(empty)')}</code></p>`).join('')}
+        <p style="margin:4px 0 0;font-size:10px;color:#856404;">The rejected value is also saved in the row's notes field.</p>
+      </td></tr>
+    </table>
+  </td></tr>` : '';
+
   // Duplicate comparison banner (parity with Student Luxe)
   const dupBannerHtml = duplicateOf ? (function() {
     const originalFormatted = duplicateOf.created_at
@@ -571,6 +585,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 
   <!-- MONDAY ERROR BANNER -->
   ${mondayErrorBanner}
+  ${omittedBanner}
 
   <!-- DUPLICATE BANNER -->
   ${dupBannerHtml}
@@ -1198,60 +1213,123 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     ...(p.city && currencyForCity(p.city, p.other_city) && { status0__1: { label: currencyForCity(p.city, p.other_city) } }),
   };
 
-  const mutation = `
+  const createItem = async (cv) => {
+    const mutation = `
     mutation {
       create_item(
         board_id: ${MONDAY_BOARD},
         item_name: ${JSON.stringify(itemName)},
-        column_values: ${JSON.stringify(JSON.stringify(columnValues))}
+        column_values: ${JSON.stringify(JSON.stringify(cv))}
       ) {
         id
       }
     }
   `;
 
-  // Retry the create: Monday intermittently returns
-  // API_TEMPORARILY_BLOCKED / rate-limit errors that clear within
-  // seconds. Losing the CRM write over a transient block costs a lead.
-  // Parity with the Student Luxe handler.
-  const RETRY_DELAYS = [2000, 5000, 10000];
-  let lastErr;
-  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
-    try {
-      const response = await fetch(MONDAY_API, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': process.env.MONDAY_API_KEY
-        },
-        body: JSON.stringify({ query: mutation })
-      });
+    // Retry the create: Monday intermittently returns
+    // API_TEMPORARILY_BLOCKED / rate-limit errors that clear within
+    // seconds. Losing the CRM write over a transient block costs a lead.
+    // Parity with the Student Luxe handler.
+    const RETRY_DELAYS = [2000, 5000, 10000];
+    let lastErr;
+    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+      try {
+        const response = await fetch(MONDAY_API, {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': process.env.MONDAY_API_KEY
+          },
+          body: JSON.stringify({ query: mutation })
+        });
 
-      const text = await response.text();
-      let data;
-      try { data = JSON.parse(text); }
-      catch { throw new Error('Monday non-JSON (HTTP ' + response.status + '): ' + text.slice(0, 120)); }
+        const text = await response.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error('Monday non-JSON (HTTP ' + response.status + '): ' + text.slice(0, 120)); }
 
-      if (!response.ok) {
-        console.error('Monday HTTP error:', response.status, JSON.stringify(data));
-        throw new Error('Monday HTTP ' + response.status);
+        if (!response.ok) {
+          console.error('Monday HTTP error:', response.status, JSON.stringify(data));
+          throw new Error('Monday HTTP ' + response.status);
+        }
+        if (data.errors) {
+          console.error('Monday API errors:', JSON.stringify(data.errors, null, 2));
+          console.error('Column values sent:', JSON.stringify(cv, null, 2));
+          throw new Error('Monday API error: ' + JSON.stringify(data.errors));
+        }
+        return data?.data?.create_item?.id;
+      } catch (err) {
+        lastErr = err;
+        const msg = String(err.message || '');
+        const transient = /API_TEMPORARILY_BLOCKED|RATE_LIMIT|COMPLEXITY|non-JSON|HTTP 5\d\d|HTTP 429/i.test(msg);
+        if (!transient || attempt === RETRY_DELAYS.length) throw err;
+        console.warn(`Monday create attempt ${attempt + 1} failed (transient), retrying in ${RETRY_DELAYS[attempt]}ms:`, msg.slice(0, 150));
+        await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
       }
-      if (data.errors) {
-        console.error('Monday API errors:', JSON.stringify(data.errors, null, 2));
-        console.error('Column values sent:', JSON.stringify(columnValues, null, 2));
-        throw new Error('Monday API error: ' + JSON.stringify(data.errors));
-      }
-      return data?.data?.create_item?.id;
-    } catch (err) {
-      lastErr = err;
-      const msg = String(err.message || '');
-      const transient = /API_TEMPORARILY_BLOCKED|RATE_LIMIT|COMPLEXITY|non-JSON|HTTP 5\d\d|HTTP 429/i.test(msg);
-      if (!transient || attempt === RETRY_DELAYS.length) throw err;
-      console.warn(`Monday create attempt ${attempt + 1} failed (transient), retrying in ${RETRY_DELAYS[attempt]}ms:`, msg.slice(0, 150));
-      await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
     }
+    throw lastErr;
+  };
+
+  // First push the full column set. If Monday rejects a specific column value
+  // (ColumnValueException, e.g. a malformed email like "name,s@gmail.com"),
+  // strip the guilty column(s), record the rejected raw values in the notes
+  // column, and push again so the lead still lands on the board instead of
+  // failing entirely. p._omittedFields feeds the team email warning banner.
+  // Parity with the Student Luxe handler.
+  try {
+    return await createItem(columnValues);
+  } catch (err) {
+    const msg = String(err.message || '');
+    if (!/ColumnValueException|is not valid|invalid value/i.test(msg)) throw err;
+    const omitted = stripGuiltyColumns(columnValues, msg, p);
+    if (!omitted.length) throw err;
+    p._omittedFields = omitted;
+    console.warn('Monday rejected column value(s), retrying without:', omitted.map(o => o.label).join(', '));
+    const note = 'REJECTED BY MONDAY, add manually: ' + omitted.map(o => o.label + ' = ' + (o.value || '(empty)')).join(' | ');
+    columnValues.long_text7 = (columnValues.long_text7 ? columnValues.long_text7 + '\n\n' : '') + note;
+    return await createItem(columnValues);
   }
-  throw lastErr;
+}
+
+// Map a Monday ColumnValueException back to the column(s) that caused it and
+// remove them from the payload. Falls back to stripping every typed/validated
+// column (plain text columns never throw) when the message names no culprit.
+// Parity with the Student Luxe handler, plus the Stay Luxe brand columns.
+function stripGuiltyColumns (cv, msg, p) {
+  const m = msg.toLowerCase();
+  const groups = [
+    { re: /email/,                       cols: [['email', 'Email', p.email]] },
+    { re: /phone/,                       cols: [['phone_1', 'Phone', p.phone]] },
+    { re: /date/,                        cols: [['date47', 'Check-in', p.check_in], ['date_1', 'Check-out', p.check_out]] },
+    { re: /label|dropdown|status|color/, cols: [
+      ['dropdown6', 'Apartment ref', p.apartment_ref],
+      ['apt_type_mkmn4bgg', 'Apartment type', p.apartment_type],
+      ['dropdown19', 'Areas', p.areas],
+      ['dropdown40', 'Response methods', p.response_methods],
+      ['color_mktcnwyb', 'Stay type', p.stay_type],
+      ['color_mkxk8y67', 'Lead source', ''],
+      ['dropdown_mkxkfbff', 'Lead channel', ''],
+      ['dropdown_mm1v31yb', 'Form', ''],
+      ['status1__1', 'Brand', ''],
+      ['status0__1', 'Currency', '']
+    ] }
+  ];
+  const out = [];
+  let matched = false;
+  for (const g of groups) {
+    if (!g.re.test(m)) continue;
+    matched = true;
+    g.cols.forEach(([id, label, value]) => {
+      if (cv[id] !== undefined) { delete cv[id]; out.push({ id, label, value: value || '' }); }
+    });
+  }
+  if (!matched) {
+    groups.forEach(g => g.cols.forEach(([id, label, value]) => {
+      if (cv[id] !== undefined) { delete cv[id]; out.push({ id, label, value: value || '' }); }
+    }));
+    if (cv.people_1 !== undefined) { delete cv.people_1; out.push({ id: 'people_1', label: 'Assignees', value: '' }); }
+  }
+  return out;
 }
 
 // ──────────────────────────────────────────────────────────────

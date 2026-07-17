@@ -3245,7 +3245,7 @@ span.flatpickr-weekday{
       return false;
     }
 
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)){
+    if(!/^[^\s@,]+@[^\s@,]+\.[^\s@,]{2,}$/.test(val)){
       if(doShow){ showErr('slErr-email', true); emailErr.textContent = 'Please enter a valid email address'; setFs(emailEl,'err'); }
       return false;
     }
