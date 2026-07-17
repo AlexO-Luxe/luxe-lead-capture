@@ -31,7 +31,10 @@ async function logGadsEvent (event) {
       hasGbraid: !!event.hasGbraid,
       hasWbraid: !!event.hasWbraid,
       mondayId:  event.mondayId  || '',
-      error:     event.error     ? String(event.error).slice(0, 300) : ''
+      // 2000, not 300: Google's Data Manager 400s carry the actual culprit in
+      // details[].metadata (e.g. the exact events.events[0].field name) well
+      // past 300 chars. Truncating here made INVALID_ARGUMENT undiagnosable.
+      error:     event.error     ? String(event.error).slice(0, 2000) : ''
     };
     await k.zadd(KEY, { score: ts, member: JSON.stringify(e) });
     // Trim entries older than 35 days
