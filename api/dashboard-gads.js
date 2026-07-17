@@ -112,7 +112,7 @@ async function getAccessToken() {
 }
 
 async function gadsQuery(token, gaql) {
-  const url = `https://googleads.googleapis.com/v21/customers/${CUSTOMER_ID}/googleAds:search`;
+  const url = `https://googleads.googleapis.com/v24/customers/${CUSTOMER_ID}/googleAds:search`;
   const r = await fetch(url, {
     method: 'POST',
     headers: {

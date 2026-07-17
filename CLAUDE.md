@@ -33,7 +33,8 @@ Full architecture, env vars, Monday column IDs, and migration history live in [R
 - Endpoint: `https://datamanager.googleapis.com/v1/events:ingest`
 - Scope: `https://www.googleapis.com/auth/datamanager`
 - Helper: `api/_dataManager.js`
-- DO NOT use the old `googleads.googleapis.com/v21/customers/{cid}:uploadClickConversions` path — deprecated, will return ALLOWLIST errors.
+- DO NOT use the old `googleads.googleapis.com` `uploadClickConversions` path — deprecated, will return ALLOWLIST errors.
+- GAQL read queries (click_view, conversion_action, dashboard stats) use `googleads.googleapis.com/v24/.../googleAds:search`. v21 sunsets 05 Aug 2026; when Google deprecates the current version, bump the version segment in `gads-dissonance.js`, `enrich-attribution.js`, `dashboard-gads.js` and smoke-test all three query shapes.
 - `developer-token` and `login-customer-id` headers are GONE. MCC mapping moves to `destinations[].loginAccount.accountId` in the body. `x-goog-user-project` header is required.
 - Step 1 NEW uses click-based path (gclid/gbraid/wbraid in `adIdentifiers`).
 - Step 2/3/4 use Enhanced Conversions for Leads (omit `adIdentifiers`, rely on hashed email + phone).

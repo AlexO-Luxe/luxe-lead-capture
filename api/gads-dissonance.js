@@ -263,7 +263,7 @@ async function getAccessToken () {
 }
 
 async function gadsQuery (token, gaql) {
-  const r = await fetch(`https://googleads.googleapis.com/v21/customers/${CUSTOMER_ID}/googleAds:search`, {
+  const r = await fetch(`https://googleads.googleapis.com/v24/customers/${CUSTOMER_ID}/googleAds:search`, {
     method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN, 'login-customer-id': MCC_ID, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: gaql }) });
   const text = await r.text();
