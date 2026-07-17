@@ -3,7 +3,7 @@
 //  Deploy to: /api/submit-stayluxe.js in your Vercel project
 //
 //  Environment variables required (set in Vercel dashboard):
-//    RESEND_API_KEY      = re_KKJUoUXw_NDrM1CQmCFyJfCSWjeLdNWqQ
+//    RESEND_API_KEY      = (your Resend API key, set in Vercel dashboard, never commit it)
 //    TEAM_EMAIL          = reservations@studentluxe.co.uk
 //    TEAM_EMAIL_2        = alex@studentluxe.co.uk
 //    FROM_EMAIL          = reservations@studentluxe.co.uk
