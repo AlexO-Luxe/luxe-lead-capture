@@ -65,6 +65,7 @@ module.exports = async function handler(req, res) {
       by:          by || undefined,             // who changed the status
       qualifiedAt: event.triggerTime || undefined
     });
+    lead.timeline = await fetchTimeline(item.id, item.created_at);
 
     const { subject, html } = renderLeadQualified(lead);
     const sent = await sendEmail({ to: recipients(), subject, html });
