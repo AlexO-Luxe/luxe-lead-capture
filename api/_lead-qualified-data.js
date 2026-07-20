@@ -77,6 +77,41 @@ async function fetchLatestQualified() {
   return items.find(it => /qualif/i.test(colText(it, 'status'))) || null;
 }
 
+// Raw activity-log events for a single item, used to derive stage timestamps
+// (assigned / approached / in progress / high potential). Monday keeps only the
+// current value of each column, so the change history is the only source.
+// created_at is a Monday "17-digit" timestamp = 1/10,000 ms units.
+async function fetchItemActivity(itemId, sinceISO) {
+  const fromArg = sinceISO ? `, from: "${new Date(sinceISO).toISOString()}"` : '';
+  const out = [];
+  for (let page = 1; page <= 8; page++) {
+    const data = await mondayQuery(`query {
+      boards(ids: [${LEADS_BOARD}]) {
+        activity_logs(limit: 200, page: ${page}${fromArg}) {
+          event data created_at
+        }
+      }
+    }`);
+    const logs = data?.data?.boards?.[0]?.activity_logs || [];
+    if (!logs.length) break;
+    for (const l of logs) {
+      let d; try { d = JSON.parse(l.data); } catch { continue; }
+      if (String(d.pulse_id ?? d.pulseId ?? '') !== String(itemId)) continue;
+      out.push({
+        event:     l.event,
+        columnId:  d.column_id || d.columnId || '',
+        label:     (d.value && (d.value.label?.text ?? d.value.label)) ?? '',
+        createdAt: new Date(Number(l.created_at) / 10000).toISOString(),
+        rawCreatedAt: l.created_at,
+        data:      d
+      });
+    }
+    if (logs.length < 200) break;
+  }
+  out.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  return out;
+}
+
 async function resolveUserName(userId) {
   if (!userId) return '';
   try {
@@ -207,6 +242,7 @@ module.exports = {
   LEADS_BOARD,
   fetchItem,
   fetchLatestQualified,
+  fetchItemActivity,
   resolveUserName,
   mapItemToLead,
   sendEmail
