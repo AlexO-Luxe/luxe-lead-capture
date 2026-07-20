@@ -111,6 +111,22 @@ function renderLeadQualified(lead) {
     </td></tr></table>
   </td></tr>` : '';
 
+  // Stage timeline rows for the Lead Cooking Time section. Falls back to a
+  // simple Created -> Qualified pair when no timeline was supplied.
+  const toneColor = { muted: BRAND.muted, gold: BRAND.gold, amber: BRAND.amber, green: BRAND.green };
+  const tl = (Array.isArray(lead.timeline) && lead.timeline.length)
+    ? lead.timeline
+    : [{ label: 'Created', at: lead.createdAt, tone: 'muted' },
+       { label: 'Qualified', at: lead.qualifiedAt, tone: 'green' }];
+  const timelineRowsHtml = tl.map((r, i) => {
+    const connector = i === tl.length - 1 ? ''
+      : `<div style="width:1px;height:9px;background:${BRAND.gold};opacity:0.5;margin:2px 0 2px 3px;"></div>`;
+    return `<table cellpadding="0" cellspacing="0"><tr>
+            <td style="vertical-align:middle;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${toneColor[r.tone] || BRAND.muted};"></span></td>
+            <td style="padding-left:9px;"><p style="margin:0;font-size:12px;color:#3a3a3a;"><span style="color:${BRAND.muted};">${escHtml(r.label)}</span>&nbsp;&nbsp;${fmtDateTime(r.at)}</p></td>
+          </tr></table>${connector}`;
+  }).join('');
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -161,15 +177,7 @@ function renderLeadQualified(lead) {
           ${lead.teamAvgCooking ? `<p style="margin:6px 0 0;font-size:11px;color:${BRAND.green};">vs team avg ${escHtml(lead.teamAvgCooking)}</p>` : ''}
         </td>
         <td class="le-stack" width="60%" style="vertical-align:middle;">
-          <table cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:middle;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${BRAND.muted};"></span></td>
-            <td style="padding-left:9px;"><p style="margin:0;font-size:12px;color:#3a3a3a;"><span style="color:${BRAND.muted};">Created</span>&nbsp;&nbsp;${fmtDateTime(lead.createdAt)}</p></td>
-          </tr></table>
-          <div style="width:1px;height:9px;background:${BRAND.gold};opacity:0.5;margin:2px 0 2px 3px;"></div>
-          <table cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:middle;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${BRAND.green};"></span></td>
-            <td style="padding-left:9px;"><p style="margin:0;font-size:12px;color:#3a3a3a;"><span style="color:${BRAND.muted};">Qualified</span>&nbsp;&nbsp;${fmtDateTime(lead.qualifiedAt)}</p></td>
-          </tr></table>
+          ${timelineRowsHtml}
         </td>
       </tr></table>
     </td></tr></table>

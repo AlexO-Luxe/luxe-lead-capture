@@ -112,6 +112,49 @@ async function fetchItemActivity(itemId, sinceISO) {
   return out;
 }
 
+// Derive the stage timeline from an item's activity log. Matches stage labels
+// wherever they appear (status column, assignment column, high-potential column).
+// Stages a lead never hit are simply omitted. Sorted chronologically.
+function buildTimeline(events, createdAt) {
+  const firstAt = re => {
+    const e = events.find(ev => re.test(String(ev.label || '')));
+    return e ? e.at : null;
+  };
+  const assignedAt =
+    firstAt(/^assigned$/i) ||
+    ((events.find(ev => ev.columnId === 'people_1') || {}).at || null);
+
+  const qualifiedAt  = firstAt(/qualified/i);
+  const highPotRaw   = firstAt(/high.?potential/i);
+  // Every lead is auto-marked High Potential the moment it is Qualified (a
+  // Monday automation), so that event is noise. Only surface High Potential
+  // when it was set strictly BEFORE qualification: a genuine early signal.
+  const highPotAt = (highPotRaw && (!qualifiedAt || new Date(highPotRaw) < new Date(qualifiedAt)))
+    ? highPotRaw : null;
+
+  const rows = [
+    { label: 'Created',        at: createdAt,                tone: 'muted' },
+    { label: 'Assigned',       at: assignedAt,               tone: 'muted' },
+    { label: 'Approached',     at: firstAt(/approach/i),     tone: 'gold'  },
+    { label: 'In progress',    at: firstAt(/in.?progress/i), tone: 'gold'  },
+    { label: 'High potential', at: highPotAt,                tone: 'amber' },
+    { label: 'Qualified',      at: qualifiedAt,              tone: 'green' }
+  ].filter(r => r.at);
+
+  rows.sort((a, b) => new Date(a.at) - new Date(b.at));
+  return rows;
+}
+
+async function fetchTimeline(itemId, createdAt) {
+  try {
+    const events = await fetchItemActivity(itemId, createdAt);
+    return buildTimeline(events, createdAt);
+  } catch (e) {
+    console.warn('fetchTimeline failed:', e.message);
+    return [];
+  }
+}
+
 async function resolveUserName(userId) {
   if (!userId) return '';
   try {
@@ -243,6 +286,8 @@ module.exports = {
   fetchItem,
   fetchLatestQualified,
   fetchItemActivity,
+  fetchTimeline,
+  buildTimeline,
   resolveUserName,
   mapItemToLead,
   sendEmail

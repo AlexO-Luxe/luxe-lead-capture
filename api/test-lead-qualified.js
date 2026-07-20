@@ -17,7 +17,7 @@
 //   &qualifiedAt=2026-06-26T14:32:00Z   default: the item's updated_at
 
 const { renderLeadQualified } = require('./_lead-qualified-email');
-const { fetchItem, fetchLatestQualified, fetchItemActivity, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
+const { fetchItem, fetchLatestQualified, fetchItemActivity, fetchTimeline, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
 
 module.exports = async function handler(req, res) {
   try {
@@ -52,6 +52,7 @@ module.exports = async function handler(req, res) {
     }
 
     const lead = mapItemToLead(item, { by: q.by, qualifiedAt: q.qualifiedAt, createdAt: q.createdAt });
+    lead.timeline = await fetchTimeline(item.id, item.created_at);
     const { subject, html } = renderLeadQualified(lead);
 
     let sent = null;
