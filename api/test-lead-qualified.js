@@ -17,7 +17,7 @@
 //   &qualifiedAt=2026-06-26T14:32:00Z   default: the item's updated_at
 
 const { renderLeadQualified } = require('./_lead-qualified-email');
-const { fetchItem, fetchLatestQualified, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
+const { fetchItem, fetchLatestQualified, fetchItemActivity, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
 
 module.exports = async function handler(req, res) {
   try {
@@ -37,6 +37,18 @@ module.exports = async function handler(req, res) {
       return res.status(404).send(q.itemId
         ? `No Monday item found for id ${q.itemId}`
         : 'No lead with status "Qualified" found on the board');
+    }
+
+    // Debug: dump the item's activity log so we can see how stage timestamps
+    // (assigned / approached / in progress / high potential) are recorded.
+    if (q.debug === 'activity') {
+      const events = await fetchItemActivity(item.id, item.created_at);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).send(JSON.stringify({
+        itemId: item.id, name: item.name, created_at: item.created_at,
+        eventCount: events.length,
+        events: events.map(e => ({ event: e.event, columnId: e.columnId, label: e.label, at: e.createdAt }))
+      }, null, 2));
     }
 
     const lead = mapItemToLead(item, { by: q.by, qualifiedAt: q.qualifiedAt, createdAt: q.createdAt });
