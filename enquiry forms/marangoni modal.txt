@@ -1,43 +1,66 @@
 <!-- ============================================================
-     STUDENT LUXE x ISTITUTO MARANGONI LONDON · Accommodation Hero
+     STUDENT LUXE x ISTITUTO MARANGONI LONDON · Accommodation Hero + Enquiry Modal
      Light text on dark section (set Squarespace section bg to navy #0d1a2e).
-     "Start enquiry" opens the shared modal (data-sl-open-enq) in the form block.
-     "Managed by Student Luxe" anchors to #luxe. Secondary CTA -> #accommodation-options.
-     Paste this above the enquiry form / modal block.
+     Hosted on studentluxe.co.uk. Marangoni link to it from their site.
+     CTA scrolls to #accommodation-options.
+     Logo links to Marangoni's pre-arrival page in a new tab.
+     H1 spans both lines: "Istituto Marangoni London Accommodation Hub".
+     The enquiry MODAL lives in this block and is shared across the page:
+     any element with data-sl-open-enq opens it (options block "Enquire"
+     buttons, filter block nudges). data-sl-apt preselects the type.
+     Paste into a Squarespace Code Block.
      ============================================================ -->
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
 <style>
-  /* ── HERO (light text on dark section) ── */
   .sl-uh{
     --h1-ls:-.06em;
-    --gold:#B8966E; --gold-lt:#D4B896;
+    --gold:#B8966E; --gold-lt:#D4B896; --gold-hover:#D4B896;
+    --gold-line:rgba(212,184,150,.42);
     --ink:#ffffff;
-    --txt:#eadfce; --txt-soft:rgba(234,223,206,.72);
+    --txt:#eadfce; --txt-soft:rgba(234,223,206,.68);
     --serif:'baskerville-display-pt','Baskerville Display PT',Georgia,'Times New Roman',serif;
     --sans:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     --ease:cubic-bezier(.23,1,.32,1);
     font-family:var(--sans); color:var(--txt); -webkit-font-smoothing:antialiased; text-align:center;
-    background:transparent; max-width:880px; margin:0 auto; padding:64px 20px 72px;
+    background:transparent; max-width:880px; margin:0 auto; padding:10px 20px;
   }
   .sl-uh *{box-sizing:border-box; margin:0; padding:0}
-  .sl-uh .eyebrow{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-lt)}
-  .sl-uh .preline{margin-top:12px; font-size:14px; line-height:1.65; color:var(--txt-soft)}
-  .sl-uh h1{font-family:var(--serif); font-weight:300; color:var(--ink); letter-spacing:var(--h1-ls); font-size:clamp(44px,6vw,72px); line-height:0.9; margin-top:20px}
-  .sl-uh .managed{display:inline-block; margin-top:16px; text-transform:uppercase; letter-spacing:.2em; font-size:10px; color:rgba(234,223,206,.55); text-decoration:none; cursor:pointer; border-bottom:1px solid transparent; transition:color .15s var(--ease), border-color .15s var(--ease)}
-  .sl-uh .managed:hover{color:#eadfce; border-bottom-color:rgba(212,184,150,.5)}
-  .sl-uh .pos{margin:26px auto 0; max-width:560px; font-size:14px; line-height:1.65; color:#ffffff}
-  .sl-uh .cta-row{display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:30px}
-  .sl-uh .cta{display:inline-flex; align-items:center; gap:10px; padding:17px 38px; background:var(--gold); color:#0d1a2e; font-size:13.5px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; border:none; border-radius:10px; cursor:pointer; font-family:var(--sans); text-decoration:none; box-shadow:0 6px 20px rgba(184,150,110,.28); transition:background .2s var(--ease), transform .2s var(--ease)}
-  .sl-uh .cta:hover{background:var(--gold-lt); color:#0d1a2e; transform:translateY(-1px)}
-  .sl-uh .cta-2{background:transparent; color:#fff; border:1px solid rgba(255,255,255,.3); box-shadow:none; transition:border-color .2s var(--ease)}
-  .sl-uh .cta-2:hover{border-color:#fff}
-  @media (max-width:768px){ .sl-uh{padding:44px 16px 56px} .sl-uh .pos{font-size:13px} .sl-uh .cta{width:100%; justify-content:center} }
-  @media (prefers-reduced-motion:reduce){ .sl-uh .cta{transition:none !important} }
 
-  /* ── Enquiry modal shell (used by the form block) ── */
+  .sl-uh .partner{display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap}
+  .sl-uh .partner span{font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-lt)}
+  .sl-uh .partner a{display:block; line-height:0; text-decoration:none; border:none; transition:opacity .15s var(--ease)}
+  .sl-uh .partner a:hover{opacity:.72}
+  .sl-uh .partner img{height:45px !important; width:auto !important; display:block}
+
+  .sl-uh h1{font-family:var(--serif); font-weight:300; color:var(--ink); letter-spacing:var(--h1-ls); font-size:clamp(40px,6vw,72px); line-height:0.9; margin-top:26px}
+  .sl-uh .h1-sub{display:block; font-family:var(--serif); font-weight:300; font-style:italic; color:var(--gold-lt); letter-spacing:-0.03em; font-size:clamp(34px,3.8vw,48px); line-height:1.25; margin-top:10px}
+
+  .sl-uh .pos{margin:25px auto 0; max-width:560px; font-size:14px; line-height:1.65; color:rgba(234,223,206,.78)}
+
+  .sl-uh .cta{display:inline-flex; align-items:center; gap:10px; margin-top:25px; padding:17px 38px; background:var(--gold); color:#0d1a2e; font-size:13.5px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; border:none; border-radius:10px; cursor:pointer; font-family:var(--sans); text-decoration:none; box-shadow:0 6px 20px rgba(184,150,110,.28); transition:background .2s var(--ease), transform .2s var(--ease)}
+  .sl-uh .cta:hover{background:var(--gold-hover); color:#0d1a2e; transform:translateY(-1px)}
+
+  .sl-uh .val-sub{margin-top:25px; color:var(--txt-soft); font-size:13px; letter-spacing:.02em}
+
+  .sl-uh .nudge{margin-top:28px; font-size:13px; line-height:1.6; color:var(--txt-soft); letter-spacing:.02em}
+  .sl-uh .nudge a{color:var(--gold-lt); font-weight:500; text-decoration:none; border-bottom:1px solid var(--gold-line); padding-bottom:1px; transition:color .15s var(--ease), border-color .15s var(--ease)}
+  .sl-uh .nudge a:hover{color:#fff; border-color:rgba(255,255,255,.5)}
+
+  @media (max-width:768px){
+    .sl-uh{padding:10px 16px}
+    .sl-uh .partner img{height:40px !important; width:auto !important}
+    .sl-uh .pos{font-size:13px}
+    .sl-uh .cta{margin-top:28px}
+    .sl-uh .nudge{margin-top:28px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .sl-uh .cta, .sl-uh .nudge a, .sl-uh .partner a{transition:none !important}
+  }
+
+  /* ── Enquiry modal shell (moved to <body> on load) ── */
   .sl-bm{position:fixed; inset:0; z-index:99999; display:none; align-items:flex-start; justify-content:center; padding:64px 16px 48px; background:rgba(8,15,26,.72); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain}
   .sl-bm.sl-open{display:flex}
   .sl-bm-panel{position:relative; width:100%; max-width:560px; animation:slPop .2s cubic-bezier(.23,1,.32,1)}
@@ -48,14 +71,22 @@
 </style>
 
 <div class="sl-uh">
-  <div class="eyebrow">London School of Fashion &amp; Design</div>
-  <h1>Accommodation Office</h1>
-  <a href="#luxe" class="managed">Managed by Student Luxe</a>
-  <p class="pos">Get a shortlist of accommodation options matched to your needs, budget and lifestyle for your studies at the London School of Fashion &amp; Design.</p>
-  <div class="cta-row">
-    <button type="button" class="cta" data-sl-open-enq>Start enquiry &rarr;</button>
-    <a href="#accommodation-options" class="cta cta-2">Accommodation options &darr;</a>
+
+  <div class="partner">
+    <span>In partnership with</span>
+    <a href="https://www.istitutomarangoni.com/en/pre-arrival-london-school-main-page" target="_blank" rel="noopener">
+      <img src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/d2ee5c81-8e9f-4ebd-a142-4234962fde80/istituto-marangoni-london-logo-1.png?content-type=image%2Fpng" alt="Istituto Marangoni London">
+    </a>
   </div>
+
+  <h1>Istituto Marangoni London <span class="h1-sub">Accommodation Hub</span></h1>
+
+  <p class="pos">Get a shortlist of accommodation options matched to your needs, budget and lifestyle for your studies at the London School of Fashion &amp; Design.</p>
+
+  <a href="#accommodation-options" class="cta">Accommodation options &darr;</a>
+
+  <div class="val-sub">&#10003;&nbsp; Every budget covered, with no placement fee</div>
+
 </div>
 
 <div class="sl-bm" id="slEnqModal">
