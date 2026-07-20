@@ -116,13 +116,16 @@ async function fetchItemActivity(itemId, sinceISO) {
 // wherever they appear (status column, assignment column, high-potential column).
 // Stages a lead never hit are simply omitted. Sorted chronologically.
 function buildTimeline(events, createdAt) {
+  // Activity events carry their timestamp as `createdAt` (ISO). Accept `at` too
+  // so hand-built test events keep working.
+  const tsOf = ev => ev.createdAt || ev.at || null;
   const firstAt = re => {
     const e = events.find(ev => re.test(String(ev.label || '')));
-    return e ? e.at : null;
+    return e ? tsOf(e) : null;
   };
   const assignedAt =
     firstAt(/^assigned$/i) ||
-    ((events.find(ev => ev.columnId === 'people_1') || {}).at || null);
+    tsOf(events.find(ev => ev.columnId === 'people_1') || {});
 
   const qualifiedAt  = firstAt(/qualified/i);
   const highPotRaw   = firstAt(/high.?potential/i);
