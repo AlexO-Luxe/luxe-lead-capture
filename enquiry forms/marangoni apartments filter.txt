@@ -1,0 +1,1405 @@
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚙️  PAGE SETTINGS — Istituto Marangoni London Accommodation Hub skin.
+    This block is HIDDEN on load (#marangoni-apartments display:none) and
+    revealed by the "View apartments near Marangoni" buttons in the
+    accommodation-options block (data-sl-show-apartments).
+    Enquiry links inside it open the shared enquiry modal (data-sl-open-enq),
+    so the modal block must be on the same page.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<script>
+const PAGE_CONFIG = {
+  filter: { type: 'city', value: 'London' },
+  parentCity: null,
+  currency: '£',
+  defaultPriceMode: 'weekly',
+  defaultAreas: ['The City','Clerkenwell','Shoreditch','Spitalfields','Aldgate','Whitechapel','Farringdon'],
+  apiBase: 'https://luxe-listings-api.vercel.app/api',
+
+  /* schema.org address details (parameterise per city skin) */
+  schemaRegion: 'Greater London',
+  schemaCountry: 'GB',
+
+  /* rotated through listing image alt text, combined with the apartment name */
+  seoAltTags: [
+    'Istituto Marangoni London accommodation',
+    'Apartments near Istituto Marangoni London',
+    'Istituto Marangoni London accommodation service',
+  ],
+
+  /* appended to the results count while an area pre-filter is active,
+     e.g. "Showing 8 of 163 apartments near Istituto - clear ..." */
+  areaNoticeText: 'near Istituto',
+  areaNoticeClearText: 'clear to see all London',
+};
+</script>
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎨  LUXE SKIN — Aperture/Atlas design language (paper · ink · gold).
+    iOS scroll-crash rules respected: no sticky/fixed blur, no persistent
+    layer promotion, lazy right-sized images, ≥16px inputs on mobile,
+    hover transforms gated to hover-capable devices, reduced-motion honoured.
+🔽  DO NOT EDIT BELOW THIS LINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<!-- warm up the two hosts every render depends on (saves DNS+TLS on mobile) -->
+<link rel="preconnect" href="https://dnamuaiofr5we69r.public.blob.vercel-storage.com" crossorigin>
+<link rel="preconnect" href="https://images.squarespace-cdn.com" crossorigin>
+<style>
+:root {
+  --lx-paper:#FBF8F1;
+  --lx-ink:#0d1a2e;
+  --lx-muted:rgba(13,26,46,.62);
+  --lx-hair:rgba(13,26,46,.12);
+  --lx-hair-soft:rgba(13,26,46,.06);
+  --lx-gold:#B8966E;
+  --lx-gold-hover:#a07d5a;
+  --lx-gold-deep:#8B6E4E;
+  --lx-gold-lt:#D4B896;
+  --lx-gold-wash:rgba(184,150,110,.10);
+  --lx-gold-line:rgba(184,150,110,.42);
+  --lx-red:#C53026;
+  --lx-serif:'baskerville-display-pt','Baskerville Display PT',Georgia,'Times New Roman',serif;
+  --lx-sans:'dm-sans','DM Sans',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;
+  --lx-ease:cubic-bezier(.22,.8,.28,1);
+}
+* {margin:0;padding:0;box-sizing:border-box;}
+html, body {height:100%; background: transparent; font-family:var(--lx-sans);}
+body {margin:0; padding:0;}
+.container {width:100%; margin:0; padding:0; color:var(--lx-ink);}
+
+/* hidden until "View apartments near Marangoni" is clicked in the options block */
+#marangoni-apartments{display:none}
+#marangoni-apartments.sl-revealed{display:block; animation:lx-reveal .4s var(--lx-ease)}
+@keyframes lx-reveal{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+@media (prefers-reduced-motion:reduce){ #marangoni-apartments.sl-revealed{animation:none} }
+
+h1 {font-family:var(--lx-serif);font-weight:400;font-size:2.5rem;letter-spacing:-.04em;margin-bottom:20px;color:var(--lx-ink);}
+.filters {display:flex; gap:20px; margin-bottom:25px; flex-wrap:wrap; align-items:flex-start;}
+.filter-group {display:flex; flex-direction:column; gap:6px;}
+.filters label {font-family:var(--lx-sans);font-weight:500;color:var(--lx-muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;}
+.filters select {padding:10px 16px;border:1px solid var(--lx-hair);border-radius:10px;font-size:12.5px;font-family:var(--lx-sans);color:var(--lx-ink);background:rgba(255,255,255,.6);cursor:pointer;transition:border-color .2s,background .2s;width:100%;}
+.filters select:hover {border-color:var(--lx-gold-line);}
+.filters select:focus {outline:none; border-color:var(--lx-gold); background:#fff; box-shadow:0 0 0 3px var(--lx-gold-wash);}
+#sortSelect {border:1px solid var(--lx-hair) !important;appearance:none !important;-webkit-appearance:none !important;-moz-appearance:none !important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpolyline points='2,5 8,11 14,5' fill='none' stroke='%238B6E4E' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;background-repeat:no-repeat !important;background-position:right 12px center !important;padding-right:32px !important;}
+/* weekly/monthly segmented control (lives inside the Price dropdown panel) */
+.price-seg {display:flex;height:34px;border:1px solid var(--lx-hair);border-radius:8px;overflow:hidden;margin-top:10px;}
+.price-seg button {flex:1;border:none;background:rgba(255,255,255,.6);font-family:var(--lx-sans);font-size:10.5px !important;letter-spacing:.08em;text-transform:uppercase;color:var(--lx-muted);cursor:pointer;}
+.price-seg button.on {background:var(--lx-ink);color:#fff;font-weight:500;}
+.price-seg button:focus-visible {outline:2px solid var(--lx-gold);outline-offset:-2px;}
+.amenity-filters {display:flex; gap:8px; flex-wrap:wrap;}
+.amenity-pill {display:flex; align-items:center; gap:4px;padding:4px 12px; border-radius:9999px;background:var(--lx-gold-wash); color:var(--lx-gold-deep);font-size:0.85rem; font-weight:500; cursor:pointer;border:1px solid var(--lx-gold-line);transition:background .2s,color .2s,border-color .2s;font-family:var(--lx-sans);}
+.amenity-pill:hover {background:rgba(184,150,110,.18);}
+.amenity-pill:focus-visible {outline:2px solid var(--lx-gold);outline-offset:2px;}
+.amenity-pill.selected {background:var(--lx-ink);border-color:var(--lx-ink);color:white;}
+.listings-grid {display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:25px; margin-bottom:40px;}
+.grid-meta {display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+.results-count {font-size:13px;color:var(--lx-muted);letter-spacing:.02em;}
+.results-count b {color:var(--lx-ink);font-weight:600;}
+.results-count button {background:none;border:none;padding:0;font:inherit;color:var(--lx-gold-deep);text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+.results-count button:hover {color:var(--lx-ink);}
+@media (max-width: 768px) { .results-count {font-size:12px;} }
+
+/* shortlist heart on each card + summary chip in the meta row */
+.card-heart {position:absolute;top:8px;left:8px;z-index:3;width:32px;height:32px;border-radius:50%;background:rgba(251,248,241,.92);border:.5px solid var(--lx-gold-line);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(13,26,46,.18);transition:background .2s;}
+.card-heart svg {width:15px;height:15px;fill:none;stroke:var(--lx-gold-deep);stroke-width:1.8;}
+.card-heart.saved {background:var(--lx-gold);border-color:var(--lx-gold);}
+.card-heart.saved svg {fill:#fff;stroke:#fff;}
+.card-heart:focus-visible {outline:2px solid var(--lx-gold);outline-offset:2px;}
+.shortlist-bar {display:none;flex-direction:column;gap:6px;align-self:flex-end;}
+.shortlist-bar.show {display:flex;}
+.shortlist-count {font-family:var(--lx-sans);font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--lx-muted);white-space:nowrap;}
+/* matches the hero "View apartments" CTA */
+.shortlist-bar .shortlist-email {display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 26px;background:var(--lx-ink);color:#fff;border-radius:10px;font-family:var(--lx-sans);font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;transition:background .2s;box-sizing:border-box;}
+.shortlist-bar .shortlist-email:hover {background:#1a2c4a;color:#fff;}
+.shortlist-bar .shortlist-clear {background:none;border:none;padding:0;font-family:var(--lx-sans);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--lx-ink);cursor:pointer;}
+
+/* skeleton loading cards (replaces the spinner - no layout jump) */
+.skeleton-card {background:#fff;border:.5px solid var(--lx-gold-line);border-radius:12px;overflow:hidden;animation:lx-pulse 1.4s ease-in-out infinite;}
+.skeleton-img {aspect-ratio:3/2;background:var(--lx-hair-soft);}
+.skeleton-line {height:12px;border-radius:6px;background:var(--lx-hair-soft);margin:14px 16px;}
+.skeleton-line.short {width:45%;}
+@keyframes lx-pulse {0%,100%{opacity:1}50%{opacity:.55}}
+
+/* dual-thumb price range slider (inside the Price dropdown panel) */
+.price-range-value {display:block;font-size:12px;color:var(--lx-gold-deep);font-weight:600;letter-spacing:0;text-transform:none;white-space:nowrap;margin-bottom:2px;}
+.dual-range {position:relative;height:42px;display:flex;align-items:center;width:100%;}
+.dual-range .dr-track {position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:4px;border-radius:2px;background:var(--lx-hair);}
+.dual-range .dr-fill {position:absolute;top:50%;transform:translateY(-50%);height:4px;border-radius:2px;background:var(--lx-gold);}
+.dual-range input[type=range] {position:absolute;left:0;width:100%;height:42px;margin:0;-webkit-appearance:none;appearance:none;background:none;pointer-events:none;}
+.dual-range input[type=range]::-webkit-slider-thumb {-webkit-appearance:none;pointer-events:auto;width:18px;height:18px;border-radius:50%;background:var(--lx-gold);border:2px solid #fff;box-shadow:0 1px 4px rgba(13,26,46,.3);cursor:pointer;}
+.dual-range input[type=range]::-moz-range-thumb {pointer-events:auto;width:16px;height:16px;border-radius:50%;background:var(--lx-gold);border:2px solid #fff;box-shadow:0 1px 4px rgba(13,26,46,.3);cursor:pointer;}
+.dual-range input[type=range]:focus-visible::-webkit-slider-thumb {outline:2px solid var(--lx-ink);outline-offset:2px;}
+@media (max-width: 768px) {
+  /* thumbs need a touch of inset so they don't clip the panel edge */
+  .dual-range {width:calc(100% - 6px);}
+}
+.listing-card {background:white; border-radius:12px; overflow:visible; border:.5px solid var(--lx-gold-line); box-shadow:0 1px 3px rgba(13,26,46,.05); transition:box-shadow .2s var(--lx-ease), border-color .2s; position:relative;}
+/* transform lift on hover-capable devices only: iOS fires :hover on first tap
+   and animating a tap target's transform cancels the tap (house rule 2) */
+@media (hover:hover) and (pointer:fine) {
+  .listing-card {transition:transform .2s var(--lx-ease), box-shadow .2s var(--lx-ease), border-color .2s;}
+  .listing-card:hover {transform:translateY(-4px); border-color:var(--lx-gold); box-shadow:0 12px 30px rgba(13,26,46,.14);}
+}
+.listing-image {width:100%;aspect-ratio:3/2;overflow:hidden;border-radius:12px 12px 0 0;position:relative;display:block;cursor:pointer;text-decoration:none;}
+.listing-image img {width:100%;height:100%;object-fit:cover;transition:opacity 0.3s ease-in-out;}
+.listing-image:has(img.secondary) img {position:absolute;top:0;left:0;}
+.listing-image img.secondary {opacity:0;}
+.listing-image:hover img.primary {opacity:1;}
+.listing-image:has(img.secondary):hover img.primary {opacity:0;}
+.listing-image:has(img.secondary):hover img.secondary {opacity:1;}
+.badge-container {position:absolute;top:8px;right:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px;pointer-events:none;z-index:2;}
+.minstay-badge,.view-badge,.popular-badge,.refurb-badge,.comingsoon-badge{display:inline-flex;align-items:center;padding:5px 8px 5px 12px;border-radius:4px 0 0 4px;font-size:0.8rem;font-weight:500;letter-spacing:.02em;white-space:nowrap;border-right:3px solid;font-family:var(--lx-sans);opacity:0.92;box-shadow:0 2px 4px rgba(13,26,46,.2);}
+.popular-badge   {background:var(--lx-gold);color:white;border-color:#F0E7C2;}
+.minstay-badge   {background:var(--lx-ink);color:white;border-color:var(--lx-gold-lt);}
+.view-badge      {background:var(--lx-gold-deep);color:white;border-color:#F0E7C2;}
+.refurb-badge    {background:var(--lx-red);color:white;border-color:#fca5a5;}
+.comingsoon-badge{background:#166534;color:white;border-color:#4ade80;}
+
+.listing-content {padding:14px 16px 16px;border-radius:0 0 12px 12px;background:white;position:relative;}
+.amenities {display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;}
+.amenity i {font-size:0.9rem;}
+.amenity-more {display:flex; align-items:center; padding:4px 10px; border-radius:9999px; background:var(--lx-hair-soft); color:var(--lx-muted); font-size:0.85rem; cursor:pointer;border:none;font-family:var(--lx-sans);}
+.listing-footer {display:flex; justify-content:space-between; align-items:center; padding-top:10px; border-top:none; flex-wrap:wrap;}
+.price-container {display:flex; align-items:baseline; gap:6px;}
+.listing-price-number {font-size:1.9rem; font-weight:700; color:var(--lx-ink); letter-spacing:-0.4px;}
+.listing-price-text {font-size:1.3rem; font-weight:400; color:var(--lx-muted); letter-spacing:-0.4px; margin-left:-2px;}
+.view-btn {display:none;}
+.listing-id { position: absolute; bottom: 8px; right: 10px; color: #ffffff; font-size: 0.8rem; opacity: 0.8; }
+@media (max-width: 768px) {
+    .amenity-filters .amenity-pill:nth-child(n+6) { display: none; }
+    .amenity-filters.expanded .amenity-pill { display: flex !important; }
+    .amenity-filter-more { display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:9999px;background:var(--lx-hair-soft);color:var(--lx-muted);font-size:0.85rem;font-weight:500;cursor:pointer; }
+    .amenity-filters.expanded .amenity-filter-more { display: none; }
+}
+@media (min-width: 769px) { .amenity-filter-more { display: none; } }
+.load-more-container {text-align:center;padding:40px 20px;grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:16px;}
+@media (max-width: 768px) {
+    .load-more-container {padding:30px 20px;}
+    .load-more-container .load-more-btn,.load-more-container .back-to-top-btn {width:80%;}
+}
+.lm-nudge {font-size:13px;line-height:1.6;color:var(--lx-muted);letter-spacing:.02em;font-family:var(--lx-sans);}
+.lm-nudge a, .lm-nudge button {background:none;border:none;padding:0 0 1px;font:inherit;color:var(--lx-gold-deep);font-weight:500;text-decoration:none;border-bottom:1px solid rgba(184,150,110,.42);cursor:pointer;transition:color .15s,border-color .15s;}
+.lm-nudge a:hover, .lm-nudge button:hover {color:var(--lx-ink);border-color:rgba(13,26,46,.4);}
+.load-more-btn {padding:13px 26px;background:var(--lx-gold);color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:background .2s;font-family:var(--lx-sans);box-sizing:border-box;}
+.load-more-btn:hover {background:var(--lx-gold-hover) !important;color:white !important;}
+.load-more-btn:disabled {background:#9ca3af;cursor:not-allowed;}
+.back-to-top-btn {padding:13px 26px;background:var(--lx-ink);color:var(--lx-paper);border:none;border-radius:8px;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:background .2s,color .2s;font-family:var(--lx-sans);box-sizing:border-box;}
+.back-to-top-btn:hover {background:#16233c;color:var(--lx-gold-lt);}
+.back-to-top-btn:active {background:#16233c;color:var(--lx-gold-lt);}
+.register-interest-btn {width:100%;background:var(--lx-ink);color:white;border:none;border-radius:8px;padding:10px 16px;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:background .2s;font-family:var(--lx-sans);box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:7px;text-align:center;text-decoration:none;}
+.register-interest-btn:hover {background:var(--lx-gold) !important;color:white !important;}
+@media (min-width: 769px) {
+    .listing-footer {flex-direction:row;align-items:center;gap:10px;}
+    .listing-price-number {font-size:1.7rem;}
+    .listing-price-text {font-size:1.2rem;}
+    .view-btn {display:none;}
+    .filters {align-items:flex-start;}
+    .filter-group:nth-child(1) input,.filter-group:nth-child(2) select {width:200px;min-width:200px;}
+    .filter-group:nth-child(3) select,.filter-group:nth-child(4) select {width:200px;min-width:200px;}
+}
+@media (max-width: 768px) {
+    .listing-footer {flex-direction:row;align-items:center;gap:10px;}
+    .filters {display:flex !important;flex-wrap:wrap;gap:10px;background:none !important;border:none !important;box-shadow:none !important;padding:0 !important;border-radius:0 !important;margin-bottom:25px;}
+    .filters-top-row {display:flex !important;flex-wrap:wrap;gap:10px;padding:0 !important;justify-content:flex-start !important;}
+    .filters-bottom-row {display:flex !important;flex-wrap:wrap;gap:8px;padding:0 !important;background:none !important;border:none !important;border-radius:0 !important;}
+    .filters-sep {display:none !important;}
+    .filters-amenity-label {display:none;}
+    .filters-top-row .filter-group {width:calc(50% - 5px) !important;flex:0 0 calc(50% - 5px) !important;}
+    .filters-top-row .filter-group input,
+    .filters-top-row .filter-group select,
+    .filters-top-row .filter-group button,
+    .filters-top-row .filter-group > div {width:100% !important;min-width:0 !important;font-size:16px;}
+    .back-to-london-btn {width:100%;justify-content:center;height:42px;font-size:15px;padding:9px 16px;}
+    .amenity-filters {display:flex !important;flex-wrap:wrap !important;gap:8px !important;overflow:visible !important;max-height:none !important;}
+    .amenity-pill {display:flex !important;visibility:visible !important;}
+    .listing-image {aspect-ratio:3/2;}
+    #bedroomDropdownPanel, #areaDropdownPanel, #priceDropdownPanel {min-width:0 !important;width:100% !important;left:0 !important;right:auto !important;max-width:90vw !important;}
+    /* shortlist bar sits beside the Weekly Price filter: count + clear on top, full-width button below */
+    .filters-top-row .shortlist-bar {flex:0 0 calc(50% - 5px) !important;width:calc(50% - 5px) !important;}
+    .filters-top-row .shortlist-bar .shortlist-email {width:100%;padding:0 8px;}
+    #bedroomDropdownPanel label, #areaDropdownPanel label {justify-content:flex-start !important;text-align:left !important;}
+    #bedroomCheckboxList, #areaCheckboxList {text-align:left !important;}
+}
+.back-to-london-btn {display:inline-flex;align-items:center;padding:11px 18px;background:var(--lx-ink);color:white;border-radius:8px;font-size:12px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;transition:background .2s;white-space:nowrap;font-family:var(--lx-sans);}
+.back-to-london-btn:hover {background:#16233c;color:var(--lx-gold-lt);}
+.no-results {text-align:center; padding:60px 20px; color:var(--lx-muted);}
+.no-results h3 {font-family:var(--lx-serif);font-weight:400;color:var(--lx-ink);letter-spacing:-.02em;margin-bottom:6px;}
+.no-results .retry-btn {margin-top:16px;padding:13px 26px;background:var(--lx-gold);color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;font-family:var(--lx-sans);}
+.no-results .retry-btn:hover {background:var(--lx-gold-hover);}
+.no-results .enquiry-link {display:block;margin:12px auto 0;background:none;border:none;font:inherit;color:var(--lx-gold-deep);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+.loading-state {display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;gap:20px;color:var(--lx-muted);font-size:15px;letter-spacing:0.3px;}
+.loading-spinner {width:40px;height:40px;border:3px solid var(--lx-hair);border-top-color:var(--lx-gold);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin { to { transform: rotate(360deg); } }
+.search-container {position:relative;}
+.autocomplete-dropdown {position:absolute;top:100%;left:0;right:0;background:var(--lx-paper);border:1px solid var(--lx-hair);border-top:none;border-radius:0 0 10px 10px;max-height:300px;overflow-y:auto;z-index:1000;display:none;box-shadow:0 12px 34px rgba(13,26,46,.12);}
+.autocomplete-dropdown.show {display:block;}
+.autocomplete-item {padding:10px 16px;cursor:pointer;transition:background .15s,color .15s;border-bottom:1px solid var(--lx-hair-soft);font-size:14px;color:var(--lx-ink);}
+.autocomplete-item:last-child {border-bottom:none;}
+.autocomplete-item:hover,.autocomplete-item.active {background:var(--lx-gold);color:white;}
+.autocomplete-item.title {font-weight:500;}
+.autocomplete-item.area {font-weight:300;font-style:italic;}
+.autocomplete-item mark {background:none;color:var(--lx-gold-deep);font-weight:600;padding:0;}
+.autocomplete-item:hover mark,.autocomplete-item.active mark {color:#F0E7C2;}
+.autocomplete-category {padding:8px 16px;font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--lx-gold-deep);background:var(--lx-gold-wash);border-bottom:1px solid var(--lx-hair-soft);}
+.autocomplete-no-results {padding:16px;text-align:center;color:var(--lx-muted);font-style:italic;}
+.search-input {padding:10px 16px;border:1px solid var(--lx-hair);border-radius:10px;font-size:12.5px;font-family:var(--lx-sans);color:var(--lx-ink);background:rgba(255,255,255,.6);cursor:text;transition:border-color .2s,background .2s;width:100%;}
+.search-input::placeholder {color:var(--lx-muted);}
+.search-input:hover {border-color:var(--lx-gold-line);}
+.search-input:focus {outline:none;border-color:var(--lx-gold);background:#fff;box-shadow:0 0 0 3px var(--lx-gold-wash);}
+.search-icon {position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--lx-gold-deep);pointer-events:none;}
+@media (max-width: 768px) { .search-icon {display:none;} .search-input {padding:10px 16px;font-size:16px;} }
+
+/* single overlay gradient (Safari GPU memory) */
+.listing-image-overlay {position:absolute;inset:0;padding:40px 16px 14px;display:flex;flex-direction:column;justify-content:flex-end;background:linear-gradient(to top right, rgba(10,16,26,0.85) 0%, rgba(13,26,46,0.30) 40%, transparent 60%);pointer-events:none;}
+.listing-overlay-title {font-size:1.7rem;font-weight:500;color:white;line-height:1;margin-bottom:5px;font-family:var(--lx-serif);letter-spacing:-1.5px;transition:color 0.2s;}
+.listing-overlay-sub {font-size:0.95rem;color:rgba(255,255,255,0.82);letter-spacing:-0.2px;font-family:var(--lx-sans);}
+.listing-overlay-cta {display:flex;justify-content:space-between;align-items:flex-end;gap:10px;}
+.listing-overlay-view {background:rgba(13,26,46,.72);border:1px solid rgba(212,184,150,.4);color:white;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;border-radius:8px;white-space:nowrap;flex-shrink:0;transition:background .2s,border-color .2s;pointer-events:auto;display:flex;align-items:center;gap:6px;line-height:1;font-family:var(--lx-sans);}
+.listing-overlay-view:hover {background:var(--lx-gold) !important;border-color:var(--lx-gold) !important;color:white !important;}
+.listing-image:hover .listing-overlay-title {color:#F0E7C2;}
+.amenity {display:flex;align-items:center;gap:4px;padding:3px 10px;border-radius:9999px;background:var(--lx-gold-wash);color:var(--lx-gold-deep);font-size:0.8rem;font-weight:500;border:1px solid transparent;}
+.price-allinclusive {display:inline-flex;align-items:center;gap:3px;font-size:0.75rem;color:var(--lx-muted);margin-left:auto;cursor:default;white-space:nowrap;position:relative;}
+.price-allinclusive svg {width:12px;height:12px;flex-shrink:0;}
+.price-allinclusive-tooltip {display:none;position:absolute;bottom:calc(100% + 8px);right:0;background:var(--lx-paper);color:var(--lx-ink);padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;white-space:normal;width:220px;text-align:left;z-index:999;pointer-events:none;box-shadow:0 4px 16px rgba(13,26,46,.14);border:1px solid var(--lx-hair);}
+.price-allinclusive-tooltip::after {content:'';position:absolute;top:100%;right:12px;border:5px solid transparent;border-top-color:var(--lx-hair);}
+.price-allinclusive-tooltip::before {content:'';position:absolute;top:calc(100% + 1px);right:12px;border:5px solid transparent;border-top-color:var(--lx-paper);z-index:1;}
+.price-allinclusive:hover .price-allinclusive-tooltip {display:block;}
+@media (min-width: 769px) {
+    .filters {display:block;background:var(--lx-paper);border-radius:16px;border:1px solid var(--lx-hair);box-shadow:0 1px 2px rgba(13,26,46,.05),0 12px 34px rgba(13,26,46,.07);padding:0;margin-bottom:25px;gap:0;}
+    .filters-top-row {display:flex;align-items:flex-end;justify-content:flex-start;gap:16px;padding:20px 28px;flex-wrap:nowrap;}
+    .filters-bottom-row {display:flex;align-items:center;justify-content:flex-start;gap:8px;padding:12px 28px;background:rgba(184,150,110,.05);border-top:1px solid var(--lx-hair-soft);border-radius:0 0 16px 16px;flex-wrap:wrap;}
+    .filters-sep {width:1px;height:36px;background:var(--lx-hair);flex-shrink:0;}
+    .filter-group {display:flex;flex-direction:column;gap:6px;}
+    .filter-group label {font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--lx-muted);white-space:nowrap;}
+    .filter-group > input, .filter-group > div > input.search-input, .filter-group > select, .filter-group > div > button, .filter-group > button {width:180px !important;min-width:180px !important;max-width:180px !important;height:42px !important;padding:0 14px !important;font-size:12.5px !important;border:1px solid var(--lx-hair) !important;border-radius:10px !important;box-sizing:border-box !important;}
+    #areaFilterContainer, #areaFilterContainer > div, #areaDropdownWrapper, #priceDropdownWrapper, #bedroomDropdownWrapper {width:180px !important;min-width:180px !important;max-width:180px !important;}
+    #bedroomCheckboxList input, #areaCheckboxList input {width:15px !important;min-width:15px !important;max-width:15px !important;height:15px !important;padding:0 !important;border:none !important;}
+    .filter-group button {display:flex !important;align-items:center !important;justify-content:space-between !important;gap:8px !important;background:rgba(255,255,255,.6) !important;cursor:pointer !important;font-family:var(--lx-sans) !important;}
+    /* the Area button nests one div deeper so the sizing rule above misses it - force all three dropdowns to identical box + font */
+    #bedroomDropdownBtn, #areaDropdownBtn, #priceDropdownBtn {width:180px !important;min-width:180px !important;max-width:180px !important;height:42px !important;padding:0 14px !important;font-size:12.5px !important;border:1px solid var(--lx-hair) !important;border-radius:10px !important;box-sizing:border-box !important;}
+    /* undo the blanket button background so the Weekly/Monthly active state stays navy on desktop too */
+    .price-seg button {justify-content:center !important;width:auto !important;min-width:0 !important;max-width:none !important;height:34px !important;padding:0 !important;border:none !important;border-radius:0 !important;}
+    .price-seg button.on {background:var(--lx-ink) !important;color:#fff !important;}
+    .search-input {padding-left:14px !important;}
+    .search-icon {display:none !important;}
+    .filters-amenity-label {font-family:var(--lx-sans);font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--lx-muted);white-space:nowrap;flex-shrink:0;}
+}
+
+/* ── overrides for inline-styled elements built by the JS ── */
+#bedroomDropdownBtn, #areaDropdownBtn, #priceDropdownBtn {border:1px solid var(--lx-hair) !important;border-radius:10px !important;background:rgba(255,255,255,.6) !important;font-family:var(--lx-sans) !important;color:var(--lx-ink) !important;}
+#bedroomDropdownPanel, #areaDropdownPanel, #priceDropdownPanel {border:1px solid var(--lx-hair) !important;border-radius:12px !important;box-shadow:0 12px 34px rgba(13,26,46,.14) !important;background:var(--lx-paper) !important;}
+#bedroomCheckboxList input, #areaCheckboxList input {accent-color:var(--lx-gold) !important;}
+#bedroomCheckboxList label, #areaCheckboxList label {font-family:var(--lx-sans) !important;color:var(--lx-ink) !important;}
+.amenity-show-more {background:var(--lx-hair-soft) !important;color:var(--lx-muted) !important;border-color:transparent !important;}
+.amenity-reset {background:var(--lx-red) !important;border-color:var(--lx-red) !important;color:#fff !important;}
+@media (max-width:768px){
+  /* buttons never trigger iOS focus-zoom, so they can drop to 14px */
+  #bedroomDropdownBtn, #areaDropdownBtn, #priceDropdownBtn {font-size:14px !important;}
+  /* input/select rest at 15px but bump to 16px at focus - iOS checks the
+     size at focus time, so this avoids the viewport zoom */
+  .search-input {font-size:15px !important;}
+  #sortSelect {font-size:14px !important;}
+  .search-input:focus, #sortSelect:focus {font-size:16px !important;}
+  /* price toggle: show only the active mode label */
+}
+
+/* house rule 6: respect reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .listing-card, .listing-image img, .price-seg button,
+  .amenity-pill, .autocomplete-item, .listing-overlay-title, .listing-overlay-view {transition:none !important;}
+  .listing-card:hover {transform:none !important;}
+  .loading-spinner {animation-duration:1.6s;}
+}
+</style>
+<div class="container" id="marangoni-apartments">
+    <div class="filters">
+        <div class="filters-top-row">
+        <div class="filter-group">
+            <label>Browse by Name:</label>
+            <div class="search-container">
+                <i class="fa-light fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchInput" class="search-input" placeholder="e.g. Bell Yard House" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="autocompleteDropdown">
+                <div id="autocompleteDropdown" class="autocomplete-dropdown" role="listbox"></div>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label>Apartment Type:</label>
+            <div style="position:relative;width:100%;" id="bedroomDropdownWrapper">
+                <button id="bedroomDropdownBtn" onclick="SLAF.toggleBedroomDropdown()" aria-haspopup="true" aria-expanded="false" style="padding:10px 16px;border:2px solid #e5e7eb;border-radius:8px;font-size:15px;background:white;cursor:pointer;width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:inherit;">
+                    <span id="bedroomDropdownLabel">All Apartments</span>
+                    <i class="fa-light fa-chevron-down" style="font-size:12px;color:#666;transition:transform 0.2s;" id="bedroomChevron"></i>
+                </button>
+                <div id="bedroomDropdownPanel" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:100%;max-width:90vw;background:white;border:1.5px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:1000;text-align:left;direction:ltr;">
+                    <div id="bedroomCheckboxList" style="padding:6px 0;text-align:left;">
+                        <label style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:8px 14px;cursor:pointer;font-size:14px;color:#333;text-align:left;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                            <input type="checkbox" value="studio" onchange="SLAF.onBedroomCheckboxChange()" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;"> Studio
+                        </label>
+                        <label style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:8px 14px;cursor:pointer;font-size:14px;color:#333;text-align:left;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                            <input type="checkbox" value="1bed" onchange="SLAF.onBedroomCheckboxChange()" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;"> 1 Bedroom
+                        </label>
+                        <label style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:8px 14px;cursor:pointer;font-size:14px;color:#333;text-align:left;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                            <input type="checkbox" value="2bed" onchange="SLAF.onBedroomCheckboxChange()" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;"> 2 Bedrooms
+                        </label>
+                        <label style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:8px 14px;cursor:pointer;font-size:14px;color:#333;text-align:left;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                            <input type="checkbox" value="3bed" onchange="SLAF.onBedroomCheckboxChange()" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;"> 3 Bedrooms
+                        </label>
+                        <label style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:8px 14px;cursor:pointer;font-size:14px;color:#333;text-align:left;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                            <input type="checkbox" value="4bed" onchange="SLAF.onBedroomCheckboxChange()" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;"> 4 Bedrooms
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <select id="bedroomSelect" style="display:none;"></select>
+        </div>
+        <div class="filters-sep"></div>
+        <div class="filter-group">
+            <label>Sort by:</label>
+            <select id="sortSelect">
+    <option value="popular">Most Booked</option>
+    <option value="quality">Highest Quality</option>
+    <option value="price-low" selected>Price: Low to High</option>
+    <option value="price-high">Price: High to Low</option>
+    <option value="size-large">Size: Largest First</option>
+    <option value="size-small">Size: Smallest First</option>
+</select>
+        </div>
+        <div class="filter-group">
+            <label>Area:</label>
+            <div id="areaFilterContainer"></div>
+        </div>
+        <div class="filters-sep"></div>
+        <div class="filter-group">
+            <label id="priceGroupLabel">Weekly Price:</label>
+            <div style="position:relative;width:100%;" id="priceDropdownWrapper">
+                <button id="priceDropdownBtn" onclick="SLAF.togglePriceDropdown()" aria-haspopup="true" aria-expanded="false" style="padding:10px 16px;border:2px solid #e5e7eb;border-radius:8px;font-size:15px;background:white;cursor:pointer;width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:inherit;">
+                    <span id="priceDropdownLabel">All prices</span>
+                    <i class="fa-light fa-chevron-down" style="font-size:12px;color:#666;transition:transform 0.2s;" id="priceChevron"></i>
+                </button>
+                <div id="priceDropdownPanel" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:100%;width:240px;max-width:90vw;background:white;border:1.5px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:1000;padding:14px 16px;text-align:left;">
+                    <span class="price-range-value" id="priceRangeLabel"></span>
+                    <div class="dual-range" id="dualRange">
+                        <div class="dr-track"></div>
+                        <div class="dr-fill" id="priceRangeFill"></div>
+                        <input type="range" id="priceMinRange" aria-label="Minimum price">
+                        <input type="range" id="priceMaxRange" aria-label="Maximum price">
+                    </div>
+                    <div class="price-seg" id="priceSeg" role="group" aria-label="Price display">
+                        <button type="button" data-mode="weekly" class="on">Weekly</button>
+                        <button type="button" data-mode="monthly">Monthly</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="shortlist-bar" id="shortlistBar"></div>
+        </div>
+        <div class="filters-bottom-row">
+            <span class="filters-amenity-label">Amenities:</span>
+            <div class="amenity-filters" id="amenityFilterContainer" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+        </div>
+    </div>
+    <div class="grid-meta">
+        <div class="results-count" id="resultsCount" aria-live="polite"></div>
+    </div>
+    <div class="listings-grid" id="listingsGrid">
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+    </div>
+    <select id="areaSelect" style="display:none;"><option value="all">All</option></select>
+    <noscript>
+        <p>Browse our luxury serviced apartments near Istituto Marangoni London:
+            <a href="/find-an-apartment">all apartments</a> ·
+            <a href="/luxury-student-apartments-london">London apartments</a> ·
+            <a href="/reservations">make an enquiry</a>
+        </p>
+    </noscript>
+</div>
+
+<script>
+/* Everything lives in one IIFE; the only global besides PAGE_CONFIG is
+   window.SLAF, which carries the handlers the inline onclick attributes need. */
+window.SLAF = (function() {
+'use strict';
+
+const SUPPORTS_HOVER = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+const PAGE_SIZE = 8;
+
+(function buildAreaControl() {
+    const container = document.getElementById('areaFilterContainer');
+    if (PAGE_CONFIG.filter.type === 'city') {
+        container.innerHTML = `
+            <div style="position:relative;width:100%;text-align:left;" id="areaDropdownWrapper">
+                <button id="areaDropdownBtn" onclick="SLAF.toggleAreaDropdown()" aria-haspopup="true" aria-expanded="false" style="padding:10px 16px;border:2px solid #e5e7eb;border-radius:8px;font-size:15px;background:white;cursor:pointer;width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:inherit;">
+                    <span id="areaDropdownLabel">All Areas</span>
+                    <i class="fa-light fa-chevron-down" style="font-size:12px;color:#666;transition:transform 0.2s;" id="areaChevron"></i>
+                </button>
+                <div id="areaDropdownPanel" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:100%;max-width:90vw;background:white;border:1.5px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:1000;max-height:280px;overflow-y:auto;text-align:left;direction:ltr;">
+                    <div id="areaCheckboxList" style="padding:6px 0;text-align:left;"></div>
+                </div>
+            </div>`;
+    } else {
+        const label = PAGE_CONFIG.parentCity?.label || 'Cities';
+        const url = PAGE_CONFIG.parentCity?.url || '/find-an-apartment';
+        container.innerHTML = `<a href="${url}" class="back-to-london-btn">← Back to all ${label}</a>`;
+    }
+})();
+
+function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* Alt text: rotate the configured near-Marangoni phrases, anchored to the real
+   apartment so the description stays truthful for image SEO + screen readers */
+function getSeoAlt(listing, secondary = false) {
+    const tags = PAGE_CONFIG.seoAltTags || [];
+    const tag = tags.length ? tags[listing.id % tags.length] : '';
+    const base = tag ? `${tag} - ${listing.title}, ${listing.location}` : `${listing.title}, ${listing.location}`;
+    return secondary ? base + ' (interior view)' : base;
+}
+
+/* Squarespace CDN sizing: ?format= is the real param (?w= is ignored there) */
+function sqSrc(url, size) {
+    if (!url) return '';
+    if (url.indexOf('squarespace-cdn.com') > -1) return url.split('?')[0] + '?format=' + size;
+    return url;
+}
+function imgAttrs(url, eager) {
+    /* first cards load eagerly at high priority - lazy-loading the LCP image
+       just delays the largest paint for no saving */
+    const loadAttrs = eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"';
+    /* candidates cap at 750w: on a ~390px card even 3x screens can't tell,
+       and it cuts ~30% off image bytes (the old 1000w picks were 70-95KB) */
+    return `src="${sqSrc(url,'750w')}" srcset="${sqSrc(url,'500w')} 500w,${sqSrc(url,'750w')} 750w" sizes="(max-width:768px) 100vw,(max-width:1024px) 50vw,33vw" ${loadAttrs} decoding="async" width="600" height="400"`;
+}
+
+const amenityIcons = {
+    reception:{icon:"fa-light fa-bell-concierge",label:"Reception"},
+    "reception-24":{icon:"fa-light fa-bell-concierge",label:"24/7 Reception"},
+    "concierge-24":{icon:"fa-light fa-bell-concierge",label:"24/7 Concierge"},
+    "concierge-hours":{icon:"fa-light fa-clock",label:"Concierge Office Hours"},
+    "reception-hours":{icon:"fa-light fa-clock",label:"Reception Office Hours"},
+    "reception-nearby":{icon:"fa-light fa-building",label:"Reception Nearby"},
+    "concierge-24-offsite":{icon:"fa-light fa-building",label:"24/7 Concierge Off-Site"},
+    "doorman":{icon:"fa-sharp fa-light fa-user-police",label:"Doorman"},
+    gym:{icon:"fa-light fa-dumbbell",label:"Gym"},
+    pool:{icon:"fa-light fa-water-ladder",label:"Swimming Pool"},
+    spa:{icon:"fa-light fa-spa",label:"Spa"},
+    aircon:{icon:"fa-light fa-fan",label:"Air Con"},
+    security:{icon:"fa-sharp fa-light fa-user-shield",label:"Security"},
+    "security-24":{icon:"fa-sharp fa-light fa-user-shield",label:"Security Staff 24/7"},
+    "security-hours":{icon:"fa-light fa-clock",label:"Security Staff Office Hours"},
+    cctv:{icon:"fa-light fa-video",label:"CCTV"},
+    intercom:{icon:"fa-light fa-video",label:"Video Intercom"},
+    pet:{icon:"fa-light fa-paw",label:"Pet-Friendly"},
+    parking:{icon:"fa-light fa-square-parking",label:"Parking"},
+    laundry:{icon:"fa-light fa-washer",label:"In-Unit Laundry"},
+    elevator:{icon:"fa-light fa-elevator",label:"Elevator"},
+    outdoor:{icon:"fa-light fa-sun-bright",label:"Outdoor Space"},
+    garden:{icon:"fa-light fa-tree",label:"Garden"},
+    roofterrace:{icon:"fa-sharp fa-light fa-martini-glass-citrus",label:"Roof Terrace"},
+    balcony:{icon:"fa-light fa-sun-bright",label:"Balcony"},
+    patio:{icon:"fa-sharp fa-light fa-sun-plant-wilt",label:"Outdoor Patio"},
+    eco:{icon:"fa-light fa-leaf",label:"Eco-Friendly"},
+    "spacious-home":{icon:"fa-light fa-plus",label:"Spacious"},
+    "super-spacious-home":{icon:"fa-light fa-plus-large",label:"Super Spacious"},
+    "working-space":{icon:"fa-light fa-laptop",label:"Co-working Space"},
+    "work-space":{icon:"fa-light fa-laptop",label:"Co-working Space"},
+    "amazing-location":{icon:"fa-light fa-location-dot",label:"Amazing Location"},
+    "beautiful-interiors":{icon:"fa-light fa-couch",label:"Beautiful Interiors"},
+    "quiet-neighbourhood":{icon:"fa-light fa-leaf",label:"Quiet Neighbourhood"},
+    "ultra-high-end":{icon:"fa-light fa-gem",label:"Ultra High-End Property"}
+};
+
+const amenityPriority = {reception:1,gym:2,pool:3,spa:4,aircon:5,security:6,outdoor:7,pet:8,laundry:9,elevator:10,parking:11};
+
+const amenityGroups = {
+    "concierge-24":"reception","doorman":"reception","reception-24":"reception","concierge-hours":"reception",
+    "reception-hours":"reception","reception-nearby":"reception","concierge-24-offsite":"reception",
+    "security-24":"security","security-hours":"security","cctv":"security","intercom":"security",
+    "garden":"outdoor","roofterrace":"outdoor","balcony":"outdoor","patio":"outdoor"
+};
+
+function getAmenityGroup(amenity) { return amenityGroups[amenity] || amenity; }
+
+const amenityLabelMap = {
+  'Gym':'gym','Swimming Pool':'pool','Air Conditioning':'aircon','In-Unit Laundry':'laundry',
+  'Elevator':'elevator','Pet-Friendly':'pet','Roof Terrace':'roofterrace','Balcony':'balcony',
+  'Garden':'garden','Parking':'parking','CCTV':'cctv','Video Intercom':'intercom',
+  'Co-Working Space':'work-space','Amazing Location':'amazing-location',
+  'Beautiful Interiors':'beautiful-interiors','Quiet Neighbourhood':'quiet-neighbourhood',
+  'Ultra High-End Property':'ultra-high-end','Reception (24/7)':'reception-24',
+  'Reception (Office Hours)':'reception-hours','Concierge (24/7)':'concierge-24',
+  'Concierge (24/7 Off-Site)':'concierge-24-offsite','Doorman':'doorman',
+  'Concierge (Office Hours)':'concierge-hours','Security Staff 24/7':'security-24',
+  'Outdoor Patio':'patio','Spa':'spa','Eco-Friendly':'eco',
+  'Outdoor terrace / balcony':'balcony','In-unit Laundry':'laundry','Air conditioning':'aircon',
+};
+
+function mapAmenities(rawAmenities) {
+  if (!Array.isArray(rawAmenities)) return [];
+  return rawAmenities.map(a => amenityLabelMap[a]).filter(Boolean);
+}
+
+const bedLabels = {studio:'Studio','1bed':'1 Bed','2bed':'2 Bed','3bed':'3 Bed','4bed':'4 Bed'};
+const bedLabelsLong = {studio:'Studio','1bed':'1 Bedroom','2bed':'2 Bedrooms','3bed':'3 Bedrooms','4bed':'4 Bedrooms'};
+function bedLabel(t) { return bedLabels[t] || ''; }
+
+let listings = [];
+let currentListings = [];
+let selectedAmenities = [];
+let selectedBedrooms = [];
+let searchQuery = '';
+let itemsToShow = PAGE_SIZE;
+let priceMode = PAGE_CONFIG.defaultPriceMode || 'weekly';
+let selectedAreas = [];
+let userTouched = false;   /* URL state is only written after a real interaction */
+let priceBoundMin = 0, priceBoundMax = 0, priceMin = 0, priceMax = 0;   /* weekly £ */
+
+/* ── inbound URL params (comma-separated values supported) ── */
+let urlAreas = [], urlTypes = [], urlAmenities = [], urlQuery = '', urlSort = '';
+(function readUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    const amenityAliases = {
+        'reception':'reception','concierge':'reception',
+        'pet':'pet','pets':'pet','pet-friendly':'pet',
+        'outdoor':'outdoor','garden':'outdoor','terrace':'outdoor','balcony':'outdoor',
+        'aircon':'aircon','air-con':'aircon','air-conditioning':'aircon','ac':'aircon',
+        'gym':'gym','fitness':'gym',
+    };
+    if (params.get('area')) urlAreas = decodeURIComponent(params.get('area')).toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+    if (params.get('type')) urlTypes = decodeURIComponent(params.get('type')).toLowerCase().split(',').map(s => s.replace(/[\s-]+/g, '')).filter(Boolean);
+    if (params.get('amenity')) urlAmenities = decodeURIComponent(params.get('amenity')).toLowerCase().split(',').map(s => amenityAliases[s.trim().replace(/\s+/g, '-')]).filter(Boolean);
+    if (params.get('q')) urlQuery = decodeURIComponent(params.get('q'));
+    if (params.get('sort')) urlSort = params.get('sort');
+})();
+let urlPrice = null;
+(function(){ const m = (new URLSearchParams(window.location.search).get('price') || '').match(/^(\d+)-(\d+)$/); if (m) urlPrice = [parseInt(m[1],10), parseInt(m[2],10)]; if (urlPrice && urlPrice[0] >= urlPrice[1]) urlPrice = null; /* collapsed range from a bad link would show zero results */ })();
+
+/* ── share/back-button support: mirror the active filters into the URL ── */
+function writeUrlState() {
+    if (!userTouched || !window.history || !history.replaceState) return;
+    const params = new URLSearchParams(window.location.search);
+    ['q','type','area','amenity','sort'].forEach(k => params.delete(k));
+    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    if (selectedBedrooms.length) params.set('type', selectedBedrooms.join(','));
+    if (selectedAreas.length) params.set('area', selectedAreas.join(','));
+    if (selectedAmenities.length) params.set('amenity', selectedAmenities.join(','));
+    if (priceMin > priceBoundMin || priceMax < priceBoundMax) params.set('price', priceMin + '-' + priceMax);
+    const sortVal = document.getElementById('sortSelect').value;
+    if (sortVal !== 'price-low') params.set('sort', sortVal);
+    const qs = params.toString();
+    history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : '') + window.location.hash);
+}
+
+async function loadListings() {
+  const { type, value } = PAGE_CONFIG.filter;
+  const BLOB_URL = 'https://dnamuaiofr5we69r.public.blob.vercel-storage.com/listings.json';
+  const cacheKey = `sl_listings_${type}_${value}`;
+
+  const noCache = new URLSearchParams(window.location.search).get('nocache');
+  const cached = noCache ? null : localStorage.getItem(cacheKey);
+  const cachedTime = parseInt(localStorage.getItem(cacheKey + '_time') || '0', 10);
+  const cacheAge = Date.now() - cachedTime;
+  const CACHE_FRESH_MS = 5 * 60 * 1000;
+
+  function bootFromData() {
+      currentListings = [...listings];
+      populateAreaFilter();
+      urlTypes.forEach(t => {
+          if (bedLabelsLong[t] && !selectedBedrooms.includes(t)) {
+              selectedBedrooms.push(t);
+              const cb = document.querySelector('#bedroomCheckboxList input[value="' + t + '"]');
+              if (cb) cb.checked = true;
+          }
+      });
+      updateBedroomDropdownLabel();
+      urlAmenities.forEach(a => { if (!selectedAmenities.includes(a)) selectedAmenities.push(a); });
+      if (urlQuery) { searchQuery = urlQuery; document.getElementById('searchInput').value = urlQuery; }
+      if (urlSort && document.querySelector(`#sortSelect option[value="${urlSort}"]`)) {
+          document.getElementById('sortSelect').value = urlSort;
+      }
+      initPriceSlider();
+      renderAmenityPills();
+      applyFilters();
+  }
+
+  if (cached) {
+    try {
+      const cachedListings = JSON.parse(cached);
+      if (cachedListings.length > 0) {
+        listings = cachedListings;
+        bootFromData();
+      }
+    } catch(e) {
+      localStorage.removeItem(cacheKey);
+      localStorage.removeItem(cacheKey + '_time');
+    }
+  }
+
+  if (cached && cacheAge < CACHE_FRESH_MS) {
+    return;
+  }
+
+  try {
+    const data = await (await fetch(BLOB_URL, { cache: 'no-store' })).json();
+    const fresh = (data || []).filter(l => {
+      if (PAGE_CONFIG.filter.type === 'city') return !l.hidden && l.city?.toLowerCase() === PAGE_CONFIG.filter.value.toLowerCase();
+      if (PAGE_CONFIG.filter.type === 'area') return !l.hidden && l.location?.toLowerCase() === PAGE_CONFIG.filter.value.toLowerCase();
+      return !l.hidden;
+    }).map((l, i) => ({
+      id: i + 1,
+      mondayRef: l.mondayRef,
+      buildingId: l.buildingId || l.mondayRef,
+      title: l.title,
+      location: l.location || '',
+      bedroomType: l.bedroomType || '',
+      weekly: l.weekly || 0,
+      size: l.size || '',
+      amenities: mapAmenities(l.amenities),
+      url: l.url || '',
+      imageUrl: l.imageUrl || '',
+      imageUrl2: l.imageUrl2 || '',
+      popular: l.popular || false,
+      refurb: l.refurb || false,
+      view: l.view || false,
+      minstay90: l.minstay90 || false,
+      comingSoon: l.comingSoon || false,
+      poa: l.poa || false,
+    }));
+
+    if (fresh.length > 0) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(fresh));
+        localStorage.setItem(cacheKey + '_time', Date.now().toString());
+      } catch(e) {}
+
+      if (JSON.stringify(fresh) !== JSON.stringify(listings)) {
+        listings = fresh;
+        bootFromData();
+      }
+    }
+  } catch(e) {
+    console.error('Failed to load fresh listings:', e);
+    if (!cached) {
+      listings = [];
+      currentListings = [];
+      document.getElementById('listingsGrid').innerHTML =
+        '<div class="no-results" style="grid-column:1/-1"><h3>Unable to load apartments</h3>' +
+        '<p>Something went wrong on our side.</p>' +
+        '<button class="retry-btn" onclick="SLAF.retryLoad()">Try again</button>' +
+        '<button type="button" class="enquiry-link" data-sl-open-enq>Or make an enquiry and we will send you a curated list</button></div>';
+    }
+  }
+}
+
+/* ── shortlist: hearts persist in localStorage, email rides the form's
+      existing ?ref= prefill (auto-selects type A, fills apartment_ref) ── */
+const SHORTLIST_KEY = 'sl_shortlist';
+let shortlist = [];
+try { shortlist = JSON.parse(localStorage.getItem(SHORTLIST_KEY) || '[]'); } catch(e) { shortlist = []; }
+
+function saveShortlist() {
+    try { localStorage.setItem(SHORTLIST_KEY, JSON.stringify(shortlist)); } catch(e) {}
+}
+
+function updateShortlistBar() {
+    const bar = document.getElementById('shortlistBar');
+    if (!bar) return;
+    if (!shortlist.length) { bar.classList.remove('show'); bar.innerHTML = ''; return; }
+    const refParam = encodeURIComponent(shortlist.join(', '));
+    const cityParam = encodeURIComponent(PAGE_CONFIG.filter.value.toLowerCase());
+    bar.innerHTML =
+        `<span class="shortlist-count">${shortlist.length} ${shortlist.length === 1 ? 'option' : 'options'} saved - <button type="button" class="shortlist-clear" onclick="SLAF.clearShortlist()">Clear list</button></span>` +
+        `<a class="shortlist-email" href="/reservations?type=A&ref=${refParam}&city=${cityParam}">Enquire with favs</a>`;
+    bar.classList.add('show');
+}
+
+function toggleShortlist(btn) {
+    const title = btn.dataset.title;
+    const i = shortlist.indexOf(title);
+    if (i > -1) shortlist.splice(i, 1); else shortlist.push(title);
+    saveShortlist();
+    const saved = i === -1;
+    /* sync every heart for this apartment currently in the grid */
+    document.querySelectorAll('.card-heart').forEach(h => {
+        if (h.dataset.title === title) { h.classList.toggle('saved', saved); h.setAttribute('aria-pressed', String(saved)); }
+    });
+    updateShortlistBar();
+}
+
+function clearShortlist() {
+    shortlist = [];
+    saveShortlist();
+    document.querySelectorAll('.card-heart').forEach(h => { h.classList.remove('saved'); h.setAttribute('aria-pressed', 'false'); });
+    updateShortlistBar();
+}
+
+function skeletonMarkup() {
+    return new Array(PAGE_SIZE).fill('<div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>').join('');
+}
+
+function retryLoad() {
+    document.getElementById('listingsGrid').innerHTML = skeletonMarkup();
+    loadListings();
+}
+
+/* ── dual-thumb price range slider (state is always weekly £) ── */
+const drMin = document.getElementById('priceMinRange');
+const drMax = document.getElementById('priceMaxRange');
+const drFill = document.getElementById('priceRangeFill');
+const drLabel = document.getElementById('priceRangeLabel');
+let priceDebounce;
+
+/* log scale: slider positions 0-1000 map exponentially to £, so the busy
+   low end of the market gets most of the track instead of a fifth of it */
+const POS_MAX = 1000;
+function posToPrice(p) {
+    const ratio = Math.log(priceBoundMax / Math.max(priceBoundMin, 1));
+    const v = Math.max(priceBoundMin, 1) * Math.exp(p / POS_MAX * ratio);
+    return Math.min(priceBoundMax, Math.max(priceBoundMin, Math.round(v / 25) * 25));
+}
+function priceToPos(v) {
+    const ratio = Math.log(priceBoundMax / Math.max(priceBoundMin, 1));
+    return Math.round(Math.log(Math.max(v, priceBoundMin) / Math.max(priceBoundMin, 1)) / ratio * POS_MAX);
+}
+
+function updatePriceUi() {
+    if (!drMin || !drFill) return;
+    drFill.style.left = (priceToPos(priceMin) / 10) + '%';
+    drFill.style.right = (100 - priceToPos(priceMax) / 10) + '%';
+    const unit = priceMode === 'weekly' ? 'per week' : 'per month';
+    const maxTxt = (priceCapped && priceMax >= priceBoundMax) ? formatPrice(priceMax) + '+' : formatPrice(priceMax);
+    drLabel.textContent = `${PAGE_CONFIG.currency}${formatPrice(priceMin)} to ${PAGE_CONFIG.currency}${maxTxt} ${unit}`;
+    const btnLabel = document.getElementById('priceDropdownLabel');
+    if (btnLabel) btnLabel.textContent = `${PAGE_CONFIG.currency}${formatPrice(priceMin)} to ${PAGE_CONFIG.currency}${maxTxt}`;
+    const groupLabel = document.getElementById('priceGroupLabel');
+    if (groupLabel) groupLabel.textContent = priceMode === 'weekly' ? 'Weekly Price:' : 'Monthly Price:';
+}
+
+let priceCapped = false;   /* slider top = 95th percentile so one outlier can't squash the range */
+function initPriceSlider() {
+    if (!drMin || !listings.length) return;
+    const values = listings.map(poaPrice).filter(v => v > 0).sort((a, b) => a - b);
+    const lo = Math.floor(values[0] / 25) * 25;
+    /* full range by default - the slider's top covers the most expensive listing */
+    let hi = Math.ceil(values[values.length - 1] / 50) * 50;
+    if (hi <= lo) hi = lo + 50;
+    priceCapped = false;
+    const firstInit = priceBoundMax === 0;
+    priceBoundMin = lo; priceBoundMax = hi;
+    [drMin, drMax].forEach(r => { r.min = 0; r.max = POS_MAX; r.step = 1; });
+    if (firstInit) {
+        priceMin = lo; priceMax = hi;
+        if (urlPrice) {
+            priceMin = Math.max(lo, Math.min(urlPrice[0], hi));
+            priceMax = Math.max(priceMin, Math.min(urlPrice[1], hi));
+        }
+    } else {
+        priceMin = Math.max(lo, Math.min(priceMin, hi));
+        priceMax = Math.max(priceMin, Math.min(priceMax, hi));
+    }
+    drMin.value = priceToPos(priceMin); drMax.value = priceToPos(priceMax);
+    updatePriceUi();
+}
+
+function onPriceInput() {
+    let a = parseInt(drMin.value, 10), b = parseInt(drMax.value, 10);
+    /* keep a minimum gap so the two thumbs can never stack - stacked thumbs
+       are unrecoverable on iOS (the top input swallows every touch) */
+    const GAP = 15;
+    if (b - a < GAP) {
+        if (this === drMin) { a = Math.max(0, b - GAP); drMin.value = a; }
+        else { b = Math.min(POS_MAX, a + GAP); drMax.value = b; }
+        if (b - a < GAP) { a = Math.max(0, b - GAP); drMin.value = a; }
+    }
+    priceMin = (a <= 0) ? priceBoundMin : posToPrice(a);
+    priceMax = (b >= POS_MAX) ? priceBoundMax : posToPrice(b);
+    updatePriceUi();
+    clearTimeout(priceDebounce);
+    priceDebounce = setTimeout(() => { userTouched = true; applyFilters(); renderAmenityPills(); }, 200);
+}
+if (drMin) { drMin.addEventListener('input', onPriceInput); drMax.addEventListener('input', onPriceInput); }
+
+function toggleAreaDropdown() {
+    const panel = document.getElementById('areaDropdownPanel');
+    const chevron = document.getElementById('areaChevron');
+    const btn = document.getElementById('areaDropdownBtn');
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+    if (btn) btn.setAttribute('aria-expanded', String(!isOpen));
+}
+
+function updateAreaDropdownLabel() {
+    const label = document.getElementById('areaDropdownLabel');
+    if (!label) return;
+    if (selectedAreas.length === 0) label.textContent = 'All Areas';
+    else if (selectedAreas.length === 1) label.textContent = selectedAreas[0];
+    else label.textContent = selectedAreas.length + ' selected';
+}
+
+function clearAreas() {
+    userTouched = true;
+    selectedAreas = [];
+    document.querySelectorAll('#areaCheckboxList input[type=checkbox]').forEach(cb => cb.checked = false);
+    updateAreaDropdownLabel();
+    applyFilters();
+    renderAmenityPills();
+}
+
+function populateAreaFilter() {
+    const locationSet = new Set();
+    listings.forEach(listing => {
+        listing.location.split(',').map(p => p.trim()).filter(Boolean).forEach(p => locationSet.add(p));
+    });
+    const areas = [...locationSet].sort();
+    const checkboxList = document.getElementById('areaCheckboxList');
+    if (checkboxList) {
+        checkboxList.innerHTML = areas.map(area => `
+            <label style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:8px 14px;cursor:pointer;font-size:14px;color:#333;text-align:left;transition:background 0.15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                <input type="checkbox" value="${escHtml(area)}" onchange="SLAF.onAreaCheckboxChange(this)" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;">
+                ${escHtml(area)}
+            </label>`).join('');
+    }
+    /* Inbound ?area= links take priority; defaults apply only when none given */
+    if (urlAreas.length) {
+        selectedAreas = [];
+        urlAreas.forEach(ua => {
+            const match = areas.find(a => a.toLowerCase() === ua || a.toLowerCase().replace(/\s+/g, '-') === ua);
+            if (match && !selectedAreas.includes(match)) selectedAreas.push(match);
+        });
+    } else if (PAGE_CONFIG.defaultAreas && PAGE_CONFIG.defaultAreas.length > 0) {
+        selectedAreas = PAGE_CONFIG.defaultAreas.filter(a => areas.includes(a));
+    }
+    if (checkboxList) {
+        checkboxList.querySelectorAll('input[type=checkbox]').forEach(cb => {
+            cb.checked = selectedAreas.includes(cb.value);
+        });
+    }
+    updateAreaDropdownLabel();
+}
+
+function onAreaCheckboxChange(checkbox) {
+    userTouched = true;
+    const area = checkbox.value;
+    if (checkbox.checked) { if (!selectedAreas.includes(area)) selectedAreas.push(area); }
+    else { selectedAreas = selectedAreas.filter(a => a !== area); }
+    updateAreaDropdownLabel();
+    applyFilters();
+    renderAmenityPills();
+}
+
+function renderAmenityPills(){
+    const container = document.getElementById('amenityFilterContainer');
+    if(!container.dataset.expanded) container.dataset.expanded = 'false';
+    const sortedKeys = Object.keys(amenityPriority).sort((a,b)=>amenityPriority[a]-amenityPriority[b]);
+    const isDesktop = window.innerWidth > 768;
+    const maxToShow = isDesktop ? 9 : 3;   /* mobile: 3 pills + "+x more" (+ reset) */
+    const expanded = container.dataset.expanded === 'true';
+    let keysToShow = expanded ? sortedKeys : sortedKeys.slice(0, maxToShow);
+    let hiddenCount = sortedKeys.length - maxToShow;
+    let html = keysToShow.map(key=>{
+        const a = amenityIcons[key];
+        const isSelected = selectedAmenities.includes(key);
+        return `<button type="button" class="amenity-pill ${isSelected?'selected':''}" data-value="${key}" aria-pressed="${isSelected}"><i class="${a.icon}"></i> ${a.label}</button>`;
+    }).join('');
+    if(sortedKeys.length > maxToShow) {
+        html += expanded
+            ? `<button type="button" class="amenity-pill amenity-show-more">Show less</button>`
+            : `<button type="button" class="amenity-pill amenity-show-more">+${hiddenCount} more</button>`;
+    }
+    const areaSelected = selectedAreas.length > 0;
+    const searchActive = searchQuery && searchQuery.trim().length > 0;
+    const bedroomSelected = selectedBedrooms.length > 0;
+    if(selectedAmenities.length > 0 || areaSelected || searchActive || bedroomSelected) {
+        html += `<button type="button" class="amenity-pill amenity-reset"><i class="fa-light fa-xmark"></i> Reset</button>`;
+    }
+    container.innerHTML = html;
+    container.querySelectorAll('.amenity-pill:not(.amenity-show-more):not(.amenity-reset)').forEach(pill=>{
+        pill.addEventListener('click', ()=>{
+            userTouched = true;
+            const value=pill.dataset.value;
+            if(selectedAmenities.includes(value)) selectedAmenities=selectedAmenities.filter(a=>a!==value);
+            else selectedAmenities.push(value);
+            applyFilters(); renderAmenityPills();
+        });
+    });
+    const resetBtn = container.querySelector('.amenity-reset');
+    if(resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            userTouched = true;
+            selectedAmenities=[]; selectedBedrooms=[]; searchQuery=''; selectedAreas=[];
+            priceMin = priceBoundMin; priceMax = priceBoundMax;
+            if (drMin) { drMin.value = priceToPos(priceMin); drMax.value = priceToPos(priceMax); updatePriceUi(); }
+            document.getElementById('searchInput').value='';
+            document.getElementById('areaSelect').value='all';
+            document.querySelectorAll('#bedroomCheckboxList input[type=checkbox]').forEach(cb=>cb.checked=false);
+            updateBedroomDropdownLabel();
+            document.querySelectorAll('#areaCheckboxList input[type=checkbox]').forEach(cb=>cb.checked=false);
+            updateAreaDropdownLabel();
+            applyFilters(); renderAmenityPills();
+        });
+    }
+    const showMoreBtn = container.querySelector('.amenity-show-more');
+    if(showMoreBtn) {
+        showMoreBtn.addEventListener('click', function() {
+            container.dataset.expanded = container.dataset.expanded === 'true' ? 'false' : 'true';
+            renderAmenityPills();
+        });
+    }
+}
+
+function formatPrice(weeklyPrice) {
+    if (priceMode === 'monthly') {
+        const monthly = weeklyPrice * (52 / 12);
+        const rounded = Math.round(monthly / 5) * 5;
+        return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+    return weeklyPrice.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function getPriceText() { return priceMode === 'weekly' ? 'per week' : 'per month'; }
+
+function getSizeValue(size){
+    if(typeof size === "string" && size.includes("-")) return parseInt(size.split("-")[1], 10);
+    return parseInt(size, 10);
+}
+
+function generateSchema(listing) {
+    const bedrooms = listing.bedroomType==='studio'?0:listing.bedroomType==='1bed'?1:listing.bedroomType==='2bed'?2:listing.bedroomType==='3bed'?3:listing.bedroomType==='4bed'?4:0;
+    const prettyType = bedLabelsLong[listing.bedroomType] || 'Apartment';
+    const schema = {
+        "@context":"https://schema.org","@type":"Apartment",
+        "name":`${listing.title} - ${prettyType} apartment`,
+        "description":`Luxury furnished ${prettyType.toLowerCase()} student apartment in ${PAGE_CONFIG.filter.value} with modern amenities`,
+        "numberOfRooms":bedrooms,
+        "floorSize":{"@type":"QuantitativeValue","value":listing.size,"unitCode":"MTK"},
+        "address":{"@type":"PostalAddress","addressLocality":PAGE_CONFIG.filter.value,"addressRegion":PAGE_CONFIG.schemaRegion || PAGE_CONFIG.filter.value,"addressCountry":PAGE_CONFIG.schemaCountry || 'GB'},
+        "amenityFeature":listing.amenities.map(amenity=>({
+            "@type":"LocationFeatureSpecification","name":amenityIcons[amenity]?.label||amenity
+        })).filter(a=>a.name),
+        "image":listing.imageUrl,"url":listing.url
+    };
+    if(!listing.poa && !listing.comingSoon){
+        schema.offers={"@type":"Offer","price":listing.weekly,"priceCurrency":"GBP",
+            "availability":"https://schema.org/InStock",
+            "priceSpecification":{"@type":"UnitPriceSpecification","price":listing.weekly,"priceCurrency":"GBP","unitText":"WEEK"}};
+    }
+    return schema;
+}
+
+function buildAmenityRow(listing) {
+    const sortedAmenities = [...listing.amenities].sort((a,b)=>(amenityPriority[getAmenityGroup(a)]||99)-(amenityPriority[getAmenityGroup(b)]||99));
+    const displayAmenities = [...sortedAmenities];
+    const sizeValue = getSizeValue(listing.size);
+    const bedType = listing.bedroomType;
+    if((bedType==='studio'&&sizeValue>35)||(bedType==='1bed'&&sizeValue>55)||(bedType==='2bed'&&sizeValue>90)||(bedType==='3bed'&&sizeValue>120)||(bedType==='4bed'&&sizeValue>150)){
+        displayAmenities.push('super-spacious-home');
+    } else if((bedType==='studio'&&sizeValue>30)||(bedType==='1bed'&&sizeValue>50)||(bedType==='2bed'&&sizeValue>80)||(bedType==='3bed'&&sizeValue>110)||(bedType==='4bed'&&sizeValue>140)){
+        displayAmenities.push('spacious-home');
+    }
+    return displayAmenities;
+}
+
+function buildCard(listing, idx) {
+    const eager = typeof idx === 'number' && idx < 2;
+    const displayAmenities = buildAmenityRow(listing);
+    const visibleAmenities = displayAmenities.slice(0,3);
+    const extraCount = displayAmenities.length-3;
+    const amenitiesMarkup = `<div class="amenities" data-id="${listing.id}" data-expanded="false">
+        ${visibleAmenities.map(key=>{const a=amenityIcons[key];return a?`<span class="amenity" title="${a.label}"><i class="${a.icon}"></i> ${a.label}</span>`:''}).join('')}
+        ${extraCount>0?`<button type="button" class="amenity-more">+${extraCount} more</button>`:''}
+    </div>`;
+
+    /* secondary hover-swap image only on devices that can hover */
+    const secondaryImg = SUPPORTS_HOVER && listing.imageUrl2
+      ? `<img ${imgAttrs(listing.imageUrl2)} class="secondary" alt="${escHtml(getSeoAlt(listing,true))}">`
+      : '';
+
+    const safeTitle = escHtml(listing.title);
+    const safeLocation = escHtml(listing.location);
+    const saved = shortlist.indexOf(listing.title) > -1;
+
+    return `<div class="listing-card">
+    <button type="button" class="card-heart${saved ? ' saved' : ''}" data-title="${safeTitle}" onclick="SLAF.toggleShortlist(this)" aria-pressed="${saved}" aria-label="Save ${safeTitle} to shortlist"><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.8-9.8-9C.7 9.2 2 5.6 5.4 4.8c2-.5 4.1.3 5.3 2 .3.4.9.4 1.2 0 1.2-1.7 3.3-2.5 5.3-2 3.4.8 4.7 4.4 3.2 7.2-2.3 4.2-8.4 9-8.4 9z"/></svg></button>
+    <a href="${listing.comingSoon ? '#' : listing.url}" class="listing-image" ${listing.comingSoon ? 'onclick="return false;"' : ''}>
+        <div class="badge-container">
+            ${listing.popular?'<div class="popular-badge">Guest Favourite</div>':''}
+            ${listing.refurb?'<div class="refurb-badge">Undergoing Refurb</div>':''}
+            ${listing.view?'<div class="view-badge">Viewing Advised</div>':''}
+            ${listing.minstay90?'<div class="minstay-badge">Min. stay 90 nights</div>':''}
+            ${listing.comingSoon?'<div class="comingsoon-badge">Coming Soon</div>':''}
+        </div>
+        <img ${imgAttrs(listing.imageUrl, eager)} class="primary" alt="${escHtml(getSeoAlt(listing))}">
+        ${secondaryImg}
+        <div class="listing-image-overlay">
+            <div class="listing-overlay-cta">
+                <div>
+                    <h3 class="listing-overlay-title">${safeTitle}</h3>
+                    <div class="listing-overlay-sub">${safeLocation}&nbsp;·&nbsp;${bedLabel(listing.bedroomType)}&nbsp;·&nbsp;${listing.size} sq/m</div>
+                </div>
+                ${!listing.comingSoon ? `<div class="listing-overlay-view">View <svg style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0;" viewBox="0 0 16 16"><line x1="2" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg></div>` : ''}
+            </div>
+        </div>
+    </a>
+    <div class="listing-content">
+        ${amenitiesMarkup}
+        <div class="listing-footer">
+            <div class="price-container" style="display:flex;align-items:baseline;gap:6px;flex:1;">
+                ${listing.comingSoon
+                  ? `<a href="/reservations?type=A&ref=${encodeURIComponent(listing.title)}&city=${encodeURIComponent(PAGE_CONFIG.filter.value.toLowerCase())}&apt=${encodeURIComponent(listing.bedroomType)}" class="register-interest-btn"><svg style="width:14px;height:14px;flex-shrink:0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>Register your interest</a>`
+                  : listing.poa
+                  ? `<span class="listing-price-number" style="font-size:1.4rem;font-weight:600;">Price on Enquiry</span>`
+                  : listing.refurb ? `<span class="listing-price-number" style="font-size:1.1rem;font-weight:500;color:#999;">Currently unavailable</span>` : `<span class="listing-price-text">from</span><span class="listing-price-number">${PAGE_CONFIG.currency}${formatPrice(listing.weekly)}</span><span class="listing-price-text">${getPriceText()}</span><span class="price-allinclusive">One, easy price<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><line x1="8" y1="7" x2="8" y2="11"/><circle cx="8" cy="5" r="0.5" fill="currentColor" stroke="none"/></svg><span class="price-allinclusive-tooltip">Our prices include everything, all bills, utilities, taxes, housekeeping, etc.</span></span>`}
+            </div>
+            ${!listing.comingSoon ? `<a href="${listing.url}" class="view-btn" aria-label="${safeTitle} - View Apartments">View →</a>` : ''}
+        </div>
+    </div>
+</div>`;
+}
+
+function updateResultsCount() {
+    const el = document.getElementById('resultsCount');
+    if (!el) return;
+    const total = currentListings.length;
+    if (!listings.length || total === 0) { el.textContent = ''; return; }
+    /* one line: count + area context + clear link (search bypasses areas, so hide it then) */
+    const areaClause = (PAGE_CONFIG.areaNoticeText && selectedAreas.length > 0 && !searchQuery.trim())
+        ? ` ${escHtml(PAGE_CONFIG.areaNoticeText)} - <button type="button" onclick="SLAF.clearAreas()">${escHtml(PAGE_CONFIG.areaNoticeClearText || 'clear')}</button>`
+        : '';
+    el.innerHTML = `Showing <b>${Math.min(itemsToShow, total)}</b> of <b>${total}</b> apartments${areaClause}`;
+}
+
+function bindAmenityMore(scope) {
+    (scope || document).querySelectorAll('.amenity-more').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', function toggleAmenities() {
+            const container = btn.parentElement;
+            const listingId = container.dataset.id;
+            const expanded = container.dataset.expanded === "true";
+            const listing = listings.find(l => l.id == listingId);
+            if (!listing) return;
+            const sortedAmenities = buildAmenityRow(listing);
+            let html;
+            if(expanded){
+                const vis=sortedAmenities.slice(0,3); const ec=sortedAmenities.length-3;
+                html=vis.map(key=>{const a=amenityIcons[key];return a?`<span class="amenity" title="${a.label}"><i class="${a.icon}"></i> ${a.label}</span>`:''}).join('');
+                if(ec>0) html+=`<button type="button" class="amenity-more">+${ec} more</button>`;
+                container.dataset.expanded="false";
+            } else {
+                html=sortedAmenities.map(key=>{const a=amenityIcons[key];return a?`<span class="amenity" title="${a.label}"><i class="${a.icon}"></i> ${a.label}</span>`:''}).join('');
+                container.dataset.expanded="true";
+            }
+            container.innerHTML=html;
+            bindAmenityMore(container);
+        });
+    });
+}
+
+function loadMoreMarkup() {
+    const nudge = `<p class="lm-nudge">Prefer us to do the searching? <button type="button" data-sl-open-enq>Tell us your needs, we'll send options</button></p>`;
+    return currentListings.length > itemsToShow
+        ? `<div class="load-more-container">
+            ${nudge}
+            <button class="load-more-btn" onclick="SLAF.loadMore()">Load More (${currentListings.length-itemsToShow} remaining)</button>
+            <button class="back-to-top-btn" onclick="SLAF.scrollToTop()">↑ Adjust Filters</button>
+           </div>`
+        : `<div class="load-more-container">
+            ${nudge}
+            <button class="back-to-top-btn" onclick="SLAF.scrollToTop()">↑ Adjust Filters</button>
+           </div>`;
+}
+
+function renderListings(listingsToRender){
+    const grid = document.getElementById('listingsGrid');
+    if(listingsToRender.length===0){
+        grid.innerHTML='<div class="no-results" style="grid-column:1/-1"><h3>No apartments found</h3><p>Try adjusting your filters</p></div>';
+        updateResultsCount();
+        return;
+    }
+
+    /* ONE combined ItemList schema (not per-card) keeps inline scripts to 1 */
+    const visibleListings = listingsToRender.slice(0, itemsToShow);
+    const combinedSchema = {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "itemListElement": visibleListings.map((listing, i) => ({
+        "@type": "ListItem",
+        "position": i + 1,
+        "item": generateSchema(listing)
+      }))
+    };
+    const schemaMarkup = `<script type="application/ld+json">${JSON.stringify(combinedSchema)}<\/script>`;
+
+    grid.innerHTML = schemaMarkup + visibleListings.map((l, i) => buildCard(l, i)).join('') + loadMoreMarkup();
+    updateResultsCount();
+    updateShortlistBar();
+    bindAmenityMore(grid);
+}
+
+/* Append only the new cards - keeps scroll position, expanded rows, and
+   already-decoded images intact instead of rebuilding the whole grid */
+function loadMore() {
+    const grid = document.getElementById('listingsGrid');
+    const prev = itemsToShow;
+    itemsToShow += PAGE_SIZE;
+    const newCards = currentListings.slice(prev, itemsToShow);
+    const oldFooter = grid.querySelector('.load-more-container');
+    if (oldFooter) oldFooter.remove();
+    grid.insertAdjacentHTML('beforeend', newCards.map(l => buildCard(l)).join('') + loadMoreMarkup());
+    updateResultsCount();
+    bindAmenityMore(grid);
+}
+
+function scrollToTop() { document.querySelector('.filters').scrollIntoView({behavior:'smooth',block:'start'}); }
+
+function poaPrice(l) {
+    return l.poa ? (l.bedroomType==='studio'?1000:l.bedroomType==='1bed'?1500:l.bedroomType==='2bed'?2500:l.bedroomType==='3bed'?3500:5000) : l.weekly;
+}
+
+function sortListings(sortType){
+    switch(sortType){
+        case 'quality': currentListings.sort((a,b)=>{
+            const aHigh = a.amenities.includes('ultra-high-end');
+            const bHigh = b.amenities.includes('ultra-high-end');
+            if(aHigh && !bHigh) return -1;
+            if(!aHigh && bHigh) return 1;
+            if(aHigh && bHigh) {
+                if(a.popular && !b.popular) return -1;
+                if(!a.popular && b.popular) return 1;
+            }
+            return poaPrice(a) - poaPrice(b);
+        }); break;
+        /* popular first, then stable price tiebreak (no random reshuffles) */
+        case 'popular': currentListings.sort((a,b)=>{
+            if(a.popular&&!b.popular)return -1;
+            if(!a.popular&&b.popular)return 1;
+            return poaPrice(a) - poaPrice(b);
+        }); break;
+        case 'price-low': currentListings.sort((a,b)=>poaPrice(a)-poaPrice(b)); break;
+        case 'price-high': currentListings.sort((a,b)=>poaPrice(b)-poaPrice(a)); break;
+        case 'size-small': currentListings.sort((a,b)=>getSizeValue(a.size)-getSizeValue(b.size)); break;
+        case 'size-large': currentListings.sort((a,b)=>getSizeValue(b.size)-getSizeValue(a.size)); break;
+    }
+    renderListings(currentListings);
+}
+
+function toggleBedroomDropdown() {
+    const panel = document.getElementById('bedroomDropdownPanel');
+    const chevron = document.getElementById('bedroomChevron');
+    const btn = document.getElementById('bedroomDropdownBtn');
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+    if (btn) btn.setAttribute('aria-expanded', String(!isOpen));
+}
+
+function updateBedroomDropdownLabel() {
+    const label = document.getElementById('bedroomDropdownLabel');
+    if (!label) return;
+    if (selectedBedrooms.length === 0) label.textContent = 'All Apartments';
+    else if (selectedBedrooms.length === 1) label.textContent = bedLabelsLong[selectedBedrooms[0]] || selectedBedrooms[0];
+    else label.textContent = selectedBedrooms.length + ' Types selected';
+}
+
+function onBedroomCheckboxChange() {
+    userTouched = true;
+    selectedBedrooms = [];
+    document.querySelectorAll('#bedroomCheckboxList input[type=checkbox]').forEach(cb => {
+        if (cb.checked) selectedBedrooms.push(cb.value);
+    });
+    updateBedroomDropdownLabel();
+    applyFilters();
+    renderAmenityPills();
+}
+
+function applyFilters(){
+    const searching = !!searchQuery.trim();
+    currentListings=listings.filter(listing=>{
+        if(searchQuery&&!listing.title.toLowerCase().includes(searchQuery.toLowerCase())&&!listing.location.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        if(selectedBedrooms.length > 0 && !selectedBedrooms.includes(listing.bedroomType)) return false;
+        /* explicit search wins over the area pre-filter, so a searched name or
+           area outside the defaults still returns results */
+        if(!searching && selectedAreas.length && !selectedAreas.some(area => listing.location.includes(area))) return false;
+        if((priceMin > priceBoundMin || priceMax < priceBoundMax) && (poaPrice(listing) < priceMin || poaPrice(listing) > priceMax)) return false;
+        if(selectedAmenities.length){
+            return selectedAmenities.every(sel=>listing.amenities.some(la=>getAmenityGroup(la)===sel));
+        }
+        return true;
+    });
+    itemsToShow=PAGE_SIZE;
+    writeUrlState();
+    sortListings(document.getElementById('sortSelect').value);
+}
+
+document.getElementById('sortSelect').addEventListener('change',e=>{ userTouched = true; writeUrlState(); sortListings(e.target.value); });
+
+const searchInput=document.getElementById('searchInput');
+const autocompleteDropdown=document.getElementById('autocompleteDropdown');
+let selectedSuggestionIndex=-1;
+
+function escapeRegex(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function highlightMatch(text,query){if(!query)return escHtml(text);return escHtml(text).replace(new RegExp(`(${escapeRegex(escHtml(query))})`,'gi'),'<mark>$1</mark>');}
+
+function showAutocompleteSuggestions(query){
+    if(!query||query.length<2){autocompleteDropdown.classList.remove('show');searchInput.setAttribute('aria-expanded','false');return;}
+    const lowerQuery=query.toLowerCase();
+    const titleMatches=[];const areaMatches=new Set();
+    listings.forEach(listing=>{
+        if(listing.title.toLowerCase().includes(lowerQuery)) titleMatches.push(listing.title);
+        listing.location.split(',').map(p=>p.trim()).forEach(p=>{if(p.toLowerCase().includes(lowerQuery))areaMatches.add(p);});
+    });
+    const uniqueTitles=[...new Set(titleMatches)];const uniqueAreas=[...areaMatches];
+    let html='';
+    if(uniqueTitles.length>0){html+='<div class="autocomplete-category">Apartments</div>';uniqueTitles.slice(0,5).forEach(title=>{html+=`<div class="autocomplete-item title" role="option" data-value="${escHtml(title)}" data-type="title">${highlightMatch(title,query)}</div>`;});}
+    if(uniqueAreas.length>0){html+='<div class="autocomplete-category">Areas</div>';uniqueAreas.slice(0,5).forEach(area=>{html+=`<div class="autocomplete-item area" role="option" data-value="${escHtml(area)}" data-type="area">${highlightMatch(area,query)}</div>`;});}
+    if(html==='') html='<div class="autocomplete-no-results">No matches found</div>';
+    autocompleteDropdown.innerHTML=html;autocompleteDropdown.classList.add('show');searchInput.setAttribute('aria-expanded','true');selectedSuggestionIndex=-1;
+    autocompleteDropdown.querySelectorAll('.autocomplete-item').forEach(item=>{
+        item.addEventListener('click',()=>{
+            userTouched=true;
+            if(item.dataset.type==='area'){
+                /* picking an area ticks it in the Area dropdown instead of
+                   fighting the pre-filter via free-text search */
+                const area=item.dataset.value;
+                if(!selectedAreas.includes(area)) selectedAreas.push(area);
+                document.querySelectorAll('#areaCheckboxList input[type=checkbox]').forEach(cb=>{if(cb.value===area)cb.checked=true;});
+                updateAreaDropdownLabel();
+                searchInput.value=''; searchQuery='';
+            } else {
+                searchInput.value=item.dataset.value; searchQuery=item.dataset.value;
+            }
+            autocompleteDropdown.classList.remove('show');searchInput.setAttribute('aria-expanded','false');
+            applyFilters();renderAmenityPills();
+        });
+    });
+}
+
+searchInput.addEventListener('input',(e)=>{userTouched=true;searchQuery=e.target.value;showAutocompleteSuggestions(searchQuery);applyFilters();renderAmenityPills();});
+searchInput.addEventListener('keydown',(e)=>{
+    const items=autocompleteDropdown.querySelectorAll('.autocomplete-item');
+    if(e.key==='ArrowDown'){e.preventDefault();selectedSuggestionIndex=Math.min(selectedSuggestionIndex+1,items.length-1);updateSelectedSuggestion(items);}
+    else if(e.key==='ArrowUp'){e.preventDefault();selectedSuggestionIndex=Math.max(selectedSuggestionIndex-1,-1);updateSelectedSuggestion(items);}
+    else if(e.key==='Enter'&&selectedSuggestionIndex>=0){e.preventDefault();items[selectedSuggestionIndex].click();}
+    else if(e.key==='Escape'){autocompleteDropdown.classList.remove('show');searchInput.setAttribute('aria-expanded','false');selectedSuggestionIndex=-1;}
+});
+function updateSelectedSuggestion(items){items.forEach((item,index)=>{if(index===selectedSuggestionIndex){item.classList.add('active');item.scrollIntoView({block:'nearest'});}else{item.classList.remove('active');}});}
+searchInput.addEventListener('focus',()=>{if(searchInput.value.length>=2)showAutocompleteSuggestions(searchInput.value);});
+
+/* one global outside-click closer for autocomplete + both dropdown panels */
+document.addEventListener('click',(e)=>{
+    if(!searchInput.contains(e.target)&&!autocompleteDropdown.contains(e.target)){
+        autocompleteDropdown.classList.remove('show');searchInput.setAttribute('aria-expanded','false');selectedSuggestionIndex=-1;
+    }
+    [['areaDropdownWrapper','areaDropdownPanel','areaChevron','areaDropdownBtn'],
+     ['bedroomDropdownWrapper','bedroomDropdownPanel','bedroomChevron','bedroomDropdownBtn'],
+     ['priceDropdownWrapper','priceDropdownPanel','priceChevron','priceDropdownBtn']].forEach(function(ids){
+        const wrapper=document.getElementById(ids[0]);
+        if(wrapper&&!wrapper.contains(e.target)){
+            const panel=document.getElementById(ids[1]);
+            const chevron=document.getElementById(ids[2]);
+            const btn=document.getElementById(ids[3]);
+            if(panel)panel.style.display='none';
+            if(chevron)chevron.style.transform='';
+            if(btn)btn.setAttribute('aria-expanded','false');
+        }
+    });
+});
+
+const priceSeg = document.getElementById('priceSeg');
+function setPriceMode(newMode){
+    if(newMode===priceMode)return;
+    priceMode=newMode;
+    if(priceSeg) priceSeg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.mode===priceMode));
+    updatePriceUi();
+    renderListings(currentListings);
+}
+if(priceSeg){
+    priceSeg.addEventListener('click',(e)=>{
+        const b=e.target.closest('button[data-mode]');
+        if(b) setPriceMode(b.dataset.mode);
+    });
+}
+
+function togglePriceDropdown(){
+    const panel=document.getElementById('priceDropdownPanel');
+    const chevron=document.getElementById('priceChevron');
+    const btn=document.getElementById('priceDropdownBtn');
+    const isOpen=panel.style.display!=='none';
+    panel.style.display=isOpen?'none':'block';
+    if(chevron)chevron.style.transform=isOpen?'':'rotate(180deg)';
+    if(btn)btn.setAttribute('aria-expanded',String(!isOpen));
+}
+
+let resizeTimer;
+window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{renderAmenityPills();},250);});
+
+/* deferred load: fetch when the grid nears the viewport (or after 3s max).
+   NOTE: this section starts display:none, so the observer cannot fire until
+   it is revealed - the 3s fallback below does the real work and the data is
+   ready by the time anyone clicks "View apartments near Marangoni". */
+(function bootLoad() {
+  var grid = document.getElementById('listingsGrid');
+  if (!grid) { loadListings(); return; }
+
+  var params = new URLSearchParams(window.location.search);
+  if (params.has('type') || params.has('amenity') || params.has('area') || params.has('q') || params.has('sort')) {
+    loadListings();
+    return;
+  }
+
+  if (window.innerWidth <= 480 && grid.getBoundingClientRect().top < window.innerHeight * 2) {
+    loadListings();
+    return;
+  }
+
+  if (!('IntersectionObserver' in window)) {
+    loadListings();
+    return;
+  }
+
+  var loaded = false;
+  var observer = new IntersectionObserver(function(entries) {
+    if (entries[0].isIntersecting && !loaded) {
+      loaded = true;
+      observer.disconnect();
+      loadListings();
+    }
+  }, { rootMargin: '600px 0px', threshold: 0.01 });
+
+  observer.observe(grid);
+
+  setTimeout(function() {
+    if (!loaded) {
+      loaded = true;
+      observer.disconnect();
+      loadListings();
+    }
+  }, 3000);
+})();
+
+if (PAGE_CONFIG.defaultPriceMode === 'monthly') {
+    priceMode = 'weekly';   /* so setPriceMode('monthly') applies the switch */
+    setPriceMode('monthly');
+}
+
+/* only these are reachable from inline onclick attributes */
+return {
+    toggleBedroomDropdown: toggleBedroomDropdown,
+    onBedroomCheckboxChange: onBedroomCheckboxChange,
+    toggleAreaDropdown: toggleAreaDropdown,
+    onAreaCheckboxChange: onAreaCheckboxChange,
+    loadMore: loadMore,
+    scrollToTop: scrollToTop,
+    retryLoad: retryLoad,
+    clearAreas: clearAreas,
+    toggleShortlist: toggleShortlist,
+    clearShortlist: clearShortlist,
+    togglePriceDropdown: togglePriceDropdown,
+};
+})();
+</script>
