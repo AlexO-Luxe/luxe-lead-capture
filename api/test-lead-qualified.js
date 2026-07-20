@@ -17,7 +17,7 @@
 //   &qualifiedAt=2026-06-26T14:32:00Z   default: the item's updated_at
 
 const { renderLeadQualified } = require('./_lead-qualified-email');
-const { fetchItem, fetchLatestQualified, fetchItemActivity, fetchTimeline, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
+const { fetchItem, fetchLatestQualified, fetchItemActivity, fetchTimeline, buildTimeline, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
 
 module.exports = async function handler(req, res) {
   try {
@@ -49,6 +49,21 @@ module.exports = async function handler(req, res) {
         eventCount: events.length,
         events: events.map(e => ({ event: e.event, columnId: e.columnId, label: e.label, at: e.createdAt }))
       }, null, 2));
+    }
+
+    // Debug: show exactly what the timeline fetch returns (event count + built rows).
+    if (q.debug === 'timeline') {
+      const result = { itemId: item.id, created_at: item.created_at };
+      try {
+        const events = await fetchItemActivity(item.id, item.created_at);
+        result.eventCount = events.length;
+        result.labelled = events.filter(e => e.label).map(e => ({ columnId: e.columnId, label: e.label, at: e.createdAt }));
+        result.timeline = buildTimeline(events, item.created_at);
+      } catch (e) {
+        result.error = String(e && e.message);
+      }
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).send(JSON.stringify(result, null, 2));
     }
 
     const lead = mapItemToLead(item, { by: q.by, qualifiedAt: q.qualifiedAt, createdAt: q.createdAt });
