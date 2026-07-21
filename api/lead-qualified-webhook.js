@@ -51,7 +51,8 @@ module.exports = async function handler(req, res) {
 
     // If the payload tells us the new status, make sure it is Qualified.
     const newLabel = (event.value && (event.value.label?.text || event.value.label)) || '';
-    if (newLabel && !/qualif/i.test(String(newLabel))) {
+    // Anchored: "Qualified Lead" passes, "Unqualified Lead" must not.
+    if (newLabel && !/^\s*qualif/i.test(String(newLabel))) {
       return res.status(200).json({ ignored: `status is "${newLabel}", not Qualified` });
     }
 
