@@ -14,7 +14,7 @@
 // Recipients: LEAD_QUALIFIED_TO (comma-separated). Falls back to alex@studentluxe.co.uk.
 
 const { renderLeadQualified } = require('./_lead-qualified-email');
-const { fetchItem, resolveUserName, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
+const { fetchItem, fetchTimeline, resolveUserName, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
 
 function recipients() {
   return (process.env.LEAD_QUALIFIED_TO || 'alex@studentluxe.co.uk, sam@studentluxe.co.uk, josh@studentluxe.co.uk')
