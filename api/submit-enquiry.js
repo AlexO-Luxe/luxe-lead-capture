@@ -1618,7 +1618,10 @@ function formatAptType(t) {
   if (!t) return '';
   const map = {'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom','3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible',
     // Partner portals ask for a living category rather than a unit size.
-    'shared':'Shared student living','private':'Private rooms & studios','serviced':'Luxury serviced apartments'};
+    'shared':'Shared student living','private':'Private rooms & studios','serviced':'Luxury serviced apartments',
+    // Guest picked "Not sure yet" on the Marangoni modal, i.e. they want a
+    // recommendation rather than a category.
+    'unsure':'Not sure yet'};
   return map[t] || t;
 }
 // Area selects post slugs ('city-clerkenwell'), so anything guest-facing needs
@@ -1642,7 +1645,10 @@ function formatBudget(b, p) {
     // the guest actually sees (value "350-500" is shown as "£350 – £650"), so
     // these map to the shown label, not the value. '350-650'/'650-1000' are
     // here too so nothing breaks if the form values are ever corrected.
-    '350-500':'£350 – £650','350-650':'£350 – £650','500-1000':'£650 – £1,000','1000-plus':'£1,000+'};
+    '350-500':'£350 – £650','350-650':'£350 – £650','500-1000':'£650 – £1,000','1000-plus':'£1,000+',
+    // Paired with apartment_type 'unsure'; without this the generic parser
+    // below would mangle it.
+    'unsure':'Not sure yet'};
   if (map[b]) return map[b];
 
   // Anything not spelled out above is parsed generically rather than dumped
