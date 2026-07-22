@@ -1246,6 +1246,24 @@ function partnerPortal(p) {
   return PARTNER_PORTALS[(p.enquiry_source || '').trim()] || null;
 }
 
+// Auto-assignment by accommodation type, per partner portal. PBSA and
+// undecided enquiries need someone who works the provider relationships
+// rather than our own stock, so they route to a named owner instead of
+// sitting unassigned in the queue.
+const PARTNER_ROUTING = {
+  'istituto-marangoni-landing': {
+    aptTypes:   ['shared', 'unsure'],
+    assigneeId: 74955583,              // Paige Grinter
+  },
+};
+
+// Returns a Monday user id, or null when the enquiry is not covered by a rule.
+function routedAssigneeId(p) {
+  const rule = PARTNER_ROUTING[(p.enquiry_source || '').trim()];
+  if (!rule) return null;
+  return rule.aptTypes.includes((p.apartment_type || '').trim()) ? rule.assigneeId : null;
+}
+
 function computeLeadSource(p) {
   // Partnership portals (co-branded pages hosted for a partner institution)
   // are always credited to the partner, never to the ad or search that first
@@ -1466,6 +1484,11 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text_mm4n9t2x: p.wbraid     || '',                                                       // wbraid
     text_mm4n9415: p.session_id || '',                                                       // session_id
     ...(duplicateOf && { color_mknqvzde: { label: 'Possible Duplicate' } }),
+    // Type-based routing first, so the duplicate's existing owner below can
+    // override it. A returning guest stays with whoever already knows them.
+    ...(routedAssigneeId(p) && {
+      people_1: { personsAndTeams: [{ id: routedAssigneeId(p), kind: 'person' }] }
+    }),
     ...(duplicateOf?.assigneeIds?.length > 0 && {
       people_1: { personsAndTeams: duplicateOf.assigneeIds.map(id => ({ id, kind: 'person' })) }
     }),
