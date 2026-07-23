@@ -21,6 +21,16 @@ function recipients() {
     .split(',').map(s => s.trim()).filter(Boolean);
 }
 
+// Names whose qualifications should NOT trigger an email (e.g. CRM testers).
+// Comma-separated, configurable via LEAD_QUALIFIED_SUPPRESS.
+function isSuppressed(name) {
+  if (!name) return false;
+  const norm = s => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+  const list = (process.env.LEAD_QUALIFIED_SUPPRESS || 'Dana W Danan')
+    .split(',').map(norm).filter(Boolean);
+  return list.includes(norm(name));
+}
+
 const { logError } = require('./_errlog.js');
 
 module.exports = async function handler(req, res) {
@@ -56,12 +66,18 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ignored: `status is "${newLabel}", not Qualified` });
     }
 
+    // Skip qualifications made by CRM testers (e.g. Dana W Danan).
+    const by = await resolveUserName(event.userId);
+    if (isSuppressed(by)) {
+      console.log(`Suppressed qualified-lead email for item ${pulseId}: qualified by ${by}`);
+      return res.status(200).json({ ignored: `qualified by suppressed user "${by}"` });
+    }
+
     const item = await fetchItem(pulseId);
     if (!item) {
       return res.status(200).json({ ignored: `item ${pulseId} not found` });
     }
 
-    const by = await resolveUserName(event.userId);
     const lead = mapItemToLead(item, {
       by:          by || undefined,             // who changed the status
       qualifiedAt: event.triggerTime || undefined
