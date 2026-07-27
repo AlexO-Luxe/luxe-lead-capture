@@ -2,6 +2,10 @@
   "version": 2,
   "crons": [
     {
+      "path": "/api/lead-qualified-flush",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/weekly-summary",
       "schedule": "0 9 * * 5"
     },
