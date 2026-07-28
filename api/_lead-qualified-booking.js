@@ -49,9 +49,14 @@ const BOOKING_COLS = [
 
 // Formula and board-relation columns only expose their value through the typed
 // fragments, never through `text`. Mirror columns likewise (see CLAUDE.md).
+//
+// Every column is fetched, not just BOOKING_COLS: Monday silently returns
+// nothing for an id that does not exist on the board, so a single wrong or
+// renamed id would show as a permanently blank field with no error. Reading
+// the lot lets the apartment be resolved by column title as well as by id.
 const FRAG = `id name url
-  column_values(ids: ${JSON.stringify(BOOKING_COLS)}) {
-    id text
+  column_values {
+    id text type
     ... on MirrorValue        { display_value }
     ... on BoardRelationValue { display_value linked_item_ids }
     ... on FormulaValue       { display_value }
@@ -104,6 +109,61 @@ async function findByRecentScan (leadId) {
   return items.filter(it => linkedLeadIds(it).includes(String(leadId)));
 }
 
+// Column titles for the board, so a field can be found by what it is called
+// when its id does not match. Cached for the life of the function instance.
+let _titles = null;
+async function columnTitles () {
+  if (_titles) return _titles;
+  try {
+    const data = await mondayQuery(`query {
+      boards(ids: ${BOOKINGS_BOARD}) { columns { id title type } }
+    }`);
+    const cols = data?.data?.boards?.[0]?.columns || [];
+    _titles = Object.fromEntries(cols.map(c => [c.id, { title: c.title || '', type: c.type || '' }]));
+  } catch (err) {
+    console.warn('columnTitles failed:', err.message);
+    _titles = {};
+  }
+  return _titles;
+}
+
+// Value of a column whatever its type: relation and formula and mirror columns
+// answer on display_value, status on label, the rest on text.
+function valueOf (c) {
+  if (!c) return '';
+  return String(c.display_value || c.label || c.text || '').trim();
+}
+
+// Apartment Agreed, by id first and by column title second. connect_boards25
+// is what Alex gave us, but a wrong or renamed id would otherwise render as a
+// permanently empty field, so fall back to the column actually called
+// "Apartment Agreed", then to any apartment column carrying a value.
+function resolveApartment (cv, titles) {
+  const byId = valueOf(cv.connect_boards25);
+  if (byId) return byId;
+
+  const named = Object.keys(cv).filter(id => {
+    const t = (titles[id]?.title || '').toLowerCase();
+    return t === 'apartment agreed' || t === 'apartment';
+  });
+  for (const id of named) {
+    const v = valueOf(cv[id]);
+    if (v) return v;
+  }
+
+  // Last resort: any column whose title mentions an apartment and holds a
+  // value. Ordered so a board relation (the apartment itself) beats a plain
+  // text or dropdown field like "Apartment Type".
+  const loose = Object.keys(cv)
+    .filter(id => /apartment|apt/i.test(titles[id]?.title || ''))
+    .sort((a, b) => (titles[b]?.type === 'board_relation' ? 1 : 0) - (titles[a]?.type === 'board_relation' ? 1 : 0));
+  for (const id of loose) {
+    const v = valueOf(cv[id]);
+    if (v) return v;
+  }
+  return '';
+}
+
 function linkedLeadIds (item) {
   const c = (item.column_values || []).find(cv => cv.id === 'link_to_leads26');
   return ((c && c.linked_item_ids) || []).map(String);
@@ -132,10 +192,10 @@ async function fetchBookingForLead (leadId) {
   // More than one booking on the same lead (extension, rebooking): the most
   // recently touched row is the one the salesperson just filled in.
   const item = items[items.length - 1];
-  return mapBooking(item);
+  return mapBooking(item, await columnTitles());
 }
 
-function mapBooking (item) {
+function mapBooking (item, titles = {}) {
   const cv = {};
   (item.column_values || []).forEach(c => { cv[c.id] = c; });
 
@@ -146,7 +206,7 @@ function mapBooking (item) {
   const checkOut  = txt(cv.date_1);
   const nights    = daysBetween(checkIn, checkOut);
   const rate      = txt(cv.numbers80) ? numOf(txt(cv.numbers80)) : null;
-  const apartment = disp(cv.connect_boards25) || txt(cv.connect_boards25);
+  const apartment = resolveApartment(cv, titles);
 
   const commission = resolveCommission(cv);
 
@@ -183,4 +243,55 @@ function resolveCommission (cv) {
   return { value: null, estimated: false };
 }
 
-module.exports = { BOOKINGS_BOARD, BOOKING_COLS, fetchBookingForLead, mapBooking, resolveCommission };
+// Diagnostic for /api/test-lead-qualified?debug=booking&itemId=<leadId>.
+// Dumps how the booking row was found, every column on it that holds a value
+// (id, title, type, value), and what the email would render. Use it to confirm
+// a column id rather than guessing at one.
+async function debugBookingForLead (leadId) {
+  const out = { leadId: String(leadId), foundVia: null, rule: null, scan: null };
+
+  try {
+    const viaRule = await findByRelationRule(leadId);
+    out.rule = { ok: true, matches: viaRule.length };
+    if (viaRule.length) out.foundVia = 'relation-rule';
+  } catch (err) {
+    out.rule = { ok: false, error: err.message };
+  }
+
+  let items = out.foundVia ? await findByRelationRule(leadId) : [];
+  if (!items.length) {
+    try {
+      items = await findByRecentScan(leadId);
+      out.scan = { ok: true, matches: items.length };
+      if (items.length) out.foundVia = 'recent-scan';
+    } catch (err) {
+      out.scan = { ok: false, error: err.message };
+    }
+  }
+
+  if (!items.length) {
+    out.booking = null;
+    out.note = 'No booking row on board ' + BOOKINGS_BOARD + ' links to this lead via link_to_leads26.';
+    return out;
+  }
+
+  const item   = items[items.length - 1];
+  const titles = await columnTitles();
+  out.item = { id: String(item.id), name: item.name };
+  out.columnsWithValues = (item.column_values || [])
+    .map(c => ({ id: c.id, title: titles[c.id]?.title || '', type: c.type || titles[c.id]?.type || '', value: valueOf(c) }))
+    .filter(c => c.value !== '');
+  out.rendered = mapBooking(item, titles);
+  return out;
+}
+
+module.exports = {
+  BOOKINGS_BOARD,
+  BOOKING_COLS,
+  fetchBookingForLead,
+  debugBookingForLead,
+  mapBooking,
+  resolveApartment,
+  resolveCommission,
+  columnTitles
+};

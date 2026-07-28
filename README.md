@@ -310,6 +310,8 @@ KV keys: `leadq:pending` (sorted set, score = due ms), `leadq:meta:<id>`, `leadq
 At send time the email also pulls the lead's row on the Booking Flow board (Bookings, `2171015589`) and renders apartment agreed, check-in, nights, agreed nightly rate and total Luxe commission. This is what the delay buys: those fields are filled in the minutes after qualification.
 
 - The relation lives on the Bookings side (`link_to_leads26`), so the lookup is a reverse one: an `any_of` rule on that column, falling back to a scan of the 100 most recently updated bookings if the rule query fails or finds nothing.
+- The booking row is read with **all** its columns, not a fixed id list: Monday returns nothing for an id that does not exist on a board, so one wrong id would show as a permanently blank field with no error anywhere. Apartment Agreed resolves by id (`connect_boards25`), then by the column titled "Apartment Agreed", then by any apartment column holding a value.
+- Diagnostic: `GET /api/test-lead-qualified?debug=booking&itemId=<leadId>` (plus `&key=` if `TEST_ENDPOINT_KEY` is set) returns how the booking was found, every populated column with its id, title and type, and the block as it would render.
 - No booking row yet, the whole block is omitted. Row exists but half filled, the missing fields read "Not set yet".
 - Nights are derived from check-in to check-out (`date_1`), there is no nights column on the board.
 - Commission resolution order: `formula2` if Monday ever returns a value for it, then `numeric_mm1ge9h4` (Rev to Google), then a recompute from the base columns, shown with an `est.` tag. See `api/_booking-value.js`, shared with `/api/sync-booking-values`.
