@@ -5,6 +5,9 @@
 // api/lead-qualified-webhook.js (the live Monday automation), so the two
 // can never drift. Edit the column mapping here, once.
 
+const { renderLeadQualified }   = require('./_lead-qualified-email');
+const { fetchBookingForLead }   = require('./_lead-qualified-booking');
+
 const MONDAY_API  = 'https://api.monday.com/v2';
 const RESEND_API  = 'https://api.resend.com/emails';
 const LEADS_BOARD = 2171015719;
@@ -284,8 +287,53 @@ async function sendEmail({ to, subject, html, testPrefix = false }) {
   return r.json();
 }
 
+// ---- send -----------------------------------------------------------------
+
+// Anchored so "Qualified Lead" passes and "Unqualified Lead" does not.
+const RE_QUALIFIED = /^\s*qualif/i;
+
+// Build and send the Lead Qualified email from the item's CURRENT state.
+// Called by the flush cron (after the delay) and by the webhook when the delay
+// is switched off. Re-reads Monday every time, which is the whole point of the
+// delay: whatever the salesperson added since qualifying is picked up here.
+// Returns { sent, reason } instead of throwing on a "do not send" outcome.
+async function sendQualifiedEmail ({ pulseId, by, qualifiedAt, to, testPrefix = false }) {
+  const item = await fetchItem(pulseId);
+  if (!item) return { sent: false, reason: `item ${pulseId} not found` };
+
+  // The lead can be moved back out of Qualified during the delay window.
+  // Better to drop the email than to announce a lead that is no longer live.
+  const status = colText(item, 'status');
+  if (status && !RE_QUALIFIED.test(status)) {
+    return { sent: false, reason: `status is now "${status}", not Qualified` };
+  }
+
+  const lead = mapItemToLead(item, {
+    by:          by || undefined,
+    qualifiedAt: qualifiedAt || undefined
+  });
+  lead.timeline = await fetchTimeline(item.id, item.created_at);
+
+  // What the salesperson agreed in the minutes after qualifying: apartment,
+  // check-in, nights, nightly rate, commission. Null until they start a
+  // booking row, in which case the email simply omits the block.
+  try {
+    lead.booking = await fetchBookingForLead(item.id);
+  } catch (e) {
+    console.warn('fetchBookingForLead failed:', e.message);
+    lead.booking = null;
+  }
+
+  const { subject, html } = renderLeadQualified(lead);
+  const res = await sendEmail({ to, subject, html, testPrefix });
+  return { sent: true, resendId: res.id || null, subject };
+}
+
 module.exports = {
   LEADS_BOARD,
+  RE_QUALIFIED,
+  colText,
+  sendQualifiedEmail,
   fetchItem,
   fetchLatestQualified,
   fetchItemActivity,

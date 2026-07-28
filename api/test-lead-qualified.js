@@ -15,9 +15,16 @@
 // Optional overrides (the live webhook supplies these from the trigger):
 //   &by=Sofia%20Marchetti               who qualified it (default: the assignee)
 //   &qualifiedAt=2026-06-26T14:32:00Z   default: the item's updated_at
+//
+// Debug modes:
+//   &debug=activity   raw Monday activity log for the item
+//   &debug=timeline   activity events + the built stage timeline
+//   &debug=booking    the linked Booking Flow row, its populated columns
+//                     with titles and types, and the rendered Booking Agreed block
 
 const { renderLeadQualified } = require('./_lead-qualified-email');
 const { fetchItem, fetchLatestQualified, fetchItemActivity, fetchTimeline, buildTimeline, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
+const { debugBookingForLead, fetchBookingForLead } = require('./_lead-qualified-booking');
 
 module.exports = async function handler(req, res) {
   try {
@@ -66,8 +73,21 @@ module.exports = async function handler(req, res) {
       return res.status(200).send(JSON.stringify(result, null, 2));
     }
 
+    // Debug: dump the linked Booking Flow row, every column on it that holds a
+    // value, and what the Booking Agreed block would render. Use this to
+    // confirm a column id instead of guessing at one.
+    if (q.debug === 'booking') {
+      const result = await debugBookingForLead(item.id);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).send(JSON.stringify(result, null, 2));
+    }
+
     const lead = mapItemToLead(item, { by: q.by, qualifiedAt: q.qualifiedAt, createdAt: q.createdAt });
     lead.timeline = await fetchTimeline(item.id, item.created_at);
+    lead.booking  = await fetchBookingForLead(item.id).catch(e => {
+      console.warn('fetchBookingForLead failed:', e.message);
+      return null;
+    });
     const { subject, html } = renderLeadQualified(lead);
 
     let sent = null;

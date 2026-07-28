@@ -1,8 +1,15 @@
 // lead-qualified-webhook.js
 //
 // LIVE endpoint. Monday calls this when a lead's status changes to Qualified.
-// It builds the redesigned "Lead Qualified" email from the item's real data and
-// sends it to senior staff via Resend. Replaces the old Monday email automation.
+//
+// It does NOT send the email straight away. The salesperson keeps adding data
+// for 5 to 15 minutes after they flip the status (apartment chosen, nightly
+// rate agreed, notes), so the lead is parked in a Redis delay queue and
+// /api/lead-qualified-flush sends it LEAD_QUALIFIED_DELAY_MINUTES later,
+// re-reading Monday at that point so the email carries the full picture.
+//
+// Set LEAD_QUALIFIED_DELAY_MINUTES=0 to restore instant sending.
+// POST with ?now=1 also bypasses the delay (useful for testing).
 //
 // Setup (see also the README):
 //   1. Deploy, set MONDAY_API_KEY, RESEND_API_KEY, LEAD_QUALIFIED_TO in Vercel.
@@ -13,8 +20,8 @@
 //
 // Recipients: LEAD_QUALIFIED_TO (comma-separated). Falls back to alex@studentluxe.co.uk.
 
-const { renderLeadQualified } = require('./_lead-qualified-email');
-const { fetchItem, fetchTimeline, resolveUserName, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
+const { resolveUserName, sendQualifiedEmail } = require('./_lead-qualified-data');
+const { enqueueLead, claimSend, releaseSend, delayMinutes } = require('./_lead-qualified-queue');
 
 function recipients() {
   return (process.env.LEAD_QUALIFIED_TO || 'alex@studentluxe.co.uk, sam@studentluxe.co.uk, josh@studentluxe.co.uk')
@@ -73,22 +80,46 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ignored: `qualified by suppressed user "${by}"` });
     }
 
-    const item = await fetchItem(pulseId);
-    if (!item) {
-      return res.status(200).json({ ignored: `item ${pulseId} not found` });
+    const qualifiedAt = event.triggerTime || new Date().toISOString();
+    const immediate   = String(req.query?.now || '') === '1' || delayMinutes() === 0;
+
+    // ── DELAYED PATH (default) ────────────────────────────────
+    if (!immediate) {
+      const q = await enqueueLead({ pulseId, by, qualifiedAt });
+      if (q.queued) {
+        console.log(`Lead ${pulseId} queued for Lead Qualified email at ${new Date(q.dueAt).toISOString()}` +
+                    (q.alreadyQueued ? ' (already queued, kept the earlier due time)' : ''));
+        return res.status(200).json({
+          ok: true, queued: true, itemId: String(pulseId),
+          dueAt: new Date(q.dueAt).toISOString(), alreadyQueued: !!q.alreadyQueued
+        });
+      }
+      // Redis is down. Never lose the email: fall through and send now.
+      console.warn(`Queue unavailable for item ${pulseId} (${q.reason}), sending immediately`);
     }
 
-    const lead = mapItemToLead(item, {
-      by:          by || undefined,             // who changed the status
-      qualifiedAt: event.triggerTime || undefined
-    });
-    lead.timeline = await fetchTimeline(item.id, item.created_at);
+    // ── IMMEDIATE PATH ────────────────────────────────────────
+    // Claim first so the flush cron cannot also send this one.
+    const claimed = await claimSend(pulseId);
+    if (!claimed) {
+      return res.status(200).json({ ok: true, itemId: String(pulseId), ignored: 'already sent recently' });
+    }
 
-    const { subject, html } = renderLeadQualified(lead);
-    const sent = await sendEmail({ to: recipients(), subject, html });
+    let result;
+    try {
+      result = await sendQualifiedEmail({ pulseId, by, qualifiedAt, to: recipients() });
+    } catch (sendErr) {
+      await releaseSend(pulseId);   // let a retry through
+      throw sendErr;
+    }
+
+    if (!result.sent) {
+      await releaseSend(pulseId);
+      return res.status(200).json({ ok: true, itemId: String(pulseId), ignored: result.reason });
+    }
 
     console.log(`Lead Qualified email sent for item ${pulseId} to ${recipients().join(', ')}`);
-    return res.status(200).json({ ok: true, itemId: String(pulseId), resendId: sent.id || null });
+    return res.status(200).json({ ok: true, itemId: String(pulseId), resendId: result.resendId });
 
   } catch (err) {
     console.error('lead-qualified-webhook error:', err);

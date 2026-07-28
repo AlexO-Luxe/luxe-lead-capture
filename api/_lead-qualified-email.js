@@ -70,6 +70,10 @@ function gbp(n) {
  *   teamAvgCooking ("3d 14h")
  *   visitedPaths: string[]            (the Leads board "visited paths" column, in order)
  *   notes: [{ author, at, text, kind }]   kind: 'open' | 'mid' | 'qualified'
+ *   booking: {                          Booking Flow board row, null if none yet
+ *     apartment, checkIn, checkOut, nights, nightlyRate,
+ *     commission, commissionEstimated, status, url
+ *   }
  *   nextAction, nextActionDue
  *   mondayUrl, whatsappUrl
  */
@@ -126,6 +130,42 @@ function renderLeadQualified(lead) {
             <td style="padding-left:9px;"><p style="margin:0;font-size:12px;color:#3a3a3a;"><span style="color:${BRAND.muted};">${escHtml(r.label)}</span>&nbsp;&nbsp;${fmtDateTime(r.at)}</p></td>
           </tr></table>${connector}`;
   }).join('');
+
+  // Booking Flow board detail, present once the salesperson has started the
+  // booking row (usually within minutes of qualifying, which is why this email
+  // is held back before sending). Omitted entirely when there is no row yet.
+  const bk = lead.booking || null;
+  const pend = v => (v === null || v === undefined || v === '')
+    ? `<span style="color:${BRAND.muted};font-weight:400;">Not set yet</span>` : null;
+  const bkCell = (label, valueHtml, opts = {}) => `
+        <td width="${opts.width || '50%'}"${opts.colspan ? ` colspan="${opts.colspan}"` : ''} style="padding:11px 16px;${opts.last ? '' : 'border-bottom:0.5px solid #f0ece3;'}${opts.noRight ? '' : 'border-right:0.5px solid #f0ece3;'}">
+          <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">${label}</p>
+          <p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${valueHtml}</p>
+        </td>`;
+  const bookingHtml = bk ? `
+  <tr><td style="background:#ffffff;padding:24px 32px 0;" class="le-pad">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;"><tr>
+      <td><p style="margin:0;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND.gold};">Booking Agreed</p></td>
+      <td style="text-align:right;"><p style="margin:0;font-size:10px;color:${BRAND.muted};">Booking Flow board${bk.status ? ` &middot; ${escHtml(bk.status)}` : ''}</p></td>
+    </tr></table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #ede9e3;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
+      <tr>${bkCell('Apartment agreed', pend(bk.apartment) || escHtml(bk.apartment), { width: '100%', colspan: 2, noRight: true })}</tr>
+      <tr>
+        ${bkCell('Check-in', pend(bk.checkIn) || fmtDate(bk.checkIn))}
+        ${bkCell('Number of nights', pend(bk.nights) || `${escHtml(bk.nights)} nights`, { noRight: true })}
+      </tr>
+      <tr>
+        ${bkCell('Agreed nightly rate', pend(bk.nightlyRate) || `${gbp(bk.nightlyRate)}/night`, { last: true })}
+        <td style="padding:11px 16px;background:#fbf7f1;">
+          <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Total Luxe commission</p>
+          <p style="margin:0;font-size:15px;color:${BRAND.ink};font-weight:700;">${pend(bk.commission) || gbp(bk.commission)}${
+            bk.commission !== null && bk.commission !== undefined && bk.commission !== '' && bk.commissionEstimated
+              ? ` <span style="font-size:10px;color:${BRAND.muted};font-weight:400;">est.</span>` : ''}</p>
+        </td>
+      </tr>
+    </table>
+    ${bk.url ? `<p style="margin:7px 0 0;font-size:11px;color:${BRAND.muted};"><a href="${escHtml(bk.url)}" style="color:${BRAND.gold};text-decoration:none;">Open the booking row &rarr;</a></p>` : ''}
+  </td></tr>` : '';
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -212,6 +252,9 @@ function renderLeadQualified(lead) {
       </td>
     </tr></table>
   </td></tr>
+
+  <!-- BOOKING AGREED (booking flow board, when a row exists) -->
+  ${bookingHtml}
 
   <!-- STAY DETAILS -->
   <tr><td style="background:#ffffff;padding:22px 32px 0;" class="le-pad">
