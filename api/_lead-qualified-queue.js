@@ -32,10 +32,11 @@ async function kv () {
 
 // Minutes to hold a qualified lead before emailing. 0 disables the delay and
 // restores the old instant-send behaviour.
+const DEFAULT_DELAY_MIN = 15;
 function delayMinutes () {
   const raw = process.env.LEAD_QUALIFIED_DELAY_MINUTES;
-  const n   = raw === undefined || raw === '' ? 30 : Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 30;
+  const n   = raw === undefined || raw === '' ? DEFAULT_DELAY_MIN : Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_DELAY_MIN;
 }
 
 // How long a sent lead stays de-duplicated. Guards against a status toggled

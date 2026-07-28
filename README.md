@@ -75,6 +75,8 @@ Outbound monitoring:
 | `api/_lead-qualified-email.js` | Lead Qualified email render |
 | `api/_lead-qualified-data.js` | Lead Qualified Monday fetch, column mapping, timeline, send |
 | `api/_lead-qualified-queue.js` | KV delay queue for the Lead Qualified email (`leadq:*` keys) |
+| `api/_lead-qualified-booking.js` | Reverse lookup of the Booking Flow row for a lead (apartment, rate, commission) |
+| `api/_booking-value.js` | Shared `formula2` (Total Luxe Commission) recompute, used by the value sync and the Lead Qualified email |
 | **Public** | |
 | `public/dashboard.html` | Marketing dashboard UI |
 | `public/dashboard-attribution.html` | Attribution dashboard UI (also iframed inside `luxe-organic-content` PpcPage) |
@@ -114,7 +116,7 @@ All set in Vercel project settings. Never commit.
 | **Lead Qualified email** | |
 | `LEAD_QUALIFIED_TO` | Comma-separated staff recipients. Default: alex, sam, josh @studentluxe.co.uk |
 | `LEAD_QUALIFIED_SUPPRESS` | Comma-separated names whose qualifications never email (CRM testers). Default `Dana W Danan` |
-| `LEAD_QUALIFIED_DELAY_MINUTES` | Hold time before sending. Default `30`. `0` restores instant send |
+| `LEAD_QUALIFIED_DELAY_MINUTES` | Hold time before sending. Default `15`. `0` restores instant send |
 | `LEAD_QUALIFIED_DEDUPE_HOURS` | Window in which the same lead cannot email twice. Default `24` |
 | **Misc** | |
 | `CRON_SECRET` | Guards `/api/gads-daily-summary`, `/api/test-alert`, `/api/weekly-summary?days=N` manual triggers |
@@ -176,6 +178,10 @@ To pull the live set locally: `vercel env pull .env.local`.
 | `lookup_mkxtxk48` | Source lookup (PPC / SEO / Socials / etc) from linked lead |
 | `link_to_leads26` | Relation to Leads board |
 | `people98` | Salesperson |
+| `connect_boards25` | Apartment Agreed (board relation to Apartments) |
+| `date6` | Check in Date (sales-entered; `date69` is the one `formula2` reads) |
+| `numbers80` | Agreed Nightly Rate |
+| `formula2` | Total Luxe Commission excl VAT. Formula over cross-board mirrors, so the API returns null: recompute via `_booking-value.js` |
 
 ---
 
@@ -282,7 +288,7 @@ Helper: `api/_log.js` (logGadsEvent, readGadsEvents).
 
 ---
 
-## Lead Qualified email (30 minute delay)
+## Lead Qualified email (15 minute delay)
 
 The Monday automation "status changes to Qualified" posts to `/api/lead-qualified-webhook`. The webhook does **not** email. It parks the item in a Redis delay queue and returns.
 
@@ -290,7 +296,7 @@ The Monday automation "status changes to Qualified" posts to `/api/lead-qualifie
 
 Behaviour:
 
-- Delay: `LEAD_QUALIFIED_DELAY_MINUTES`, default 30. Set to `0` for the old instant send. `POST ...?now=1` also bypasses it.
+- Delay: `LEAD_QUALIFIED_DELAY_MINUTES`, default 15. Set to `0` for the old instant send. `POST ...?now=1` also bypasses it.
 - Re-qualifying an already queued lead keeps the earlier due time, it does not push the send further out.
 - If the lead is moved out of Qualified during the window, the queued email is dropped, not sent.
 - One email per lead per `LEAD_QUALIFIED_DEDUPE_HOURS` (default 24), claimed atomically so overlapping cron runs cannot double send.
@@ -298,6 +304,16 @@ Behaviour:
 - A send that throws (Monday or Resend blip) stays queued and retries on the next 5 minute run.
 
 KV keys: `leadq:pending` (sorted set, score = due ms), `leadq:meta:<id>`, `leadq:sent:<id>`.
+
+### Booking Agreed block
+
+At send time the email also pulls the lead's row on the Booking Flow board (Bookings, `2171015589`) and renders apartment agreed, check-in, nights, agreed nightly rate and total Luxe commission. This is what the delay buys: those fields are filled in the minutes after qualification.
+
+- The relation lives on the Bookings side (`link_to_leads26`), so the lookup is a reverse one: an `any_of` rule on that column, falling back to a scan of the 100 most recently updated bookings if the rule query fails or finds nothing.
+- No booking row yet, the whole block is omitted. Row exists but half filled, the missing fields read "Not set yet".
+- Nights are derived from check-in to check-out (`date_1`), there is no nights column on the board.
+- Commission resolution order: `formula2` if Monday ever returns a value for it, then `numeric_mm1ge9h4` (Rev to Google), then a recompute from the base columns, shown with an `est.` tag. See `api/_booking-value.js`, shared with `/api/sync-booking-values`.
+- `api/_lead-qualified-email.js` is a vendored copy of `render-lead-qualified.js` in **AlexO-Luxe/luxe-emails**. The Booking Agreed block needs copying back there to keep the two in sync.
 
 Ops:
 

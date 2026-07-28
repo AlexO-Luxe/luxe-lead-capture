@@ -5,7 +5,8 @@
 // api/lead-qualified-webhook.js (the live Monday automation), so the two
 // can never drift. Edit the column mapping here, once.
 
-const { renderLeadQualified } = require('./_lead-qualified-email');
+const { renderLeadQualified }   = require('./_lead-qualified-email');
+const { fetchBookingForLead }   = require('./_lead-qualified-booking');
 
 const MONDAY_API  = 'https://api.monday.com/v2';
 const RESEND_API  = 'https://api.resend.com/emails';
@@ -312,6 +313,16 @@ async function sendQualifiedEmail ({ pulseId, by, qualifiedAt, to, testPrefix = 
     qualifiedAt: qualifiedAt || undefined
   });
   lead.timeline = await fetchTimeline(item.id, item.created_at);
+
+  // What the salesperson agreed in the minutes after qualifying: apartment,
+  // check-in, nights, nightly rate, commission. Null until they start a
+  // booking row, in which case the email simply omits the block.
+  try {
+    lead.booking = await fetchBookingForLead(item.id);
+  } catch (e) {
+    console.warn('fetchBookingForLead failed:', e.message);
+    lead.booking = null;
+  }
 
   const { subject, html } = renderLeadQualified(lead);
   const res = await sendEmail({ to, subject, html, testPrefix });
