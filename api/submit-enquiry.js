@@ -1272,6 +1272,21 @@ function computeLeadSource(p) {
   const partner = partnerPortal(p);
   if (partner) return { leadSource: 'Partnerships', leadChannel: partner.channel };
 
+  // Affiliate / partner UTM links (utm_medium=affiliate, or utm_source=partner).
+  // Credited to Partnerships, with the specific partner resolved from
+  // utm_campaign. Checked before PPC/social so an affiliate link that also
+  // carries a stray gclid still classifies as a partnership. Add new partners
+  // to AFFILIATE_CHANNELS as they launch.
+  const AFFILIATE_CHANNELS = {
+    'affiliate-expat': 'Expat.com'
+  };
+  const affSource = (p.utm_source || '').toLowerCase().trim();
+  const affMedium = (p.utm_medium || '').toLowerCase().trim();
+  if (affMedium === 'affiliate' || affSource === 'partner') {
+    const camp = (p.utm_campaign || '').toLowerCase().trim();
+    return { leadSource: 'Partnerships', leadChannel: AFFILIATE_CHANNELS[camp] || 'Partner' };
+  }
+
   const hasGclid     = !!p.gclid;
   const hasFbclid    = !!p.fbclid;
   const hasCampaign  = !!(p.utm_campaign || '').trim();
@@ -1504,7 +1519,8 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
       create_item(
         board_id: ${MONDAY_BOARD},
         item_name: ${JSON.stringify(itemName)},
-        column_values: ${JSON.stringify(JSON.stringify(cv))}
+        column_values: ${JSON.stringify(JSON.stringify(cv))},
+        create_labels_if_missing: true
       ) { id }
     }
   `;
