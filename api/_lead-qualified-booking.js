@@ -1,59 +1,69 @@
 // _lead-qualified-booking.js
 //
-// Pulls the Booking Flow board row that belongs to a qualified lead, so the
-// Lead Qualified email can show what the salesperson actually agreed:
-// apartment, check-in, nights, nightly rate, total Luxe commission.
+// Pulls the Booking Flow row that belongs to a qualified lead, so the Lead
+// Qualified email can show what the salesperson actually agreed: apartment,
+// check-in, nights, nightly rate, total Luxe commission.
 //
-// This is the reason the email is delayed. The booking row is created and
-// filled in the minutes AFTER the lead is flipped to Qualified, so we read it
+// This is the reason the email is delayed: the booking row is created and
+// filled in the minutes AFTER the lead is flipped to Qualified, so it is read
 // at send time, not at webhook time.
 //
-// Board: 2171015589 (Bookings, called "Booking Flow" in the UI).
-// The relation lives on the Bookings side (link_to_leads26 -> Leads), so the
-// lookup is a reverse one: find the booking whose linked lead is this item.
+// Finding the row is the hard part, learned the hard way in production:
+//   - The Leads board's Booking Flow connection is connect_boards75. Which
+//     board it points at is read from that column's OWN settings_str, not
+//     assumed. (2171015589, the Bookings board, is only the fallback.)
+//   - Monday's items_page rules do not really filter on board-relation
+//     columns: they return 0 rows instead of erroring, proving nothing.
+//   - The salesperson may link the booking to the lead, or to the guest's
+//     Contact item, or forget to link it at all.
 //
-// Columns (given by Alex, 2026-07):
-//   connect_boards25  Apartment Agreed        (board relation -> Apartments)
-//   date6             Check in Date           (falls back to date69, the
-//                                              check-in the commission
-//                                              formula itself uses)
-//   date_1            Check Out               (nights are derived, there is no
-//                                              nights column on the board)
+// So the lookup runs, in order, stopping at the first hit:
+//   1. lead-relations : follow every board-relation column on the lead
+//   2. contact-hop    : follow the relations of the items the lead links to
+//                       (lead -> contact -> booking)
+//   3. relation-rule  : legacy link_to_leads26 rule query (Bookings board only)
+//   4. recent-scan    : cheap scan of the 200 most recently updated rows on
+//                       the booking flow board, matching ANY relation column
+//                       that links back to the lead
+//   5. name-match     : same scan, matching the guest's name, for rows nobody
+//                       linked
+//
+// Columns on the booking row (given by Alex, 2026-07):
+//   connect_boards25  Apartment Agreed   (may also live on the LEAD as a
+//                                         relation to an Apartments board)
+//   date6             Check in Date      (falls back to date69)
+//   date_1            Check Out          (nights are derived)
 //   numbers80         Agreed Nightly Rate
 //   formula2          Total Luxe Commission excl VAT
 //
-// formula2 is a Monday formula over cross-board mirrors, so the API returns
-// null for it. Resolution order for the commission: the formula's own value if
-// Monday ever starts returning one, then numeric_mm1ge9h4 ("Rev to Google",
-// hand-entered or filled by the sync cron), then a recompute from the base
-// columns via _booking-value.js, flagged as an estimate.
+// formula2 is a formula over cross-board mirrors, so the API returns null for
+// it. Commission resolves: formula2 if Monday ever returns it, then
+// numeric_mm1ge9h4 (Rev to Google), then a recompute from the base columns
+// via _booking-value.js, flagged as an estimate.
 
 const MONDAY_API     = 'https://api.monday.com/v2';
-const BOOKINGS_BOARD = 2171015589;
+const BOOKINGS_BOARD = 2171015589;   // legacy fallback if settings are unreadable
+const LEADS_BOARD    = 2171015719;
 const MONDAY_SLUG    = process.env.MONDAY_ACCOUNT_SLUG || 'student-luxe';
 
 const { FORMULA2_COLS, computeFormula2, txt, disp, numOf, daysBetween } = require('./_booking-value.js');
 
 const BOOKING_COLS = [
   ...new Set([
-    ...FORMULA2_COLS,   // includes date69, date_1, numbers80 and the mirrors
-    'connect_boards25', // Apartment Agreed
-    'date6',            // Check in Date
-    'formula2',         // Total Luxe Commission excl VAT
-    'numeric_mm1ge9h4', // Rev to Google (the readable copy of formula2)
-    'date9',            // Close date, set when the booking is confirmed
+    ...FORMULA2_COLS,
+    'connect_boards25',
+    'date6',
+    'formula2',
+    'numeric_mm1ge9h4',
+    'date9',
     'status',
-    'link_to_leads26'   // relation back to the Leads board
+    'link_to_leads26'
   ])
 ];
 
-// Formula and board-relation columns only expose their value through the typed
-// fragments, never through `text`. Mirror columns likewise (see CLAUDE.md).
-//
-// Every column is fetched, not just BOOKING_COLS: Monday silently returns
-// nothing for an id that does not exist on the board, so a single wrong or
-// renamed id would show as a permanently blank field with no error. Reading
-// the lot lets the apartment be resolved by column title as well as by id.
+// Full row read: every column, because Monday silently returns nothing for an
+// id that does not exist on a board, and the typed fragments are the only way
+// formula / relation / mirror columns expose a value.
 const FRAG = `id name url updated_at
   board { id }
   column_values {
@@ -62,6 +72,14 @@ const FRAG = `id name url updated_at
     ... on BoardRelationValue { display_value linked_item_ids }
     ... on FormulaValue       { display_value }
     ... on StatusValue        { label }
+  }`;
+
+// Cheap scan read: id, name, and relation links only. 200 rows x mirrors and
+// formulas is the query shape that timed out in production; this is not that.
+const LIGHT_FRAG = `id name
+  column_values {
+    id type
+    ... on BoardRelationValue { linked_item_ids }
   }`;
 
 async function mondayQuery (query, retries = 2) {
@@ -80,7 +98,6 @@ async function mondayQuery (query, retries = 2) {
     if (data.errors) {
       const msg = JSON.stringify(data.errors).slice(0, 240);
       // Monday times out heavy or unlucky queries as a normal errors payload.
-      // Transient: retry like a network blip instead of giving up.
       if (/REQUEST_TIMEOUT|timed out|ComplexityException|budget exhausted/i.test(msg) && attempt < retries) {
         await new Promise(s => setTimeout(s, 1500 * (attempt + 1)));
         continue;
@@ -91,109 +108,32 @@ async function mondayQuery (query, retries = 2) {
   }
 }
 
-// Most direct path: follow the lead's OWN board-relation columns. Monday
-// two-way connections put a paired column on each side, so whichever column
-// links lead to booking, walking every relation on the lead finds it without
-// knowing the column id or even which board the booking lives on.
-const LEADS_BOARD = 2171015719;
+// ---- board + column metadata ----------------------------------------------
 
-async function leadRelations (leadId) {
-  const data = await mondayQuery(`query {
-    items(ids: [${Number(leadId)}]) {
-      column_values {
-        id type
-        ... on BoardRelationValue { display_value linked_item_ids }
-      }
-    }
-  }`);
-  const cols = data?.data?.items?.[0]?.column_values || [];
-  return cols
-    .filter(c => c.type === 'board_relation' || (c.linked_item_ids || []).length)
-    .map(c => ({
-      id:        c.id,
-      display:   String(c.display_value || '').trim(),
-      linkedIds: (c.linked_item_ids || []).map(String)
-    }));
-}
-
-// Fetch every item the lead links to, in full. The caller decides which are
-// bookings (by board id); the rest still matter for the debug view, because
-// they reveal where a value like the agreed apartment actually lives.
-async function fetchLinkedItems (rels) {
-  const ids = [...new Set(rels.flatMap(r => r.linkedIds))].map(Number).filter(Boolean);
-  if (!ids.length) return [];
-  const data = await mondayQuery(`query {
-    items(ids: [${ids.join(', ')}]) { ${FRAG} }
-  }`);
-  return data?.data?.items || [];
-}
-
-function bookingsAmong (items) {
-  return items
-    .filter(it => String(it.board?.id || '') === String(BOOKINGS_BOARD))
-    .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
-}
-
-// Ask Monday for bookings whose link_to_leads26 points at this lead. Monday
-// does not really filter on board-relation columns: sometimes it errors,
-// sometimes it just returns 0 rows (observed in production), so a clean empty
-// answer here proves nothing and the caller always falls back further.
-async function findByRelationRule (leadId) {
-  const data = await mondayQuery(`query {
-    boards(ids: ${BOOKINGS_BOARD}) {
-      items_page(limit: 10, query_params: {
-        rules: [{ column_id: "link_to_leads26", compare_value: ["${Number(leadId)}"], operator: any_of }]
-      }) { items { ${FRAG} } }
-    }
-  }`);
-  return data?.data?.boards?.[0]?.items_page?.items || [];
-}
-
-// Fallback: the booking we want was created or edited minutes ago, so it is
-// near the top of a last-updated ordering.
-//
-// Two phases, because one is what timed out in production: 200 items times
-// every mirror/formula column is exactly the query shape sync-booking-values
-// warns is far too slow. Phase 1 reads ONLY the relation column for the
-// recent items (cheap), phase 2 fetches the single matching row in full.
-const LIGHT_FRAG = `id
-  column_values(ids: ["link_to_leads26"]) {
-    id
-    ... on BoardRelationValue { linked_item_ids }
-  }`;
-
-const SCAN_PAGES = 2;   // x100 items; the booking was touched minutes ago
-
-async function findByRecentScan (leadId) {
-  const matchIds = [];
-  let cursor = null;
-  for (let page = 0; page < SCAN_PAGES; page++) {
-    const query = cursor
-      ? `query { next_items_page(limit: 100, cursor: ${JSON.stringify(cursor)}) { cursor items { ${LIGHT_FRAG} } } }`
-      : `query { boards(ids: ${BOOKINGS_BOARD}) {
-           items_page(limit: 100, query_params: { order_by: [{ column_id: "__last_updated__", direction: desc }] }) {
-             cursor items { ${LIGHT_FRAG} }
-           } } }`;
-    const d = await mondayQuery(query);
-    const pageData = cursor ? d?.data?.next_items_page : d?.data?.boards?.[0]?.items_page;
-    if (!pageData) break;
-    for (const it of pageData.items || []) {
-      if (linkedLeadIds(it).includes(String(leadId))) matchIds.push(String(it.id));
-    }
-    if (matchIds.length) break;   // the freshest match wins, no need to page on
-    cursor = pageData.cursor;
-    if (!cursor) break;
+// The board the Leads "Booking Flow" connection (connect_boards75) points at,
+// read from the column's own settings. Never guessed.
+let _bfBoard = null;
+async function bookingFlowBoardId () {
+  if (_bfBoard) return _bfBoard;
+  try {
+    const data = await mondayQuery(`query {
+      boards(ids: ${LEADS_BOARD}) { columns { id title settings_str } }
+    }`);
+    const cols = data?.data?.boards?.[0]?.columns || [];
+    const col  = cols.find(c => c.id === 'connect_boards75') ||
+                 cols.find(c => /booking\s*flow/i.test(c.title || ''));
+    let ids = [];
+    try { ids = JSON.parse(col?.settings_str || '{}').boardIds || []; } catch { /* fall through */ }
+    _bfBoard = String(ids[0] || BOOKINGS_BOARD);
+  } catch (err) {
+    console.warn('bookingFlowBoardId failed, using legacy board:', err.message);
+    _bfBoard = String(BOOKINGS_BOARD);
   }
-  if (!matchIds.length) return [];
-
-  const data = await mondayQuery(`query {
-    items(ids: [${matchIds.map(Number).join(', ')}]) { ${FRAG} }
-  }`);
-  return data?.data?.items || [];
+  return _bfBoard;
 }
 
-// Column titles for a board, so a field can be found by what it is called
-// when its id does not match. Cached per board for the function instance.
+// Column titles per board, so fields resolve by what they are called when an
+// id does not match. Cached per board.
 const _titlesByBoard = {};
 async function boardColumnTitles (boardId) {
   if (_titlesByBoard[boardId]) return _titlesByBoard[boardId];
@@ -211,32 +151,202 @@ async function boardColumnTitles (boardId) {
 }
 const columnTitles = () => boardColumnTitles(BOOKINGS_BOARD);
 
-// The agreed apartment can live on the LEAD as a board relation (a two-way
-// connection to an Apartments board) rather than on the booking row. When the
-// booking's own apartment field is empty, take it from whichever lead relation
-// is the apartment one: connect_boards25 (the id Alex gave) or a column whose
-// title mentions an apartment.
-async function apartmentFromLeadRelations (rels) {
-  const withValue = rels.filter(r => r.display);
-  if (!withValue.length) return '';
-  const byId = withValue.find(r => r.id === 'connect_boards25');
-  if (byId) return byId.display;
-  const titles = await boardColumnTitles(LEADS_BOARD);
-  const byTitle = withValue.find(r => /apartment|apt/i.test(titles[r.id]?.title || ''));
-  return byTitle ? byTitle.display : '';
+// ---- lookup steps ---------------------------------------------------------
+
+// The lead's name and every board-relation column on it.
+async function fetchLeadLinks (leadId) {
+  const data = await mondayQuery(`query {
+    items(ids: [${Number(leadId)}]) {
+      name
+      column_values {
+        id type
+        ... on BoardRelationValue { display_value linked_item_ids }
+      }
+    }
+  }`);
+  const it   = data?.data?.items?.[0];
+  const cols = it?.column_values || [];
+  return {
+    name: it?.name || '',
+    rels: cols
+      .filter(c => c.type === 'board_relation' || (c.linked_item_ids || []).length)
+      .map(c => ({
+        id:        c.id,
+        display:   String(c.display_value || '').trim(),
+        linkedIds: (c.linked_item_ids || []).map(String)
+      }))
+  };
 }
 
-// Value of a column whatever its type: relation and formula and mirror columns
+async function fetchFullItems (ids) {
+  const clean = [...new Set(ids)].map(Number).filter(Boolean).slice(0, 50);
+  if (!clean.length) return [];
+  const data = await mondayQuery(`query {
+    items(ids: [${clean.join(', ')}]) { ${FRAG} }
+  }`);
+  return data?.data?.items || [];
+}
+
+// Relation links of arbitrary items (used for the lead -> contact -> booking
+// hop). Light read only.
+async function relationLinksOf (ids) {
+  const clean = [...new Set(ids)].map(Number).filter(Boolean).slice(0, 25);
+  if (!clean.length) return [];
+  const data = await mondayQuery(`query {
+    items(ids: [${clean.join(', ')}]) { ${LIGHT_FRAG} }
+  }`);
+  return data?.data?.items || [];
+}
+
+function onBoard (items, boardId) {
+  return items
+    .filter(it => String(it.board?.id || '') === String(boardId))
+    .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+}
+
+// Legacy rule query on the Bookings board. Monday does not really filter on
+// board-relation columns (0 rows instead of an error), so an empty answer
+// proves nothing; kept because when it does match, it is one cheap query.
+async function findByRelationRule (leadId) {
+  const data = await mondayQuery(`query {
+    boards(ids: ${BOOKINGS_BOARD}) {
+      items_page(limit: 10, query_params: {
+        rules: [{ column_id: "link_to_leads26", compare_value: ["${Number(leadId)}"], operator: any_of }]
+      }) { items { ${FRAG} } }
+    }
+  }`);
+  return data?.data?.boards?.[0]?.items_page?.items || [];
+}
+
+const SCAN_PAGES = 2;   // x100 items; the booking was touched minutes ago
+
+function normName (s) {
+  return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+// One cheap pass over the most recently updated rows of the booking flow
+// board, collecting two kinds of match:
+//   relation : ANY board-relation column on the row links back to the lead
+//   name     : the row's name contains the guest's name (or vice versa), for
+//              rows nobody linked. Guarded to names of 5+ chars so "Li"
+//              cannot match half the board.
+async function scanRecent (leadId, leadName, boardId) {
+  const wanted   = String(leadId);
+  const n        = normName(leadName);
+  const nameable = n.length >= 5;
+  const relIds   = [];
+  const nameIds  = [];
+  let cursor = null;
+
+  for (let page = 0; page < SCAN_PAGES; page++) {
+    const query = cursor
+      ? `query { next_items_page(limit: 100, cursor: ${JSON.stringify(cursor)}) { cursor items { ${LIGHT_FRAG} } } }`
+      : `query { boards(ids: ${boardId}) {
+           items_page(limit: 100, query_params: { order_by: [{ column_id: "__last_updated__", direction: desc }] }) {
+             cursor items { ${LIGHT_FRAG} }
+           } } }`;
+    const d = await mondayQuery(query);
+    const pageData = cursor ? d?.data?.next_items_page : d?.data?.boards?.[0]?.items_page;
+    if (!pageData) break;
+
+    for (const it of pageData.items || []) {
+      const linksLead = (it.column_values || []).some(c => (c.linked_item_ids || []).map(String).includes(wanted));
+      if (linksLead) { relIds.push(String(it.id)); continue; }
+      if (nameable) {
+        const itemName = normName(it.name);
+        if (itemName && (itemName.includes(n) || n.includes(itemName))) nameIds.push(String(it.id));
+      }
+    }
+    if (relIds.length) break;   // a real link beats everything, stop paging
+    cursor = pageData.cursor;
+    if (!cursor) break;
+  }
+  return { relIds, nameIds };
+}
+
+// Runs the whole ladder. Returns { items, foundVia, rels, trace } where trace
+// records every step for ?debug=booking.
+async function locateBooking (leadId) {
+  const trace = {};
+  const bfBoard = await bookingFlowBoardId();
+  trace.bookingFlowBoardId = bfBoard;
+
+  let rels = [];
+  let leadName = '';
+  let linked = [];
+
+  // 1) the lead's own relations
+  try {
+    const links = await fetchLeadLinks(leadId);
+    leadName = links.name;
+    rels     = links.rels;
+    trace.leadName = leadName;
+    linked = await fetchFullItems(rels.flatMap(r => r.linkedIds));
+    trace.leadLinkedItems = linked.map(it => ({ itemId: String(it.id), name: it.name, boardId: String(it.board?.id || '') }));
+    const direct = onBoard(linked, bfBoard);
+    if (direct.length) return { items: direct, foundVia: 'lead-relations', rels, leadName, trace };
+  } catch (err) {
+    trace.leadRelationsError = err.message;
+  }
+
+  // 2) one hop through whatever the lead links to (contact, group booking)
+  try {
+    const hop = await relationLinksOf(linked.map(it => String(it.id)));
+    const hopIds = [...new Set(
+      hop.flatMap(h => (h.column_values || []).flatMap(c => (c.linked_item_ids || []).map(String)))
+    )].filter(id => id !== String(leadId));
+    trace.contactHop = { sources: linked.length, candidates: hopIds.length };
+    if (hopIds.length) {
+      const hopItems = onBoard(await fetchFullItems(hopIds), bfBoard);
+      trace.contactHop.matches = hopItems.length;
+      if (hopItems.length) return { items: hopItems, foundVia: 'contact-hop', rels, leadName, trace };
+    }
+  } catch (err) {
+    trace.contactHop = { error: err.message };
+  }
+
+  // 3) legacy rule query, only meaningful on the legacy board
+  if (String(bfBoard) === String(BOOKINGS_BOARD)) {
+    try {
+      const viaRule = await findByRelationRule(leadId);
+      trace.rule = { ok: true, matches: viaRule.length };
+      if (viaRule.length) return { items: viaRule, foundVia: 'relation-rule', rels, leadName, trace };
+    } catch (err) {
+      trace.rule = { ok: false, error: err.message };
+    }
+  }
+
+  // 4 + 5) recent scan: linked rows first, then name matches
+  try {
+    const { relIds, nameIds } = await scanRecent(leadId, leadName, bfBoard);
+    trace.scan = { ok: true, relationMatches: relIds.length, nameMatches: nameIds.length };
+    if (relIds.length) {
+      const items = onBoard(await fetchFullItems(relIds), bfBoard);
+      if (items.length) return { items, foundVia: 'recent-scan', rels, leadName, trace };
+    }
+    if (nameIds.length) {
+      const items = onBoard(await fetchFullItems(nameIds), bfBoard);
+      if (items.length) return { items, foundVia: 'name-match', rels, leadName, trace };
+    }
+  } catch (err) {
+    trace.scan = { ok: false, error: err.message };
+  }
+
+  return { items: [], foundVia: null, rels, leadName, trace };
+}
+
+// ---- value resolution -----------------------------------------------------
+
+// Value of a column whatever its type: relation / formula / mirror columns
 // answer on display_value, status on label, the rest on text.
 function valueOf (c) {
   if (!c) return '';
   return String(c.display_value || c.label || c.text || '').trim();
 }
 
-// Apartment Agreed, by id first and by column title second. connect_boards25
-// is what Alex gave us, but a wrong or renamed id would otherwise render as a
-// permanently empty field, so fall back to the column actually called
-// "Apartment Agreed", then to any apartment column carrying a value.
+// Apartment Agreed on the booking row: by id, then by the column titled
+// "Apartment Agreed", then any apartment column holding a value, preferring a
+// board relation over a text or dropdown field like "Apartment Type".
 function resolveApartment (cv, titles) {
   const byId = valueOf(cv.connect_boards25);
   if (byId) return byId;
@@ -250,9 +360,6 @@ function resolveApartment (cv, titles) {
     if (v) return v;
   }
 
-  // Last resort: any column whose title mentions an apartment and holds a
-  // value. Ordered so a board relation (the apartment itself) beats a plain
-  // text or dropdown field like "Apartment Type".
   const loose = Object.keys(cv)
     .filter(id => /apartment|apt/i.test(titles[id]?.title || ''))
     .sort((a, b) => (titles[b]?.type === 'board_relation' ? 1 : 0) - (titles[a]?.type === 'board_relation' ? 1 : 0));
@@ -263,67 +370,17 @@ function resolveApartment (cv, titles) {
   return '';
 }
 
-function linkedLeadIds (item) {
-  const c = (item.column_values || []).find(cv => cv.id === 'link_to_leads26');
-  return ((c && c.linked_item_ids) || []).map(String);
-}
-
-// Returns the booking-flow detail for a lead, or null when there is no linked
-// booking yet (the normal case for a lead that was qualified but not yet
-// progressed). Never throws: a Monday hiccup must not stop the email.
-async function fetchBookingForLead (leadId) {
-  // 1) Follow the lead's own relations: works whatever column holds the link.
-  let rels = [];
-  let items = [];
-  try {
-    rels = await leadRelations(leadId);
-    items = bookingsAmong(await fetchLinkedItems(rels));
-  } catch (err) {
-    console.warn('lead-relation booking lookup failed:', err.message);
-  }
-
-  // 2) Rule query on the bookings side, then 3) recent scan. Both only matter
-  // when the lead side carries no link at all.
-  if (!items.length) {
-    try {
-      items = await findByRelationRule(leadId);
-    } catch (err) {
-      console.warn('booking relation-rule lookup failed, scanning recent items:', err.message);
-    }
-  }
-  if (!items.length) {
-    try {
-      items = await findByRecentScan(leadId);
-    } catch (err) {
-      console.warn('booking recent scan failed:', err.message);
-    }
-  }
-
-  // More than one booking on the same lead (extension, rebooking): most
-  // recently updated first, the row the salesperson just filled in.
-  let booking = items.length ? mapBooking(items[0], await columnTitles()) : null;
-
-  // The apartment can be agreed on the lead rather than the booking row.
-  // Fill it in from the lead's own relations, creating an apartment-only
-  // block when there is no booking row at all: better than showing nothing.
-  if (!booking || !booking.apartment) {
-    try {
-      const apartment = await apartmentFromLeadRelations(rels);
-      if (apartment) {
-        booking = booking
-          ? { ...booking, apartment }
-          : {
-              itemId: '', name: '', apartment,
-              checkIn: '', checkOut: '', nights: '',
-              nightlyRate: null, commission: null, commissionEstimated: false,
-              status: '', confirmed: false, url: ''
-            };
-      }
-    } catch (err) {
-      console.warn('apartmentFromLeadRelations failed:', err.message);
-    }
-  }
-  return booking;
+// The agreed apartment can live on the LEAD as a board relation instead of on
+// the booking row: connect_boards25 (the id Alex gave), or a lead column whose
+// title mentions an apartment.
+async function apartmentFromLeadRelations (rels) {
+  const withValue = (rels || []).filter(r => r.display);
+  if (!withValue.length) return '';
+  const byId = withValue.find(r => r.id === 'connect_boards25');
+  if (byId) return byId.display;
+  const titles = await boardColumnTitles(LEADS_BOARD);
+  const byTitle = withValue.find(r => /apartment|apt/i.test(titles[r.id]?.title || ''));
+  return byTitle ? byTitle.display : '';
 }
 
 function mapBooking (item, titles = {}) {
@@ -331,8 +388,8 @@ function mapBooking (item, titles = {}) {
   (item.column_values || []).forEach(c => { cv[c.id] = c; });
 
   // date6 is the check-in the sales team fills in on the booking flow. date69
-  // is the one the commission formula reads. They are normally the same date;
-  // prefer date6 and fall back so an empty column never blanks the row.
+  // is the one the commission formula reads. Prefer date6, fall back so an
+  // empty column never blanks the row.
   const checkIn   = txt(cv.date6) || txt(cv.date69);
   const checkOut  = txt(cv.date_1);
   const nights    = daysBetween(checkIn, checkOut);
@@ -356,7 +413,7 @@ function mapBooking (item, titles = {}) {
     commissionEstimated: commission.estimated,
     status:     cv.status?.label || txt(cv.status) || '',
     confirmed:  !!txt(cv.date9),
-    url:        item.url || `https://${MONDAY_SLUG}.monday.com/boards/${BOOKINGS_BOARD}/pulses/${item.id}`
+    url:        item.url || `https://${MONDAY_SLUG}.monday.com/boards/${String(item.board?.id || BOOKINGS_BOARD)}/pulses/${item.id}`
   };
 }
 
@@ -374,86 +431,105 @@ function resolveCommission (cv) {
   return { value: null, estimated: false };
 }
 
-// Diagnostic for /api/test-lead-qualified?debug=booking&itemId=<leadId>.
-// Dumps how the booking row was found, every column on it that holds a value
-// (id, title, type, value), and what the email would render. Use it to confirm
-// a column id rather than guessing at one.
-async function debugBookingForLead (leadId) {
-  const out = { leadId: String(leadId), foundVia: null, leadRelations: null, rule: null, scan: null };
+// ---- public API -----------------------------------------------------------
 
-  // The lead's own relation columns: which columns link out, to what, on
-  // which board. This is the ground truth for where the booking link and the
-  // agreed apartment actually live.
-  let rels = [];
-  let linked = [];
-  let items = [];
+// Returns the booking detail for a lead, or null when nothing is found.
+// Never throws: a Monday hiccup must not stop the email.
+async function fetchBookingForLead (leadId) {
+  let located;
   try {
-    rels = await leadRelations(leadId);
-    linked = await fetchLinkedItems(rels);
-    const leadTitles = await boardColumnTitles(LEADS_BOARD);
-    const byId = Object.fromEntries(linked.map(it => [String(it.id), it]));
-    out.leadRelations = rels.map(r => ({
-      columnId: r.id,
-      title:    leadTitles[r.id]?.title || '',
-      display:  r.display,
-      linked:   r.linkedIds.map(id => ({
-        itemId:  id,
-        name:    byId[id]?.name || '',
-        boardId: String(byId[id]?.board?.id || '')
-      }))
-    }));
-    items = bookingsAmong(linked);
-    if (items.length) out.foundVia = 'lead-relations';
+    located = await locateBooking(leadId);
   } catch (err) {
-    out.leadRelations = { error: err.message };
+    console.warn('locateBooking failed:', err.message);
+    return null;
   }
 
-  if (!items.length) {
+  const { items, rels } = located;
+  let booking = null;
+  if (items.length) {
+    const titles = await boardColumnTitles(String(items[0].board?.id || BOOKINGS_BOARD));
+    booking = mapBooking(items[0], titles);
+  }
+
+  // The apartment can be agreed on the lead rather than the booking row. Fill
+  // it from the lead's own relations, rendering an apartment-only block when
+  // there is no booking row at all: better than showing nothing.
+  if (!booking || !booking.apartment) {
     try {
-      items = await findByRelationRule(leadId);
-      out.rule = { ok: true, matches: items.length };
-      if (items.length) out.foundVia = 'relation-rule';
+      const apartment = await apartmentFromLeadRelations(rels);
+      if (apartment) {
+        booking = booking
+          ? { ...booking, apartment }
+          : {
+              itemId: '', name: '', apartment,
+              checkIn: '', checkOut: '', nights: '',
+              nightlyRate: null, commission: null, commissionEstimated: false,
+              status: '', confirmed: false, url: ''
+            };
+      }
     } catch (err) {
-      out.rule = { ok: false, error: err.message };
+      console.warn('apartmentFromLeadRelations failed:', err.message);
     }
   }
+  return booking;
+}
 
-  if (!items.length) {
-    try {
-      items = await findByRecentScan(leadId);
-      out.scan = { ok: true, matches: items.length };
-      if (items.length) out.foundVia = 'recent-scan';
-    } catch (err) {
-      out.scan = { ok: false, error: err.message };
-    }
-  }
+// Diagnostic for /api/test-lead-qualified?debug=booking&itemId=<leadId>.
+// Dumps the full lookup trace, the winning row's populated columns (id,
+// title, type, value), and the block as it would render.
+async function debugBookingForLead (leadId) {
+  const out = { leadId: String(leadId) };
 
-  if (!items.length) {
-    out.booking = null;
-    out.note = 'No booking row on board ' + BOOKINGS_BOARD + ' is linked to this lead. ' +
-               'leadRelations above shows every item the lead links to and on which board; ' +
-               'if the booking flow lives on a different board, its id is there.';
-    out.rendered = await fetchBookingForLead(leadId);   // apartment-only fallback, if any
+  let located;
+  try {
+    located = await locateBooking(leadId);
+  } catch (err) {
+    out.error = err.message;
     return out;
   }
 
-  const item   = items[0];
-  const titles = await columnTitles();
-  out.item = { id: String(item.id), name: item.name, boardId: String(item.board?.id || '') };
-  out.columnsWithValues = (item.column_values || [])
-    .map(c => ({ id: c.id, title: titles[c.id]?.title || '', type: c.type || titles[c.id]?.type || '', value: valueOf(c) }))
-    .filter(c => c.value !== '');
+  out.foundVia = located.foundVia;
+  Object.assign(out, located.trace);
+
+  // Decorate the lead's relations with their column titles.
+  try {
+    const leadTitles = await boardColumnTitles(LEADS_BOARD);
+    out.leadRelations = located.rels.map(r => ({
+      columnId: r.id,
+      title:    leadTitles[r.id]?.title || '',
+      display:  r.display,
+      linkedIds: r.linkedIds
+    }));
+  } catch { /* titles are decoration */ }
+
+  if (located.items.length) {
+    const item   = located.items[0];
+    const titles = await boardColumnTitles(String(item.board?.id || BOOKINGS_BOARD));
+    out.item = { id: String(item.id), name: item.name, boardId: String(item.board?.id || '') };
+    out.columnsWithValues = (item.column_values || [])
+      .map(c => ({ id: c.id, title: titles[c.id]?.title || '', type: c.type || titles[c.id]?.type || '', value: valueOf(c) }))
+      .filter(c => c.value !== '');
+  } else {
+    out.note = 'No booking row found on board ' + out.bookingFlowBoardId +
+               ' by lead relations, contact hop, rule, scan, or name match. ' +
+               'If the row exists, it is not linked and its name does not contain the guest name.';
+  }
+
   out.rendered = await fetchBookingForLead(leadId);
   return out;
 }
 
 module.exports = {
   BOOKINGS_BOARD,
+  LEADS_BOARD,
   BOOKING_COLS,
+  bookingFlowBoardId,
   fetchBookingForLead,
   debugBookingForLead,
+  locateBooking,
   mapBooking,
   resolveApartment,
   resolveCommission,
-  columnTitles
+  columnTitles,
+  boardColumnTitles
 };
