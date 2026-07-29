@@ -24,7 +24,7 @@ const { resolveUserName, sendQualifiedEmail } = require('./_lead-qualified-data'
 const { enqueueLead, claimSend, releaseSend, delayMinutes } = require('./_lead-qualified-queue');
 
 function recipients() {
-  return (process.env.LEAD_QUALIFIED_TO || 'alex@studentluxe.co.uk, sam@studentluxe.co.uk, josh@studentluxe.co.uk')
+  return (process.env.LEAD_QUALIFIED_TO || 'dana@studentluxe.co.uk, sam@studentluxe.co.uk, edoardo@studentluxe.co.uk, lina@studentluxe.co.uk, paige@studentluxe.co.uk, josh@studentluxe.co.uk, alex@studentluxe.co.uk')
     .split(',').map(s => s.trim()).filter(Boolean);
 }
 
