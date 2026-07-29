@@ -258,7 +258,7 @@ function renderLeadQualified(lead) {
 
   <!-- STAY DETAILS -->
   <tr><td style="background:#ffffff;padding:22px 32px 0;" class="le-pad">
-    <p style="margin:0 0 11px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND.gold};">Stay &amp; Guest Details</p>
+    <p style="margin:0 0 11px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND.gold};">Original Form Entry from Guest</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #ede9e3;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
       <tr>
         <td width="50%" style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;border-right:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Check-in</p><p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${fmtDate(lead.checkIn)}</p></td>
