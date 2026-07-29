@@ -76,14 +76,25 @@ async function mondayQuery (query, retries = 2) {
       throw new Error('Monday API returned non-JSON: ' + text.substring(0, 80));
     }
     const data = JSON.parse(text);
-    if (data.errors) throw new Error('Monday API: ' + JSON.stringify(data.errors).slice(0, 240));
+    if (data.errors) {
+      const msg = JSON.stringify(data.errors).slice(0, 240);
+      // Monday times out heavy or unlucky queries as a normal errors payload.
+      // Transient: retry like a network blip instead of giving up.
+      if (/REQUEST_TIMEOUT|timed out|ComplexityException|budget exhausted/i.test(msg) && attempt < retries) {
+        await new Promise(s => setTimeout(s, 1500 * (attempt + 1)));
+        continue;
+      }
+      throw new Error('Monday API: ' + msg);
+    }
     return data;
   }
 }
 
 // Preferred path: ask Monday for bookings whose link_to_leads26 points at this
-// lead. Board-relation rules are supported but fussy, so the caller falls back
-// to a recent-items scan if this throws or finds nothing.
+// lead. Monday does not really filter on board-relation columns: sometimes it
+// errors, sometimes it just returns 0 rows (observed in production), so a
+// clean empty answer here proves nothing and the caller always falls back to
+// the recent scan.
 async function findByRelationRule (leadId) {
   const data = await mondayQuery(`query {
     boards(ids: ${BOOKINGS_BOARD}) {
@@ -95,18 +106,47 @@ async function findByRelationRule (leadId) {
   return data?.data?.boards?.[0]?.items_page?.items || [];
 }
 
-// Fallback: the booking we want was created or edited minutes ago, so it is at
-// the top of a last-updated ordering. One page is enough and keeps this cheap.
+// Fallback: the booking we want was created or edited minutes ago, so it is
+// near the top of a last-updated ordering.
+//
+// Two phases, because one is what timed out in production: 200 items times
+// every mirror/formula column is exactly the query shape sync-booking-values
+// warns is far too slow. Phase 1 reads ONLY the relation column for the
+// recent items (cheap), phase 2 fetches the single matching row in full.
+const LIGHT_FRAG = `id
+  column_values(ids: ["link_to_leads26"]) {
+    id
+    ... on BoardRelationValue { linked_item_ids }
+  }`;
+
+const SCAN_PAGES = 2;   // x100 items; the booking was touched minutes ago
+
 async function findByRecentScan (leadId) {
-  const data = await mondayQuery(`query {
-    boards(ids: ${BOOKINGS_BOARD}) {
-      items_page(limit: 100, query_params: { order_by: [{ column_id: "__last_updated__", direction: desc }] }) {
-        items { ${FRAG} }
-      }
+  const matchIds = [];
+  let cursor = null;
+  for (let page = 0; page < SCAN_PAGES; page++) {
+    const query = cursor
+      ? `query { next_items_page(limit: 100, cursor: ${JSON.stringify(cursor)}) { cursor items { ${LIGHT_FRAG} } } }`
+      : `query { boards(ids: ${BOOKINGS_BOARD}) {
+           items_page(limit: 100, query_params: { order_by: [{ column_id: "__last_updated__", direction: desc }] }) {
+             cursor items { ${LIGHT_FRAG} }
+           } } }`;
+    const d = await mondayQuery(query);
+    const pageData = cursor ? d?.data?.next_items_page : d?.data?.boards?.[0]?.items_page;
+    if (!pageData) break;
+    for (const it of pageData.items || []) {
+      if (linkedLeadIds(it).includes(String(leadId))) matchIds.push(String(it.id));
     }
+    if (matchIds.length) break;   // the freshest match wins, no need to page on
+    cursor = pageData.cursor;
+    if (!cursor) break;
+  }
+  if (!matchIds.length) return [];
+
+  const data = await mondayQuery(`query {
+    items(ids: [${matchIds.map(Number).join(', ')}]) { ${FRAG} }
   }`);
-  const items = data?.data?.boards?.[0]?.items_page?.items || [];
-  return items.filter(it => linkedLeadIds(it).includes(String(leadId)));
+  return data?.data?.items || [];
 }
 
 // Column titles for the board, so a field can be found by what it is called
@@ -189,9 +229,10 @@ async function fetchBookingForLead (leadId) {
   }
   if (!items.length) return null;
 
-  // More than one booking on the same lead (extension, rebooking): the most
-  // recently touched row is the one the salesperson just filled in.
-  const item = items[items.length - 1];
+  // More than one booking on the same lead (extension, rebooking): the scan
+  // returns most-recently-updated first, and that is the row the salesperson
+  // just filled in.
+  const item = items[0];
   return mapBooking(item, await columnTitles());
 }
 
@@ -250,15 +291,15 @@ function resolveCommission (cv) {
 async function debugBookingForLead (leadId) {
   const out = { leadId: String(leadId), foundVia: null, rule: null, scan: null };
 
+  let items = [];
   try {
-    const viaRule = await findByRelationRule(leadId);
-    out.rule = { ok: true, matches: viaRule.length };
-    if (viaRule.length) out.foundVia = 'relation-rule';
+    items = await findByRelationRule(leadId);
+    out.rule = { ok: true, matches: items.length };
+    if (items.length) out.foundVia = 'relation-rule';
   } catch (err) {
     out.rule = { ok: false, error: err.message };
   }
 
-  let items = out.foundVia ? await findByRelationRule(leadId) : [];
   if (!items.length) {
     try {
       items = await findByRecentScan(leadId);
@@ -271,11 +312,12 @@ async function debugBookingForLead (leadId) {
 
   if (!items.length) {
     out.booking = null;
-    out.note = 'No booking row on board ' + BOOKINGS_BOARD + ' links to this lead via link_to_leads26.';
+    out.note = 'No booking row on board ' + BOOKINGS_BOARD + ' links to this lead via link_to_leads26 ' +
+               '(checked the ' + SCAN_PAGES * 100 + ' most recently updated bookings).';
     return out;
   }
 
-  const item   = items[items.length - 1];
+  const item   = items[0];
   const titles = await columnTitles();
   out.item = { id: String(item.id), name: item.name };
   out.columnsWithValues = (item.column_values || [])
