@@ -114,7 +114,7 @@ All set in Vercel project settings. Never commit.
 | `KV_REST_API_URL` | Set by Vercel Marketplace Upstash integration |
 | `KV_REST_API_TOKEN` | Set by Vercel Marketplace Upstash integration |
 | **Lead Qualified email** | |
-| `LEAD_QUALIFIED_TO` | Comma-separated staff recipients. Default: alex, sam, josh @studentluxe.co.uk |
+| `LEAD_QUALIFIED_TO` | Comma-separated staff recipients. Default: dana, sam, edoardo, lina, paige, josh, alex @studentluxe.co.uk |
 | `LEAD_QUALIFIED_SUPPRESS` | Comma-separated names whose qualifications never email (CRM testers). Default `Dana W Danan` |
 | `LEAD_QUALIFIED_DELAY_MINUTES` | Hold time before sending. Default `15`. `0` restores instant send |
 | `LEAD_QUALIFIED_DEDUPE_HOURS` | Window in which the same lead cannot email twice. Default `24` |
