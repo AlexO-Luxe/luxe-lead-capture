@@ -612,7 +612,7 @@ body {
               </div>
             </div>
             <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-              <table class="data-table" id="campMainTable" style="min-width:1100px;">
+              <table class="data-table" id="campMainTable" style="min-width:1200px;">
                 <thead><tr>
                   <th style="min-width:180px;">Campaign</th>
                   <th style="min-width:80px;">Owner</th>
@@ -624,6 +624,7 @@ body {
                   <th class="sortable" onclick="sortMainCamp('leads')">Leads <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('bookings')">Bookings <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('revenue')">Revenue <span class="sort-icon">↕</span></th>
+                  <th class="sortable" onclick="sortMainCamp('gadsRev')" title="Step 4 value Google actually recorded for this campaign (filed by click date). Compare with Revenue to spot dissonance.">Step 4 (Google) <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('avgBooking')">Avg Booking <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('profit')">Profit <span class="sort-icon">↕</span></th>
                   <th class="sortable" onclick="sortMainCamp('roas')">ROAS <span class="sort-icon">↕</span></th>
@@ -1104,9 +1105,10 @@ function mergeMonday(arr) {
 
 
 function mergeGads(arr) {
-  const o = { accountSummary:{spend:0,clicks:0,impressions:0,conversions:0,conversionsValue:0}, campaigns:[], budget:null };
+  const o = { accountSummary:{spend:0,clicks:0,impressions:0,conversions:0,conversionsValue:0}, campaigns:[], budget:null, step4ByCampaign:{} };
   const cm = {};
   arr.forEach(g => {
+    mc(o.step4ByCampaign, g.step4ByCampaign || {});
     const a = g.accountSummary||{};
     o.accountSummary.spend            += a.spend||0;
     o.accountSummary.clicks           += a.clicks||0;
@@ -1333,6 +1335,9 @@ function renderDash(monday, gads) {
 
   const bookByCampaign = rekey(bookings.byCampaign || {});
   const leadByCampaign = rekey(leads.byCampaign    || {});
+  // Step 4 value Google recorded per campaign (numeric map, rekey sums the
+  // tCPA-test variants into the base name like the other two maps).
+  const gadsRevByCampaign = rekey(gads.step4ByCampaign || {});
 
   function isJack(name) {
     const n = (name || '').toLowerCase();
@@ -1364,6 +1369,20 @@ function renderDash(monday, gads) {
     const bl = bookByCampaign[baseName] || { count:0, revenue:0 };
     const ll = leadByCampaign[baseName] || 0;
     const hasRevenue = bl.revenue > 0;
+    // Step 4 value Google recorded vs Monday revenue: the dissonance signal.
+    // Green within 90%, amber 50-90%, red below 50%. Filed by CLICK date, so
+    // long-lag campaigns (students booking months after clicking) naturally
+    // sit amber; red on a high-revenue campaign means uploads went missing.
+    const gadsRev = gadsRevByCampaign[baseName] || 0;
+    let gadsRevHtml = '—';
+    if (gadsRev > 0 || hasRevenue) {
+      const ratio = hasRevenue ? gadsRev / bl.revenue : null;
+      const col = ratio === null ? 'var(--muted)'
+                : ratio >= 0.9 ? 'var(--green)'
+                : ratio >= 0.5 ? '#c98a1b'
+                : 'var(--red)';
+      gadsRevHtml = `<span style="color:${col};font-weight:500" title="${ratio !== null ? Math.round(ratio*100) + '% of Monday revenue' : 'no Monday revenue this period'}">£${fmt(gadsRev)}</span>`;
+    }
     const profit     = c.spend > 0 ? (bl.revenue - c.spend) : (bl.revenue > 0 ? bl.revenue : null);
     const roasNum    = c.spend > 0
       ? (bl.revenue > 0 ? bl.revenue / c.spend : 0)
@@ -1374,6 +1393,7 @@ function renderDash(monday, gads) {
       name: c.name, city: c.city, owner,
       spend: c.spend, clicks: Math.round(c.clicks || 0), ctr: c.ctr || 0, cpc: c.cpc || null,
       leads: ll, bookings: bl.count, revenue: bl.revenue,
+      gadsRev, gadsRevHtml,
       avgBooking: avgBooking ?? -Infinity,
       profit: profit ?? -Infinity, roas: roasNum ?? -Infinity,
       hasRevenue,
@@ -1855,7 +1875,7 @@ function drawCampTable() {
       const si = th.querySelector('.sort-icon');
       if (si) si.textContent = '↕';
     });
-    const cols = ['spend','clicks','ctr','cpc','leads','bookings','revenue','profit','roas'];
+    const cols = ['spend','clicks','ctr','cpc','leads','bookings','revenue','gadsRev','avgBooking','profit','roas'];
     const idx  = cols.indexOf(key);
     const ths  = table.querySelectorAll('th.sortable');
     if (ths[idx]) {
@@ -1865,12 +1885,13 @@ function drawCampTable() {
     }
   }
 
-  let tSpend=0, tClicks=0, tLeads=0, tBookings=0, tRevenue=0, tHasRev=false;
+  let tSpend=0, tClicks=0, tLeads=0, tBookings=0, tRevenue=0, tGadsRev=0, tHasRev=false;
   rows.forEach(r => {
     tSpend    += r.spend    || 0;
     tClicks   += r.clicks   || 0;
     tLeads    += r.leads    || 0;
     tBookings += r.bookings || 0;
+    tGadsRev  += r.gadsRev  || 0;
     if (r.hasRevenue) { tRevenue += r.revenue; tHasRev = true; }
   });
   const totProfit = tHasRev ? tRevenue - tSpend : null;
@@ -1888,6 +1909,7 @@ function drawCampTable() {
     <td>${r.leads}</td>
     <td>${r.bookings}</td>
     <td>${r.hasRevenue?'£'+fmt(r.revenue):'—'}</td>
+    <td>${r.gadsRevHtml}</td>
     <td>${r.avgBookingHtml}</td>
     <td>${r.profitHtml}</td>
     <td>${r.roasHtml}</td>
@@ -1908,6 +1930,7 @@ function drawCampTable() {
     <td style="font-weight:600;">${tLeads}</td>
     <td style="font-weight:600;">${tBookings}</td>
     <td style="font-weight:600;">${tRevenue>0?'£'+fmt(tRevenue):'—'}</td>
+    <td style="font-weight:600;">${tGadsRev>0?'£'+fmt(tGadsRev):'—'}${tRevenue>0&&tGadsRev>0?` <span style="font-weight:400;font-size:10px;color:var(--muted);">(${Math.round(tGadsRev/tRevenue*100)}%)</span>`:''}</td>
     <td style="font-weight:600;">${tBookings>0&&tRevenue>0?'£'+fmt(tRevenue/tBookings):'—'}</td>
     <td>${totPHtml}</td>
     <td>${totRHtml}</td>`;

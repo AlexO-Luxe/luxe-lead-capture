@@ -67,16 +67,18 @@ module.exports = async function handler(req, res) {
     }
 
     const cur = dateRange(month);
-    const [accountSummary, campaigns, step4Value] = await Promise.all([
+    const bookingActionId = process.env.GOOGLE_ADS_BOOKING_ACTION_ID || '7579921391';
+    const [accountSummary, campaigns, step4Value, step4ByCampaign] = await Promise.all([
       queryAccountSummary(token, cur.start, cur.end),
       queryCampaigns(token, cur.start, cur.end),
-      queryConversionActionValue(token, cur.start, cur.end, process.env.GOOGLE_ADS_BOOKING_ACTION_ID || '7579921391')
+      queryConversionActionValue(token, cur.start, cur.end, bookingActionId),
+      queryStep4ByCampaign(token, cur.start, cur.end, bookingActionId)
     ]);
 
     const monStr = month.split('-')[1];
     const budget = MONTHLY_BUDGETS[monStr] || null;
 
-    const result = { month, budget, accountSummary, campaigns, step4ConvValue: step4Value };
+    const result = { month, budget, accountSummary, campaigns, step4ConvValue: step4Value, step4ByCampaign };
 
     if (prevMonth && /^\d{4}-\d{2}$/.test(prevMonth)) {
       const prev = dateRange(prevMonth);
@@ -148,6 +150,35 @@ async function queryConversionActionValue(token, startStr, endStr, actionId) {
   } catch(e) {
     console.log('Step4 conv query failed (non-fatal):', e.message);
     return null;
+  }
+}
+
+// Per-campaign value recorded on the Step 4 booking action, filed by CLICK
+// date. Sits next to Monday revenue on the dashboard so per-campaign
+// dissonance (missed uploads, EC matches credited elsewhere, out-of-window
+// clicks) is visible at a glance. Filters on the conversion action RESOURCE
+// (not its display name) so renaming the action cannot break the query; the
+// segment must also appear in SELECT or Google rejects the filter.
+async function queryStep4ByCampaign(token, startStr, endStr, actionId) {
+  try {
+    const results = await gadsQuery(token, `
+      SELECT
+        campaign.name,
+        segments.conversion_action,
+        metrics.all_conversions_value
+      FROM campaign
+      WHERE segments.date BETWEEN '${startStr}' AND '${endStr}'
+        AND segments.conversion_action = 'customers/${CUSTOMER_ID}/conversionActions/${actionId}'
+    `);
+    const map = {};
+    results.forEach(r => {
+      const name = r.campaign?.name || 'Unknown';
+      map[name] = r2((map[name] || 0) + (r.metrics?.allConversionsValue || 0));
+    });
+    return map;
+  } catch (e) {
+    console.log('Step4 by campaign query failed (non-fatal):', e.message);
+    return {};
   }
 }
 
