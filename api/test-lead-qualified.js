@@ -21,10 +21,12 @@
 //   &debug=timeline   activity events + the built stage timeline
 //   &debug=booking    the linked Booking Flow row, its populated columns
 //                     with titles and types, and the rendered Booking Agreed block
+//   &debug=booking&bookingId=123   reverse: dump a KNOWN booking row by its
+//                     item id, showing its board, relations, and rendered block
 
 const { renderLeadQualified } = require('./_lead-qualified-email');
 const { fetchItem, fetchLatestQualified, fetchItemActivity, fetchTimeline, buildTimeline, mapItemToLead, sendEmail } = require('./_lead-qualified-data');
-const { debugBookingForLead, fetchBookingForLead } = require('./_lead-qualified-booking');
+const { debugBookingForLead, debugBookingRow, fetchBookingForLead } = require('./_lead-qualified-booking');
 
 module.exports = async function handler(req, res) {
   try {
@@ -37,6 +39,15 @@ module.exports = async function handler(req, res) {
     // Optional guard: if TEST_ENDPOINT_KEY is set in Vercel, require ?key= to match.
     if (process.env.TEST_ENDPOINT_KEY && q.key !== process.env.TEST_ENDPOINT_KEY) {
       return res.status(401).send('Unauthorized');
+    }
+
+    // Reverse booking diagnostic: dump a KNOWN Booking Flow row by its item id
+    // (from its Monday URL), showing its board, relations and rendered block.
+    // Needs no lead, so it runs before the lead fetch.
+    if (q.debug === 'booking' && q.bookingId) {
+      const result = await debugBookingRow(q.bookingId);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).send(JSON.stringify(result, null, 2));
     }
 
     const item = q.itemId ? await fetchItem(q.itemId) : await fetchLatestQualified();
