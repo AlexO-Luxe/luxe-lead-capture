@@ -125,7 +125,10 @@ function conversionDestination ({ conversionActionId, reference = 'sl-conv' }) {
     reference,
     loginAccount: {
       accountType: 'GOOGLE_ADS',
-      accountId:   process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
+      // Hard fallback to the Student Luxe MCC: this env var was once emptied
+      // by accident in the Vercel dashboard, and an empty accountId makes
+      // every events:ingest call 400 (login_account.account_id missing).
+      accountId:   (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || '6046238343').replace(/-/g, '') || '6046238343'
     },
     operatingAccount: {
       accountType: 'GOOGLE_ADS',
@@ -140,7 +143,10 @@ function userListDestination ({ userListId, reference = 'sl-cm' }) {
     reference,
     loginAccount: {
       accountType: 'GOOGLE_ADS',
-      accountId:   process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
+      // Hard fallback to the Student Luxe MCC: this env var was once emptied
+      // by accident in the Vercel dashboard, and an empty accountId makes
+      // every events:ingest call 400 (login_account.account_id missing).
+      accountId:   (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || '6046238343').replace(/-/g, '') || '6046238343'
     },
     operatingAccount: {
       accountType: 'GOOGLE_ADS',
