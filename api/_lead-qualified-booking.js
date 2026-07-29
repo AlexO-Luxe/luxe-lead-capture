@@ -367,7 +367,11 @@ async function locateBooking (leadId) {
 // answer on display_value, status on label, the rest on text.
 function valueOf (c) {
   if (!c) return '';
-  return String(c.display_value || c.label || c.text || '').trim();
+  const v = String(c.display_value || c.label || c.text || '').trim();
+  // Monday returns UNEVALUATED formula columns as the literal string "null"
+  // (seen in production on formula2: it parsed to NaN -> commission £0 and
+  // masked the real value sitting in Rev to Google). Treat it as empty.
+  return v === 'null' || v === 'undefined' ? '' : v;
 }
 
 // Apartment Agreed on the booking row: by id, then by the column titled
@@ -445,7 +449,7 @@ function mapBooking (item, titles = {}) {
 
 // { value: number|null, estimated: boolean }
 function resolveCommission (cv) {
-  const formula = disp(cv.formula2);
+  const formula = valueOf(cv.formula2);
   if (formula) return { value: numOf(formula), estimated: false };
 
   const stored = txt(cv.numeric_mm1ge9h4);
