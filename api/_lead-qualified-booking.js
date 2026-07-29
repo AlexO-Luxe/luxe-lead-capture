@@ -187,6 +187,23 @@ async function fetchFullItems (ids) {
   return data?.data?.items || [];
 }
 
+// Which board each item lives on, and nothing else. Cheap enough to run over
+// a hundred-plus hop candidates BEFORE the expensive full fetch, so the
+// booking cannot be lost to a fetch cap (production hit exactly that: 120
+// candidates, only the first 50 fully fetched).
+async function boardsOf (ids) {
+  const clean = [...new Set(ids)].map(Number).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < clean.length && i < 400; i += 100) {
+    const chunk = clean.slice(i, i + 100);
+    const data = await mondayQuery(`query {
+      items(ids: [${chunk.join(', ')}]) { id board { id } }
+    }`);
+    out.push(...(data?.data?.items || []));
+  }
+  return out;
+}
+
 // Relation links of arbitrary items (used for the lead -> contact -> booking
 // hop). Light read only.
 async function relationLinksOf (ids) {
@@ -297,9 +314,18 @@ async function locateBooking (leadId) {
     )].filter(id => id !== String(leadId));
     trace.contactHop = { sources: linked.length, candidates: hopIds.length };
     if (hopIds.length) {
-      const hopItems = onBoard(await fetchFullItems(hopIds), bfBoard);
-      trace.contactHop.matches = hopItems.length;
-      if (hopItems.length) return { items: hopItems, foundVia: 'contact-hop', rels, leadName, trace };
+      // Pre-filter by board so a fetch cap can never drop the booking: the
+      // OKR and profile-image relations drag in a hundred-plus unrelated
+      // items, and only the ones on the booking flow board matter.
+      const onBf = (await boardsOf(hopIds))
+        .filter(b => String(b.board?.id || '') === String(bfBoard))
+        .map(b => String(b.id));
+      trace.contactHop.onBookingFlowBoard = onBf.length;
+      if (onBf.length) {
+        const hopItems = onBoard(await fetchFullItems(onBf), bfBoard);
+        trace.contactHop.matches = hopItems.length;
+        if (hopItems.length) return { items: hopItems, foundVia: 'contact-hop', rels, leadName, trace };
+      }
     }
   } catch (err) {
     trace.contactHop = { error: err.message };
@@ -519,6 +545,36 @@ async function debugBookingForLead (leadId) {
   return out;
 }
 
+// Reverse diagnostic: dump a KNOWN booking row by its item id, showing which
+// board it lives on, every relation column and what it links to, and how the
+// email would render it. Use when the lead-side search finds nothing: it
+// answers "how is this row actually connected, and to what".
+async function debugBookingRow (bookingId) {
+  const items = await fetchFullItems([bookingId]);
+  if (!items.length) return { bookingId: String(bookingId), error: 'item not found (or the API key cannot see it)' };
+  const it      = items[0];
+  const boardId = String(it.board?.id || '');
+  const titles  = await boardColumnTitles(boardId);
+  return {
+    bookingId: String(it.id),
+    name:      it.name,
+    boardId,
+    isBookingFlowBoard: boardId === String(await bookingFlowBoardId()),
+    relations: (it.column_values || [])
+      .filter(c => (c.linked_item_ids || []).length)
+      .map(c => ({
+        columnId:  c.id,
+        title:     titles[c.id]?.title || '',
+        display:   String(c.display_value || '').trim(),
+        linkedIds: (c.linked_item_ids || []).map(String)
+      })),
+    columnsWithValues: (it.column_values || [])
+      .map(c => ({ id: c.id, title: titles[c.id]?.title || '', type: c.type || titles[c.id]?.type || '', value: valueOf(c) }))
+      .filter(c => c.value !== ''),
+    rendered: mapBooking(it, titles)
+  };
+}
+
 module.exports = {
   BOOKINGS_BOARD,
   LEADS_BOARD,
@@ -526,6 +582,7 @@ module.exports = {
   bookingFlowBoardId,
   fetchBookingForLead,
   debugBookingForLead,
+  debugBookingRow,
   locateBooking,
   mapBooking,
   resolveApartment,
