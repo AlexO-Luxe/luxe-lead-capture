@@ -1,11 +1,15 @@
 // _lead-qualified-email.js
 //
-// VENDORED COPY of render-lead-qualified.js from the canonical repo
-// AlexO-Luxe/luxe-emails. Keep the two in sync: edit there, copy here.
+// THE canonical Lead Qualified email template. This file started as a copy of
+// render-lead-qualified.js in AlexO-Luxe/luxe-emails, but has since gained the
+// Booking Agreed block and section renames, and (per Alex, 2026-07-29) THIS is
+// now the only version. Do not sync from luxe-emails: its copy is outdated.
+// Edit here, nowhere else.
 //
 // Builds the "Lead Qualified" internal notification email from a normalised
 // lead object. Pure function, no I/O. Pass it data, get back { subject, html }.
-// Used by api/test-lead-qualified.js and (later) the Monday status webhook.
+// Used by api/test-lead-qualified.js and the live delay-queue flush
+// (api/lead-qualified-flush.js via _lead-qualified-data.js).
 //
 // No em dashes in output copy. Table-based, inline-styled, email-client safe.
 

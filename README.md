@@ -315,7 +315,7 @@ At send time the email also pulls the lead's row on the Booking Flow board (Book
 - No booking row yet, the whole block is omitted. Row exists but half filled, the missing fields read "Not set yet".
 - Nights are derived from check-in to check-out (`date_1`), there is no nights column on the board.
 - Commission resolution order: `formula2` if Monday ever returns a value for it, then `numeric_mm1ge9h4` (Rev to Google), then a recompute from the base columns, shown with an `est.` tag. See `api/_booking-value.js`, shared with `/api/sync-booking-values`.
-- `api/_lead-qualified-email.js` is a vendored copy of `render-lead-qualified.js` in **AlexO-Luxe/luxe-emails**. The Booking Agreed block needs copying back there to keep the two in sync.
+- `api/_lead-qualified-email.js` is THE canonical Lead Qualified template (decided 2026-07-29). It started as a copy of `render-lead-qualified.js` in **AlexO-Luxe/luxe-emails**, but that copy is now outdated and must not be synced from. Edit here only.
 
 Ops:
 
