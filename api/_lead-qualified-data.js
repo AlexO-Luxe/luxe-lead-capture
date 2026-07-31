@@ -79,7 +79,9 @@ async function fetchRecentQualified(n = 1) {
     }
   }`);
   const items = data?.data?.boards?.[0]?.items_page?.items || [];
-  return items.filter(it => /qualif/i.test(colText(it, 'status'))).slice(0, Math.max(1, n));
+  // Anchored (same fix as the webhook, commit e0b6a01): "Qualified Lead"
+  // passes, "Unqualified Lead" must not.
+  return items.filter(it => /^\s*qualif/i.test(colText(it, 'status'))).slice(0, Math.max(1, n));
 }
 
 async function fetchLatestQualified() {
