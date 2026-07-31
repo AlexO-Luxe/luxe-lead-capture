@@ -15,8 +15,13 @@
 //   GET /api/lead-qualified-flush?secret=...&force=1      ignore due times, send all pending
 //   GET /api/lead-qualified-flush?secret=...&dryRun=1     report what would send
 //   GET /api/lead-qualified-flush?secret=...&itemId=123   send one lead now, queued or not
+//   GET /api/lead-qualified-flush?secret=...&recent=3     resend the N most recently
+//                                                         qualified leads to everyone
+//
+// itemId and recent are explicit operator actions, so they BYPASS the 24h
+// dedupe guard: asking for a resend means you want the email again.
 
-const { sendQualifiedEmail } = require('./_lead-qualified-data');
+const { sendQualifiedEmail, fetchRecentQualified } = require('./_lead-qualified-data');
 const { dueLeads, listPending, removeLead, claimSend, releaseSend, delayMinutes } = require('./_lead-qualified-queue');
 const { logError } = require('./_errlog.js');
 
@@ -47,7 +52,11 @@ module.exports = async function handler(req, res) {
 
     let queue;
     if (q.itemId) {
-      queue = [{ pulseId: String(q.itemId), meta: {} }];
+      queue = [{ pulseId: String(q.itemId), meta: {}, bypassDedupe: true }];
+    } else if (q.recent) {
+      const n = Math.min(10, Math.max(1, parseInt(q.recent, 10) || 1));
+      const items = await fetchRecentQualified(n);
+      queue = items.map(it => ({ pulseId: String(it.id), name: it.name, meta: {}, bypassDedupe: true }));
     } else if (String(q.force || '') === '1') {
       queue = (await listPending()).map(p => ({ pulseId: p.pulseId, meta: {} }));
     } else {
@@ -60,16 +69,19 @@ module.exports = async function handler(req, res) {
       const { pulseId, meta } = entry;
 
       if (dryRun) {
-        results.push({ pulseId, dryRun: true });
+        results.push({ pulseId, name: entry.name, dryRun: true });
         continue;
       }
 
-      // One send per lead, even if two cron runs overlap.
-      const claimed = await claimSend(pulseId);
-      if (!claimed) {
-        await removeLead(pulseId);
-        results.push({ pulseId, skipped: 'already sent recently' });
-        continue;
+      // One send per lead, even if two cron runs overlap. An explicit
+      // operator resend (itemId / recent) skips the guard on purpose.
+      if (!entry.bypassDedupe) {
+        const claimed = await claimSend(pulseId);
+        if (!claimed) {
+          await removeLead(pulseId);
+          results.push({ pulseId, skipped: 'already sent recently' });
+          continue;
+        }
       }
 
       try {
