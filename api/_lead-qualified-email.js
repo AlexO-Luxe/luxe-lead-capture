@@ -313,7 +313,12 @@ function renderLeadQualified(lead) {
 </table>
 </body></html>`;
 
-  const subject = `✓ Lead qualified: ${lead.guestName} - by ${lead.qualifiedBy}`;
+  // "⏳ Lead qualified by Sarika: Aaina H. Singh, 92 nights"
+  // Qualifier by first name; nights from the agreed booking when there is
+  // one, else the form entry; omitted when neither is known.
+  const qualifierFirst = String(lead.qualifiedBy || '').trim().split(/\s+/)[0] || 'team';
+  const subjectNights  = (lead.booking && lead.booking.nights) || lead.nights || '';
+  const subject = `⏳ Lead qualified by ${qualifierFirst}: ${lead.guestName}${subjectNights ? `, ${subjectNights} nights` : ''}`;
 
   return { subject, html };
 }
