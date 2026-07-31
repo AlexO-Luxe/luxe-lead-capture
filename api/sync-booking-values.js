@@ -62,7 +62,7 @@ module.exports = async function handler (req, res) {
 
   try {
     const items    = await fetchScopedBookings(monthStr + '-01', isoToday());
-    const out      = { month: monthStr, tolerance, dryRun, scanned: items.length, filled: [], amended: [], skipped: [], unchanged: 0 };
+    const out      = { month: monthStr, tolerance, dryRun, scanned: items.length, filled: [], amended: [], skipped: [], unchanged: 0, manualKept: 0 };
 
     for (const it of items) {
       const cv = {};
@@ -85,7 +85,13 @@ module.exports = async function handler (req, res) {
       const hasStored = txt(cv.numeric_mm1ge9h4) !== '';
 
       if (calc == null) {
-        out.skipped.push({ id: it.id, name, reason: calc === null ? 'non-GBP or zero nightly (split booking)' : 'incomplete data' });
+        // Non-computable row (non-GBP currency or a split booking with no
+        // nightly rate). If the team already entered a Rev to Google value by
+        // hand, trust it and stop flagging; each Monday item counts as its own
+        // booking, so split bookings keep one manual value per row. Only rows
+        // still missing a value are listed for manual entry.
+        if (hasStored && stored > 0) { out.manualKept++; }
+        else out.skipped.push({ id: it.id, name, reason: 'non-GBP or zero nightly (split booking)' });
         continue;
       }
 
@@ -104,7 +110,7 @@ module.exports = async function handler (req, res) {
       await sendDigest(out).catch(e => console.warn('digest send failed:', e.message));
     }
 
-    out.summary = { filled: out.filled.length, amended: out.amended.length, skipped: out.skipped.length, unchanged: out.unchanged };
+    out.summary = { filled: out.filled.length, amended: out.amended.length, skipped: out.skipped.length, unchanged: out.unchanged, manualKept: out.manualKept };
     return res.status(200).json(out);
   } catch (err) {
     console.error('sync-booking-values error:', err.message);
@@ -195,7 +201,7 @@ async function sendDigest (out) {
     </div>
     <div style="padding:8px 22px 22px;">
       <p style="font-size:13px;color:#555;line-height:1.55;">
-        ${out.filled.length} filled, ${out.amended.length} amended, ${out.skipped.length} need manual entry, ${out.unchanged} already correct.
+        ${out.filled.length} filled, ${out.amended.length} amended, ${out.skipped.length} need manual entry, ${out.unchanged} already correct, ${out.manualKept || 0} manual values kept (non-GBP/split, entered by hand).
         Values recomputed from the Monday formula and written to <em>Rev to Google</em>. Please glance at any amended row against the formula column.
       </p>
       ${section('Filled (were blank)', `<th style="text-align:left;padding:6px 10px;color:#9b9b9b;">Booking</th><th style="text-align:right;padding:6px 10px;color:#9b9b9b;">Value</th>`, filledRows)}
