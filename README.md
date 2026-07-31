@@ -324,6 +324,7 @@ GET /api/lead-qualified-flush?secret=<CRON_SECRET>&status=1     # what is waitin
 GET /api/lead-qualified-flush?secret=<CRON_SECRET>&dryRun=1     # what would send right now
 GET /api/lead-qualified-flush?secret=<CRON_SECRET>&force=1      # send everything pending, ignore due times
 GET /api/lead-qualified-flush?secret=<CRON_SECRET>&itemId=123   # send one lead now
+GET /api/lead-qualified-flush?secret=<CRON_SECRET>&recent=3    # resend the N most recently qualified (bypasses the 24h dedupe)
 ```
 
 ---

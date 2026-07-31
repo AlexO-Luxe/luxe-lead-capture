@@ -64,8 +64,10 @@ async function fetchItem(itemId) {
   return data?.data?.items?.[0] || null;
 }
 
-async function fetchLatestQualified() {
-  // Most recently updated item whose status is Qualified.
+// The N most recently updated items whose status is Qualified, freshest
+// first. Used by the flush endpoint's manual ?recent=N resend and, with n=1,
+// by the test endpoint's auto-pick.
+async function fetchRecentQualified(n = 1) {
   const data = await mondayQuery(`query {
     boards(ids: [${LEADS_BOARD}]) {
       items_page(limit: 100, query_params: { order_by: [{ column_id: "__last_updated__", direction: desc }] }) {
@@ -77,7 +79,11 @@ async function fetchLatestQualified() {
     }
   }`);
   const items = data?.data?.boards?.[0]?.items_page?.items || [];
-  return items.find(it => /qualif/i.test(colText(it, 'status'))) || null;
+  return items.filter(it => /qualif/i.test(colText(it, 'status'))).slice(0, Math.max(1, n));
+}
+
+async function fetchLatestQualified() {
+  return (await fetchRecentQualified(1))[0] || null;
 }
 
 // Raw activity-log events for a single item, used to derive stage timestamps
@@ -336,6 +342,7 @@ module.exports = {
   sendQualifiedEmail,
   fetchItem,
   fetchLatestQualified,
+  fetchRecentQualified,
   fetchItemActivity,
   fetchTimeline,
   buildTimeline,
