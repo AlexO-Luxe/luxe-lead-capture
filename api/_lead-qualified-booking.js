@@ -434,6 +434,7 @@ function mapBooking (item, titles = {}) {
   return {
     itemId:     String(item.id),
     name:       item.name || '',
+    salesperson: valueOf(cv.people98),
     apartment:  apartment || '',
     checkIn,
     checkOut,
@@ -449,14 +450,18 @@ function mapBooking (item, titles = {}) {
 
 // { value: number|null, estimated: boolean }
 function resolveCommission (cv) {
-  const formula = valueOf(cv.formula2);
-  if (formula) return { value: numOf(formula), estimated: false };
+  // A zero at any stage means "not filled in yet", not a free booking: Rev to
+  // Google defaults to 0, and the recompute multiplies by an empty commission
+  // percent. Fall through to the next source, and to null (which the email
+  // renders as "<salesperson> has not filled this in yet") if all are zero.
+  const formula = numOf(valueOf(cv.formula2));
+  if (formula > 0) return { value: formula, estimated: false };
 
-  const stored = txt(cv.numeric_mm1ge9h4);
-  if (stored) return { value: numOf(stored), estimated: false };
+  const stored = numOf(txt(cv.numeric_mm1ge9h4));
+  if (stored > 0) return { value: stored, estimated: false };
 
   const calc = computeFormula2(cv);
-  if (calc != null) return { value: calc, estimated: true };
+  if (calc != null && calc > 0) return { value: calc, estimated: true };
 
   return { value: null, estimated: false };
 }
@@ -491,7 +496,7 @@ async function fetchBookingForLead (leadId) {
         booking = booking
           ? { ...booking, apartment }
           : {
-              itemId: '', name: '', apartment,
+              itemId: '', name: '', salesperson: '', apartment,
               checkIn: '', checkOut: '', nights: '',
               nightlyRate: null, commission: null, commissionEstimated: false,
               status: '', confirmed: false, url: ''

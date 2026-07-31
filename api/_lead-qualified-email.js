@@ -162,9 +162,10 @@ function renderLeadQualified(lead) {
         ${bkCell('Agreed nightly rate', pend(bk.nightlyRate) || `${gbp(bk.nightlyRate)}/night`, { last: true })}
         <td style="padding:11px 16px;background:#fbf7f1;">
           <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Total Luxe commission</p>
-          <p style="margin:0;font-size:15px;color:${BRAND.ink};font-weight:700;">${pend(bk.commission) || gbp(bk.commission)}${
-            bk.commission !== null && bk.commission !== undefined && bk.commission !== '' && bk.commissionEstimated
-              ? ` <span style="font-size:10px;color:${BRAND.muted};font-weight:400;">est.</span>` : ''}</p>
+          ${(bk.commission === null || bk.commission === undefined || bk.commission === '')
+            ? `<p style="margin:0;font-size:11px;color:${BRAND.muted};font-weight:400;line-height:1.4;">${escHtml(bk.salesperson || 'The salesperson')} has not filled this in on Booking Flow yet</p>`
+            : `<p style="margin:0;font-size:15px;color:${BRAND.ink};font-weight:700;">${gbp(bk.commission)}${
+                bk.commissionEstimated ? ` <span style="font-size:10px;color:${BRAND.muted};font-weight:400;">est.</span>` : ''}</p>`}
         </td>
       </tr>
     </table>
