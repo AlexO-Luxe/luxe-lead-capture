@@ -813,6 +813,7 @@ span.flatpickr-weekday{
             <optgroup label="— United States">
               <option value="boston">Boston</option>
               <option value="chicago">Chicago</option>
+              <option value="los-angeles">Los Angeles</option>
               <option value="philadelphia">Philadelphia</option>
               <option value="washington">Washington DC</option>
             </optgroup>
@@ -840,6 +841,7 @@ span.flatpickr-weekday{
           <div class="sl-field" style="margin-top:12px;">
             <label>Please specify city <span class="sl-req">*</span></label>
             <input type="text" id="slOtherCity" name="otherCity" placeholder="Enter city name">
+            <div class="sl-err-msg" id="slErr-otherCity">Please enter your city</div>
           </div>
         </div>
       </div>
@@ -1885,6 +1887,7 @@ span.flatpickr-weekday{
     durham:{areas:['City Centre','Framwellgate','Gilesgate','Nevilles Cross','Crossgate','Elvet','Claypath'],universities:["Durham University","Durham University Queen's Campus","New College Durham","Other"]},
     bristol:{areas:['Clifton','Redland','Cotham','Stokes Croft','Harbourside','Bedminster','Easton','Montpelier','Totterdown','Whiteladies Road'],universities:["Bristol Old Vic Theatre School","City of Bristol College","Filton College","Kaplan Pathways (UWE Bristol)","King College","South Gloucestershire & Stroud College","Trinity College Bristol","University of Bristol","University of the West of England (UWE)","Other"]},
     boston:{areas:['Back Bay','Beacon Hill','South End','Fenway','Seaport','Cambridge (Harvard Sq)','Allston','Brookline','Charlestown','Downtown','South Boston','Jamaica Plain'],universities:["Berklee College of Music","BF Cummings Institute of Technology","Boston College","Boston University","Brandeis University","Emerson College","Harvard University","Hult International Business School","Lesley University","Massachusetts College of Art and Design (MassArt)","Massachusetts Institute of Technology (MIT)","New England College of Optometry","New England Conservatory of Music","Northeastern University","Simmons University","Suffolk University","Tufts University","University of Massachusetts Boston (UMass Boston)","Wentworth Institute of Technology","Other"]},
+    'los-angeles':{areas:['Westwood','Santa Monica','West Hollywood','Downtown LA','Beverly Hills','Brentwood','Culver City','Marina del Rey','Koreatown','Pasadena'],universities:["California Institute of Technology (Caltech)","Loyola Marymount University (LMU)","Occidental College","Pepperdine University","University of California, Los Angeles (UCLA)","University of Southern California (USC)","Other"]},
     philadelphia:{areas:['Center City','Rittenhouse Square','Fishtown','Northern Liberties','Old City','University City','Fairmount','Manayunk','South Philadelphia','Chestnut Hill'],universities:["Drexel University","La Salle University","Saint Joseph's University","Temple University","Thomas Jefferson University","University of Pennsylvania","University of the Arts Philadelphia","Villanova University","Other"]},
     washington:{areas:['Georgetown','Dupont Circle','Capitol Hill','Adams Morgan','Foggy Bottom','U Street','Logan Circle','Chevy Chase','Bethesda','Arlington (VA)','Alexandria (VA)','Rosslyn'],universities:["American University","Catholic University of America","George Mason University","George Washington University","Georgetown University","Howard University","Johns Hopkins SAIS","Marymount University","Trinity Washington University","University of Maryland","Other"]},
     'new-york':{areas:['Upper East Side','Upper West Side','Midtown','Chelsea','SoHo','Tribeca','Williamsburg','Astoria','Brooklyn Heights','Park Slope','Long Island City','Greenwich Village'],universities:["Barnard College","Binghamton University (SUNY)","Brooklyn College (CUNY)","City College of New York (CUNY)","Columbia University","Cooper Union","Cornell University (NYC Programs)","Fashion Institute of Technology (FIT)","Fordham University","Hamilton College","Hunter College (CUNY)","Manhattan School of Music","New York University (NYU)","Pace University","Parsons School of Design","Pratt Institute","Rensselaer Polytechnic Institute","Rochester Institute of Technology","School of Visual Arts","Skidmore College","St. John's University","Stony Brook University (SUNY)","Syracuse University","The Juilliard School","The New School","University at Buffalo (SUNY)","University of Rochester","Vassar College","Yeshiva University","Other"]},
@@ -2082,9 +2085,9 @@ span.flatpickr-weekday{
     showErr('slErr-phone', false);
   });
 
-  phoneInp.addEventListener('blur',  function(){ 
+  phoneInp.addEventListener('blur',  function(){
     stripLeadingZero();
-    if(this.value.length>0) validatePhone(true); 
+    if(this.value.length>0) validatePhone(true);
   });
   phoneInp.addEventListener('focus', function(){ showErr('slErr-phone',false); });
 
@@ -2400,7 +2403,7 @@ span.flatpickr-weekday{
   // ║  Tier 2 : Boston, Chicago, Washington  ($)                      ║
   // ╚══════════════════════════════════════════════════════════════════╝
 
-  var CITY_TIER={'london':'uk-A','edinburgh':'uk-A','glasgow':'uk-2','manchester':'uk-2','cambridge':'uk-2','durham':'uk-2','bristol':'uk-2','birmingham':'uk-2','brighton':'uk-2','liverpool':'uk-2','nottingham':'uk-2','dublin':'uk-2','paris':'eur-A','milan':'eur-A','amsterdam':'eur-A','rome':'eur-A','florence':'eur-A','helsinki':'eur-A','barcelona':'eur-2','madrid':'eur-2','lisbon':'eur-2','porto':'eur-2','valencia':'eur-2','new-york':'us-A','boston':'us-A','chicago':'us-A','washington':'us-2','philadelphia':'us-2'};
+  var CITY_TIER={'london':'uk-A','edinburgh':'uk-A','glasgow':'uk-2','manchester':'uk-2','cambridge':'uk-2','durham':'uk-2','bristol':'uk-2','birmingham':'uk-2','brighton':'uk-2','liverpool':'uk-2','nottingham':'uk-2','dublin':'uk-2','paris':'eur-A','milan':'eur-A','amsterdam':'eur-A','rome':'eur-A','florence':'eur-A','helsinki':'eur-A','barcelona':'eur-2','madrid':'eur-2','lisbon':'eur-2','porto':'eur-2','valencia':'eur-2','new-york':'us-A','boston':'us-A','chicago':'us-A','los-angeles':'us-A','washington':'us-2','philadelphia':'us-2'};
 
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  STEP 2 — DEFINE THE TIERS                                       ║
@@ -2798,6 +2801,7 @@ span.flatpickr-weekday{
   // ── Clear errors on field interaction ────────────────────────────────
   // City
   cityEl.addEventListener('change', function(){ if(this.value){ showErr('slErr-city',false); setFs(this,'ok'); } });
+  (function(){ var oc=document.getElementById('slOtherCity'); if(oc) oc.addEventListener('input', function(){ if(this.value.trim()){ showErr('slErr-otherCity',false); setFs(this,null); } }); })();
 
   // Apartment ref
   var aptRefEl = document.getElementById('slAptRef');
@@ -3029,6 +3033,12 @@ span.flatpickr-weekday{
 
     if(!isTypeA){
       if(!cityEl.value){showErr('slErr-city',true);setFs(cityEl,'err');valid=false;}else setFs(cityEl,'ok');
+      // "Other" needs the specify field filled, otherwise the lead lands with a blank city
+      if(cityEl.value==='other'){
+        var otherEl=document.getElementById('slOtherCity');
+        if(otherEl && !otherEl.value.trim()){showErr('slErr-otherCity',true);setFs(otherEl,'err');valid=false;}
+        else if(otherEl){showErr('slErr-otherCity',false);setFs(otherEl,'ok');}
+      }
     }
 
     var aptEl=document.getElementById('slAptType');
@@ -3245,7 +3255,7 @@ span.flatpickr-weekday{
       return false;
     }
 
-    if(!/^[^\s@,]+@[^\s@,]+\.[^\s@,]{2,}$/.test(val)){
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)){
       if(doShow){ showErr('slErr-email', true); emailErr.textContent = 'Please enter a valid email address'; setFs(emailEl,'err'); }
       return false;
     }

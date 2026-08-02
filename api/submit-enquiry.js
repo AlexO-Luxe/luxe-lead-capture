@@ -1452,7 +1452,7 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     date47:            p.check_in  ? { date: p.check_in  } : {},
     date_1:            p.check_out ? { date: p.check_out } : {},
     budget_per_week:   p.budget ? formatBudget(p.budget, p) : '',
-    text8:             p.city === 'other' ? (p.other_city || '') : (formatCity(p.city) || ''),
+    text8:             p.city === 'other' ? (p.other_city || 'Other (not specified)') : (formatCity(p.city) || ''),
     dropdown6:         p.apartment_ref     || '',
     apt_type_mkmn4bgg: formatAptType(p.apartment_type) || '',
     dropdown19:        p.areas || '',
