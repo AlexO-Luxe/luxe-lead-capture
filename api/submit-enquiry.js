@@ -129,6 +129,9 @@ module.exports = async function handler(req, res) {
     hasWbraid: !!p.wbraid
   };
   try {
+    // Clean txn fallback for no-session leads: raw email in a transaction id
+    // now 400s at Google (rejected since ~27 Jul 2026).
+    p.monday_id = mondayId;
     const dmResult = await uploadGoogleAdsConversion(p);
     console.log('Google Ads conversion uploaded OK');
     await logGadsEvent({ ...gadsCtx, ok: true });
@@ -456,7 +459,7 @@ async function uploadGoogleAdsConversion (p) {
 
   const event = {
     destinationReferences: ['sl-step1-new'],
-    transactionId:         String(p.session_id || p.email || Date.now()),
+    transactionId:         String(p.session_id || p.monday_id || Date.now()),
     eventTimestamp,
     eventSource:           'WEB',
     ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),

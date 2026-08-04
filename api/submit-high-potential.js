@@ -113,7 +113,7 @@ module.exports = async function handler(req, res) {
         email,
         phone,
         name,
-        timestamp,
+        itemId,
         value:    config.value,
         currency: 'GBP',
         actionId: config.actionId()
@@ -167,7 +167,7 @@ const {
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 
-async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, timestamp, value, currency, actionId }) {
+async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, itemId, value, currency, actionId }) {
   if (!actionId) {
     throw new Error('Missing conversion action id — check GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID / GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID in Vercel env');
   }
@@ -178,7 +178,6 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, ti
   // The conversion happens NOW, when the potential status is set and this
   // webhook fires — not when the lead was created (which can be months ago,
   // outside Google's acceptable event-time window -> EVENT_TIME_INVALID).
-  // The original `timestamp` is still used below for a stable transactionId.
   const eventTimestamp = new Date().toISOString();
 
   const adIdentifiers = {};
@@ -197,7 +196,12 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, ti
 
   const event = {
     destinationReferences: ['sl-lead-potential'],
-    transactionId:         String(timestamp || Date.now()) + ':' + (email || ''),
+    // Canonical txn, same convention as replay-failed-events and the
+    // dissonance fix mode, so every path dedupes against every other.
+    // Never put the raw email in here: Google started rejecting
+    // transaction ids containing it (bare events.events[0] 400s) around
+    // 27 Jul 2026, which made every first-attempt webhook upload fail.
+    transactionId:         'replay:' + (itemId || Date.now()) + ':' + String(actionId),
     eventTimestamp,
     eventSource:           'WEB',
     ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),

@@ -133,7 +133,7 @@ module.exports = async function handler(req, res) {
         // (email, name, click ids) instead of falling through to the
         // outer catch, which only has mondayId in scope.
         try {
-          const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+          const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
           await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
           if (!result?.skipped) {
             await sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
@@ -173,7 +173,7 @@ module.exports = async function handler(req, res) {
 
       console.log('Revenue filled for PPC booking, uploading. Value: £' + cleanValue);
       try {
-        const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, timestamp, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
+        const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
         await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
         if (!result?.skipped) {
           await sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
@@ -211,7 +211,7 @@ const {
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 
-async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, timestamp, value, currency, actionId }) {
+async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, itemId, value, currency, actionId }) {
   const nameParts = (name || '').trim().split(/\s+/).filter(Boolean);
   const firstName = nameParts[0] || '';
   const lastName  = nameParts.slice(1).join(' ');
@@ -219,7 +219,6 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, ti
   // The conversion happens NOW, when the Monday status flips and this webhook
   // fires — not when the booking row was first created (which can be months
   // ago, outside Google's acceptable event-time window -> EVENT_TIME_INVALID).
-  // The original `timestamp` is still used below for a stable transactionId.
   const eventTimestamp = new Date().toISOString();
 
   const adIdentifiers = {};
@@ -238,7 +237,12 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, ti
 
   const event = {
     destinationReferences: ['sl-booking'],
-    transactionId:         String(timestamp || Date.now()) + ':' + (email || ''),
+    // Canonical txn, same convention as replay-failed-events and the
+    // dissonance fix mode, so every path dedupes against every other.
+    // Never put the raw email in here: Google started rejecting
+    // transaction ids containing it (bare events.events[0] 400s) around
+    // 27 Jul 2026, which made every first-attempt webhook upload fail.
+    transactionId:         'replay:' + (itemId || Date.now()) + ':' + String(actionId),
     eventTimestamp,
     eventSource:           'WEB',
     ...(Object.keys(adIdentifiers).length ? { adIdentifiers } : {}),
