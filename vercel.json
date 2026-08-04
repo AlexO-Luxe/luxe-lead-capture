@@ -26,6 +26,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/gads-daily-summary?hours=24",
+      "schedule": "30 8 * * *"
+    },
+    {
       "path": "/api/gads-dissonance?days=7&fix=1",
       "schedule": "0 8 * * 1"
     }

@@ -17,7 +17,11 @@ const TO         = 'alex@studentluxe.co.uk';
 const FROM       = 'Student Luxe Alerts <alerts@studentluxe.co.uk>';
 
 module.exports = async function handler (req, res) {
-  if (req.query?.secret !== process.env.CRON_SECRET) {
+  // Accept the secret as a query param (manual runs) or as the Bearer token
+  // Vercel cron sends automatically, the schedule moved off the laptop-bound
+  // Claude routine (silent since 29 Jul) onto a Vercel cron on 4 Aug 2026.
+  const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+  if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
