@@ -1281,7 +1281,8 @@ function computeLeadSource(p) {
   // carries a stray gclid still classifies as a partnership. Add new partners
   // to AFFILIATE_CHANNELS as they launch.
   const AFFILIATE_CHANNELS = {
-    'affiliate-expat': 'Expat.com'
+    'affiliate-expat':         'Expat.com',
+    'affiliate-studyintheusa': 'Study in the USA'
   };
   const affSource = (p.utm_source || '').toLowerCase().trim();
   const affMedium = (p.utm_medium || '').toLowerCase().trim();
