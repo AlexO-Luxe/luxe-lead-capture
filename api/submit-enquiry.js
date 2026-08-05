@@ -636,7 +636,7 @@ async function sendGuestConfirmation(p) {
     isTypeA && p.apartment_ref && ['Apartment',            p.apartment_ref],
     !isTypeA && p.city         && ['City',                 formatCity(p.city)],
     p.apartment_type           && ['Apartment type',       formatAptType(p.apartment_type)],
-    !isTypeA && p.budget       && ['Budget per week',      formatBudget(p.budget, p)],
+    !isTypeA && p.budget       && ['Budget per ' + budgetPeriod(p.city), formatBudget(p.budget, p)],
     p.check_in                 && ['Check-in',             formatDate(p.check_in)],
     p.check_out                && ['Check-out',            formatDate(p.check_out)],
     nights(p)                  && ['Stay length',          nights(p) + ' nights'],
@@ -903,7 +903,7 @@ async function sendPartnerGuestConfirmation(p, portal) {
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
             ${cell('Accommodation type', formatAptType(p.apartment_type))}
-            ${cell('Guide price', p.budget ? formatBudget(p.budget, p) + ' /week' : '', true)}
+            ${cell('Guide price', p.budget ? formatBudget(p.budget, p) + ' /' + budgetPeriod(p.city) : '', true)}
           </tr>
           <tr>
             ${cell('Check-in', formatDate(p.check_in))}
@@ -1148,7 +1148,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     <p style="margin:0 0 10px;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.06em;background:${isTypeA ? 'rgba(29,158,117,0.12)' : 'rgba(184,150,110,0.12)'};color:${isTypeA ? '#0F6E56' : '#8a6540'};border:0.5px solid ${isTypeA ? 'rgba(29,158,117,0.4)' : 'rgba(184,150,110,0.4)'};">${isTypeA ? 'Check apartment availability' : 'Send guest options'}</span></p>
     <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.75;">${isTypeA
       ? `${escHtml(p.apartment_ref || '')}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}`
-      : `${formatCity(p.city) || ''}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget, p) + '/wk' : ''}`
+      : `${formatCity(p.city) || ''}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget, p) + '/' + (budgetPeriod(p.city) === 'week' ? 'wk' : 'mo') : ''}`
     }</p>
   </td></tr>
   <tr><td style="background:#ffffff;padding:0 32px;"><hr style="border:none;border-top:0.5px solid #ede9e3;margin:18px 0;"></td></tr>
@@ -1173,7 +1173,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
         ? `<tr>${field('Apartment', p.apartment_ref)}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`
         : `<tr>${field('City', formatCity(p.city))}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`}
       <tr>${field('Check-in', formatDate(p.check_in))}${field('Check-out', formatDate(p.check_out))}</tr>
-      <tr>${field('Nights', nightCount)}${field('Budget / week', p.enquiry_type !== 'A' ? formatBudget(p.budget, p) : '')}</tr>
+      <tr>${field('Nights', nightCount)}${field('Budget / ' + budgetPeriod(p.city), p.enquiry_type !== 'A' ? formatBudget(p.budget, p) : '')}</tr>
       <tr>${field('Areas', formatArea(p.areas))}${field('Type of stay', formatStayType(p.stay_type, p.university))}</tr>
       <tr>${field('Country of residence', p.nationality)}${field('Lived in city before', p.lived_before)}</tr>`}
     </table>
@@ -1679,6 +1679,16 @@ function formatArea(a) {
   };
   if (map[a]) return map[a];
   return String(a).split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+// The reservations form quotes UK-tier cities per WEEK and every other city
+// per MONTH (see getBudgetPeriod / CITY_TIER in the form's code block). The
+// emails used to hardcode "per week", so a US or EU guest was shown a monthly
+// band labelled weekly. Keep this list in step with the form's uk-A / uk-2
+// tiers. Note Dublin is a UK-tier (weekly) city despite being in euros.
+const WEEKLY_BUDGET_CITIES = ['london','edinburgh','glasgow','manchester','cambridge','durham','bristol','birmingham','brighton','liverpool','nottingham','dublin'];
+function budgetPeriod (city) {
+  return WEEKLY_BUDGET_CITIES.includes(String(city || '').toLowerCase().trim()) ? 'week' : 'month';
 }
 
 function formatBudget(b, p) {
