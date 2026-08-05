@@ -92,7 +92,32 @@ module.exports = async function handler(req, res) {
     // Rev to Google is only the fallback. Rev to Google is a snapshot written
     // by the daily sync, which only scans the current month plus future close
     // dates, so older rows freeze and drift below the real figure.
-    const { value: bookingVal, source: valueSource } = bookingValue(cols);
+    let { value: bookingVal, source: valueSource } = bookingValue(cols);
+
+    // formula2 blips null occasionally (observed in production). Google keeps
+    // the FIRST value it receives for a conversion forever, so falling back to
+    // a stale Rev to Google on a blip would bake in the wrong number
+    // permanently. One cheap re-read before accepting the fallback.
+    if (valueSource !== 'formula2') {
+      try {
+        const retryRes = await fetch(MONDAY_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': process.env.MONDAY_API_KEY },
+          body: JSON.stringify({ query: `query { items(ids: [${itemId}]) { column_values(ids: ["formula2"]) { id text ... on FormulaValue { display_value } } } }` })
+        });
+        const retryData = await retryRes.json();
+        const rc = retryData?.data?.items?.[0]?.column_values?.[0];
+        const retryVal = rc?.display_value || rc?.text || '';
+        const retried  = bookingValue({ formula2: retryVal, numeric_mm1ge9h4: cols['numeric_mm1ge9h4'] });
+        if (retried.source === 'formula2') {
+          bookingVal  = retried.value;
+          valueSource = 'formula2 (retry)';
+        }
+      } catch (e) {
+        console.warn('formula2 re-read failed (non-fatal):', e.message);
+      }
+    }
+
     const revenueRaw  = bookingVal !== null ? String(bookingVal) : cols['numeric_mm1ge9h4'];
     const timestamp   = item.created_at;
     const isPPC       = (leadSource || '').toLowerCase().includes('ppc');
