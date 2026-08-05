@@ -53,6 +53,7 @@ Full architecture, env vars, Monday column IDs, and migration history live in [R
 - GraphQL only (never REST)
 - Retry logic required on every API call
 - Mirror + lookup columns return `display_value`, not `text` — always include both fragments in queries
+- Formula columns (e.g. `formula2` Total Luxe Commission) are readable too, but ONLY via `... on FormulaValue { display_value }`. Without that fragment they silently read as null, which is why the JS recompute in `_booking-value.js` was built. Use `bookingValue()` from that module for any booking value: formula2 first (live, handles non-GBP and split bookings), `numeric_mm1ge9h4` as fallback
 - Full column-ID map in README
 
 ## Monitoring

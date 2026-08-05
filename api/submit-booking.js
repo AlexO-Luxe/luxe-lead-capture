@@ -6,6 +6,7 @@
 const MONDAY_API = 'https://api.monday.com/v2';
 const { sendGadsAlert, sendGadsSuccess } = require('./_alert.js');
 const { logGadsEvent }  = require('./_log.js');
+const { bookingValue }  = require('./_booking-value.js');
 
 // The only booking status that must NOT upload to Google. Every other status
 // (Confirmed, Paying/Approved, Payment Complete, Extensions, Awaiting
@@ -51,8 +52,9 @@ module.exports = async function handler(req, res) {
       query {
         items(ids: [${itemId}]) {
           id name created_at
-          column_values(ids: ["status", "mirror21__1", "lookup_mkxtxk48", "numeric_mm1ge9h4"]) {
+          column_values(ids: ["status", "mirror21__1", "lookup_mkxtxk48", "numeric_mm1ge9h4", "formula2"]) {
             id text value
+            ... on FormulaValue { display_value }
             ... on MirrorValue { display_value }
             ... on BoardRelationValue { display_value }
             ... on StatusValue { label }
@@ -86,7 +88,12 @@ module.exports = async function handler(req, res) {
     const bookingName = item.name;
     const status      = cols['status'];
     const leadSource  = cols['lookup_mkxtxk48'];
-    const revenueRaw  = cols['numeric_mm1ge9h4'];
+    // formula2 (Monday's live Total Luxe Commission) is the source of truth;
+    // Rev to Google is only the fallback. Rev to Google is a snapshot written
+    // by the daily sync, which only scans the current month plus future close
+    // dates, so older rows freeze and drift below the real figure.
+    const { value: bookingVal, source: valueSource } = bookingValue(cols);
+    const revenueRaw  = bookingVal !== null ? String(bookingVal) : cols['numeric_mm1ge9h4'];
     const timestamp   = item.created_at;
     const isPPC       = (leadSource || '').toLowerCase().includes('ppc');
 
@@ -109,7 +116,7 @@ module.exports = async function handler(req, res) {
     const gclid    = cleanGclid(cols['mirror21__1'], leadGbraid, leadWbraid);
     const hasGclid = !!gclid;
 
-    console.log('Item data:', { itemId, bookingName, status, gclid, leadSource, revenueRaw, leadEmail: leadEmail ? '✓' : '✗', leadPhone: leadPhone ? '✓' : '✗', leadGbraid: leadGbraid ? '✓' : '✗', leadWbraid: leadWbraid ? '✓' : '✗' });
+    console.log('Item data:', { itemId, bookingName, status, gclid, leadSource, revenueRaw, valueSource, leadEmail: leadEmail ? '✓' : '✗', leadPhone: leadPhone ? '✓' : '✗', leadGbraid: leadGbraid ? '✓' : '✗', leadWbraid: leadWbraid ? '✓' : '✗' });
 
     // ── TRIGGER A: Status changed ─────────────────────────────
     // Any status uploads once revenue is present, EXCEPT "Pending Booking"

@@ -27,6 +27,7 @@ const TO             = 'alex@studentluxe.co.uk';
 const FROM           = 'Student Luxe Alerts <alerts@studentluxe.co.uk>';
 
 const { readGadsEvents, logGadsEvent } = require('./_log.js');
+const { bookingValue } = require('./_booking-value.js');
 const { cleanGclid, conversionDestination, buildUserIdentifiers, ingestEvents, CONSENT_GRANTED } = require('./_dataManager.js');
 
 const BOOKING_ACTION = () => process.env.GOOGLE_ADS_BOOKING_ACTION_ID;
@@ -160,7 +161,7 @@ function summarize (rows, gTotals) {
 
 // ── Monday ─────────────────────────────────────────────────────
 async function fetchBookings (sinceIso) {
-  const frag = `id name column_values(ids: ["numeric_mm1ge9h4","date9","lookup_mkxtxk48","status"]) { id text ... on MirrorValue { display_value } }
+  const frag = `id name column_values(ids: ["formula2","numeric_mm1ge9h4","date9","lookup_mkxtxk48","status"]) { id text ... on FormulaValue { display_value } ... on MirrorValue { display_value } }
     relation: column_values(ids: ["link_to_leads26"]) { ... on BoardRelationValue { linked_items { id created_at column_values(ids: ["text4__1","text_mm1c3b5w","text3__1","text_mm4ncd41","text_mm4n9t2x","email","phone_1"]) { id text } } } }`;
   const q = `query { boards(ids: ${BOOKINGS_BOARD}) { items_page(limit: 200, query_params: {
       rules: [{ column_id: "date9", compare_value: ["${sinceIso}"], operator: greater_than_or_equals }] }) {
@@ -173,7 +174,9 @@ async function fetchBookings (sinceIso) {
     const lead = it.relation?.[0]?.linked_items?.[0];
     const lc = {}; (lead?.column_values || []).forEach(c => { lc[c.id] = (c.text || '').trim(); });
     const raw = lc.text4__1 || '';
-    const value = parseFloat((cv.numeric_mm1ge9h4 || '').replace(/[£$€,\s]/g, ''));
+    // formula2 first so the audit compares Google against Monday's live
+    // figure, not the daily sync's snapshot.
+    const value = bookingValue(cv).value;
     return {
       id: it.id, name: it.name, value: Number.isFinite(value) ? value : null,
       gclidRaw: raw, gclid: cleanGclid(raw, lc.text_mm4ncd41, lc.text_mm4n9t2x),

@@ -19,6 +19,7 @@ const BOOKINGS_BOARD = 2171015589;
 
 const { readGadsEvents, logGadsEvent, claimAlert, isIgnored } = require('./_log.js');
 const { sendGadsAlert } = require('./_alert.js');
+const { bookingValue }  = require('./_booking-value.js');
 const {
   conversionDestination,
   buildUserIdentifiers,
@@ -240,7 +241,7 @@ async function fetchLeadIdentifiers (itemId) {
 async function fetchBookingIdentifiers (itemId) {
   const q = `query { items(ids: [${itemId}]) {
     id
-    revenue: column_values(ids: ["numeric_mm1ge9h4"]) { id text }
+    revenue: column_values(ids: ["formula2", "numeric_mm1ge9h4"]) { id text ... on FormulaValue { display_value } }
     relation: column_values(ids: ["link_to_leads26"]) {
       id
       ... on BoardRelationValue {
@@ -254,7 +255,10 @@ async function fetchBookingIdentifiers (itemId) {
   if (!lead) return null;
   const c = {};
   lead.column_values.forEach(x => { c[x.id] = (x.text || '').trim(); });
-  const value = parseFloat((it?.revenue?.[0]?.text || '').replace(/[£$€,\s]/g, ''));
+  // formula2 first (live), Rev to Google as fallback, matching submit-booking.
+  const revFlat = {};
+  (it?.revenue || []).forEach(c => { revFlat[c.id] = c.display_value || c.text || ''; });
+  const value = bookingValue(revFlat).value;
   return {
     email: c.email, phone: c.phone_1, firstName: c.text37, lastName: c.text60,
     gclid: cleanGclid(c.text4__1, c.text_mm4ncd41, c.text_mm4n9t2x),

@@ -3,11 +3,16 @@
 // Shared recompute of the Monday formula column formula2 ("Total Luxe
 // Commission excl VAT") on the Bookings / Booking Flow board (2171015589).
 //
-// Why it has to be recomputed at all: formula2 references cross-board MIRROR
-// columns, and Monday never evaluates a mirror-referencing formula
-// server-side, so the API returns null for it. The value can only be read by
-// a human in the UI. Everything that needs the number in code has to derive
-// it from the base columns.
+// CORRECTION (5 Aug 2026): formula2 IS readable from the API. It only ever
+// returned null because our queries lacked an inline `... on FormulaValue`
+// fragment, not because Monday refuses to evaluate mirror-referencing
+// formulas. Verified live on API versions 2024-10 through 2026-01.
+//
+// So prefer `bookingValue()` below, which reads formula2 directly. It beats
+// this recompute on every axis: it is always live (the recompute only reaches
+// rows inside the daily sync's date window, older rows freeze and drift), and
+// Monday evaluates rows this JS cannot, notably non-GBP and split bookings.
+// The recompute stays as the fallback and as the sync's writer.
 //
 // Extracted from api/sync-booking-values.js (which writes the result into
 // numeric_mm1ge9h4) so the Lead Qualified email can show the same figure
@@ -97,8 +102,30 @@ function daysBetween (ci, co) {
   return Math.round((b - a) / 86400000);
 }
 
+// ── Reading the booking value straight off Monday ──────────────
+// Request these ids, and splice VALUE_FRAGMENT into the column_values
+// selection. Without the FormulaValue fragment formula2 silently reads as
+// null, which is the bug that caused the whole recompute to exist.
+const VALUE_COLS     = ['formula2', 'numeric_mm1ge9h4'];
+const VALUE_FRAGMENT = '... on FormulaValue { display_value } ... on MirrorValue { display_value }';
+
+// Authoritative booking value for one row, given a flat { columnId: string }
+// map. formula2 wins because it is Monday's own live figure; Rev to Google is
+// the fallback for a row where the formula is blank. Returns { value, source }
+// so callers can log which one they used.
+function bookingValue (flat) {
+  const f = numOf(flat?.formula2);
+  if (f !== null && f > 0) return { value: round2(f), source: 'formula2' };
+  const n = numOf(flat?.numeric_mm1ge9h4);
+  if (n !== null && n > 0) return { value: round2(n), source: 'numeric_mm1ge9h4' };
+  return { value: null, source: 'none' };
+}
+
 module.exports = {
   FORMULA2_COLS,
+  VALUE_COLS,
+  VALUE_FRAGMENT,
+  bookingValue,
   computeFormula2,
   grossRate,
   netRate,
