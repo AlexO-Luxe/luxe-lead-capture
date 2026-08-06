@@ -1661,7 +1661,7 @@ function formatAptType(t) {
   if (!t) return '';
   const map = {'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom','3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible',
     // Partner portals ask for a living category rather than a unit size.
-    'shared':'Shared student living','private':'Private rooms & studios','serviced':'Luxury serviced apartments',
+    'shared':'Standard student living','private':'Private apartments','serviced':'Luxury serviced apartments',
     // Guest picked "Not sure yet" on the Marangoni modal, i.e. they want a
     // recommendation rather than a category.
     'unsure':'Not sure yet'};
@@ -1694,11 +1694,11 @@ function budgetPeriod (city) {
 function formatBudget(b, p) {
   if (!b) return '';
   const map = {'under-650':'Under £650','650-1000':'£650 – £1,000','1000-2000':'£1,000 – £2,000','2000-4000':'£2,000 – £4,000','5000+':'£5,000+','under-550':'Under £550','550-900':'£550 – £900','900-1350':'£900 – £1,350','1350-2000':'£1,350 – £2,000','2000+':'£2,000+','850-1200':'£850 – £1,200','1200-2000':'£1,200 – £2,000','2000-3500':'£2,000 – £3,500','3500-5000':'£3,500 – £5,000','under-1250':'Under £1,250','1250-1800':'£1,250 – £1,800','1800-2500':'£1,800 – £2,500','2500-4000':'£2,500 – £4,000',
-    // Marangoni portal. NOTE: its option values are stale against the labels
-    // the guest actually sees (value "350-500" is shown as "£350 – £650"), so
-    // these map to the shown label, not the value. '350-650'/'650-1000' are
-    // here too so nothing breaks if the form values are ever corrected.
-    '350-500':'£350 – £650','350-650':'£350 – £650','500-1000':'£650 – £1,000','1000-plus':'£1,000+',
+    // Marangoni portal. The live form now posts honest values ('350-650',
+    // '585-1000', '1000-2000'), but the old stale ones stay mapped so leads
+    // captured before the change still read correctly in Monday and email.
+    '350-650':'£350 – £650','585-1000':'£585 – £1,000',
+    '350-500':'£350 – £650','500-1000':'£650 – £1,000','1000-plus':'£1,000+',
     // Paired with apartment_type 'unsure'; without this the generic parser
     // below would mangle it.
     'unsure':'Not sure yet'};
