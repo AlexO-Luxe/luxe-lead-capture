@@ -4,7 +4,6 @@
 // ============================================================
 
 const MONDAY_API = 'https://api.monday.com/v2';
-const { sendGadsAlert, sendGadsSuccess } = require('./_alert.js');
 const { logGadsEvent }  = require('./_log.js');
 const { bookingValue }  = require('./_booking-value.js');
 
@@ -167,10 +166,6 @@ module.exports = async function handler(req, res) {
         try {
           const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
           await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
-          if (!result?.skipped) {
-            await sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
-          }
-          await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
           return res.status(200).json({ success: true, itemId, value: cleanValue });
         } catch (uploadErr) {
           console.error('submit-booking upload error:', uploadErr.message);
@@ -185,7 +180,6 @@ module.exports = async function handler(req, res) {
       // not on every later status change (avoids repeat emails).
       if (newValue.toLowerCase().includes('confirmed booking')) {
         console.log('Confirmed Booking — revenue not yet filled, sending notification');
-        await sendNotificationEmail({ bookingName, itemId, gclid, leadSource, isPPC, hasGclid });
         return res.status(200).json({ notified: true, itemId });
       }
       return res.status(200).json({ skipped: true, reason: 'no revenue yet' });
@@ -207,10 +201,6 @@ module.exports = async function handler(req, res) {
       try {
         const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
         await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
-        if (!result?.skipped) {
-          await sendGadsSuccess({ source: 'Student Luxe booking', action: 'Confirmed Booking', payload: { email: leadEmail, name: leadName, mondayId: itemId, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, requestId: result?.requestId } });
-        }
-        await sendSuccessEmail({ bookingName, itemId, value: cleanValue, gclid, skipped: result?.skipped });
         return res.status(200).json({ success: true, itemId, value: cleanValue });
       } catch (uploadErr) {
         console.error('submit-booking upload error:', uploadErr.message);
@@ -318,60 +308,4 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, it
     }
     throw err;
   }
-}
-
-// ──────────────────────────────────────────────────────────────
-//  EMAILS
-// ──────────────────────────────────────────────────────────────
-async function sendNotificationEmail({ bookingName, itemId, gclid, leadSource, isPPC, hasGclid }) {
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` },
-    body: JSON.stringify({
-      from:    'Student Luxe <noreply@studentluxe.co.uk>',
-      to:      ['alex@studentluxe.co.uk'],
-      subject: `🏠 New Confirmed Booking — Add Commission Value`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <h2 style="color:#0d1a2e;">New Confirmed Booking</h2>
-        <p>Marked as <strong>Confirmed Booking</strong> in Monday.com.</p>
-        <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Booking</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${bookingName}</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Monday Item ID</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${itemId}</td></tr>
-          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>PPC Lead</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${isPPC ? '✅ Yes' : '❌ No'}</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e5e3dd;"><strong>GCLID</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${hasGclid ? '✅ Present' : '❌ None — will match via email/phone'}</td></tr>
-        </table>
-        ${isPPC ? `<div style="background:#fff3cd;border:1px solid #B8966E;padding:15px;border-radius:4px;margin:20px 0;"><strong>Action required:</strong> Please add the <strong>Revenue Submitted to Google</strong> value in Monday.com to trigger the conversion upload.</div>` : `<div style="background:#f8f9fa;border:1px solid #e5e3dd;padding:15px;border-radius:4px;margin:20px 0;">Not a PPC lead — no Google Ads conversion will be sent.</div>`}
-        <p><a href="https://studentluxe.monday.com/boards/2171015589/views/149480482" style="color:#B8966E;">Open Booking Flow Board →</a></p>
-      </div>`
-    })
-  });
-}
-
-async function sendSuccessEmail({ bookingName, itemId, value, gclid, skipped }) {
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` },
-    body: JSON.stringify({
-      from:    'Student Luxe <noreply@studentluxe.co.uk>',
-      to:      ['alex@studentluxe.co.uk'],
-      subject: skipped
-        ? `📋 Confirmed Booking Logged — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2 })} (Google Ads skipped)`
-        : `✅ Google Ads Conversion Submitted — £${value.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <h2 style="color:#0d1a2e;">${skipped ? 'Booking Logged' : 'Offline Conversion Submitted'}</h2>
-        <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Booking</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${bookingName}</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Value</strong></td><td style="padding:10px;border:1px solid #e5e3dd;font-size:18px;color:#0d1a2e;"><strong>£${value.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</strong></td></tr>
-          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>GCLID</strong></td><td style="padding:10px;border:1px solid #e5e3dd;font-size:11px;color:#666;">${gclid || 'None — matched via email/phone'}</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Item ID</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${itemId}</td></tr>
-          <tr style="background:#f7f2eb;"><td style="padding:10px;border:1px solid #e5e3dd;"><strong>Submitted at</strong></td><td style="padding:10px;border:1px solid #e5e3dd;">${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}</td></tr>
-        </table>
-        ${skipped
-          ? `<div style="background:#fff3cd;border:1px solid #e6a817;padding:15px;border-radius:4px;margin:20px 0;"><strong>Note:</strong> Google Ads upload skipped — lead click is outside the conversion window.</div>`
-          : `<div style="background:#d4edda;border:1px solid #28a745;padding:15px;border-radius:4px;margin:20px 0;">Conversion will appear in Google Ads within 24–48 hours.</div>`
-        }
-        <p><a href="https://studentluxe.monday.com/boards/2171015589" style="color:#B8966E;">Open Booking Flow Board →</a></p>
-      </div>`
-    })
-  });
 }

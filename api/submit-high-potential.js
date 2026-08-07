@@ -4,7 +4,6 @@
 // ============================================================
 
 const MONDAY_API = 'https://api.monday.com/v2';
-const { sendGadsAlert, sendGadsSuccess } = require('./_alert.js');
 const { logGadsEvent }  = require('./_log.js');
 
 const POTENTIAL_CONFIG = {
@@ -131,13 +130,6 @@ module.exports = async function handler(req, res) {
         hasWbraid: !!wbraid,
         mondayId:  itemId
       });
-      if (!result?.skipped) {
-        await sendGadsSuccess({
-          source:  'Student Luxe lead-potential',
-          action:  config.label,
-          payload: { email, mondayId: itemId, value: config.value, hasGclid: !!gclid, hasGbraid: !!gbraid, requestId: result?.requestId }
-        });
-      }
       console.log(`${config.label} conversion uploaded for item:`, itemId);
       return res.status(200).json({ success: true, itemId, gclid, potential: config.label, value: config.value });
     } catch (uploadErr) {
