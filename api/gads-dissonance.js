@@ -126,7 +126,17 @@ function auditRow (item, clickMap, events, action) {
   else if (!item.gclid)                  flags.push('click id is a braid/fbclid (not a gclid)');
   else if (!click)                       flags.push('gclid not a matchable Search click (Display-only or expired)');
   else {
-    if (item.campaign && !looseMatch(item.campaign, click.campaign)) flags.push(`campaign drift: Monday "${item.campaign}" vs Google "${click.campaign}"`);
+    // A guest often clicks more than one campaign before enquiring. We upload
+    // the FIRST-touch gclid, so Google credits the acquiring click while the
+    // Monday campaign column shows the last touch. Comparing only against the
+    // last touch reported drift on perfectly correct rows. Flag only when
+    // Google's campaign matches neither touch. Numeric ids are skipped: a raw
+    // campaign id cannot be text-compared to a campaign name.
+    const named = v => v && !/^\d+$/.test(String(v).trim());
+    const touches = [item.campaign, item.firstCampaign].filter(named);
+    if (touches.length && !touches.some(t => looseMatch(t, click.campaign))) {
+      flags.push(`campaign drift: Monday "${touches.join('" / "')}" vs Google "${click.campaign}"`);
+    }
     if (item.keyword  && click.keyword && !looseMatch(item.keyword, click.keyword)) flags.push(`keyword drift: Monday "${item.keyword}" vs Google "${click.keyword}"`);
   }
 
@@ -162,7 +172,7 @@ function summarize (rows, gTotals) {
 // ── Monday ─────────────────────────────────────────────────────
 async function fetchBookings (sinceIso) {
   const frag = `id name column_values(ids: ["formula2","numeric_mm1ge9h4","date9","lookup_mkxtxk48","status"]) { id text ... on FormulaValue { display_value } ... on MirrorValue { display_value } }
-    relation: column_values(ids: ["link_to_leads26"]) { ... on BoardRelationValue { linked_items { id created_at column_values(ids: ["text4__1","text_mm1c3b5w","text3__1","text_mm4ncd41","text_mm4n9t2x","email","phone_1"]) { id text } } } }`;
+    relation: column_values(ids: ["link_to_leads26"]) { ... on BoardRelationValue { linked_items { id created_at column_values(ids: ["text4__1","text_mm1c3b5w","text_mm4ntp4n","text3__1","text_mm4ncd41","text_mm4n9t2x","email","phone_1"]) { id text } } } }`;
   const q = `query { boards(ids: ${BOOKINGS_BOARD}) { items_page(limit: 200, query_params: {
       rules: [{ column_id: "date9", compare_value: ["${sinceIso}"], operator: greater_than_or_equals }] }) {
       items { ${frag} } } } }`;
@@ -180,7 +190,7 @@ async function fetchBookings (sinceIso) {
     return {
       id: it.id, name: it.name, value: Number.isFinite(value) ? value : null,
       gclidRaw: raw, gclid: cleanGclid(raw, lc.text_mm4ncd41, lc.text_mm4n9t2x),
-      campaign: lc.text_mm1c3b5w || '', keyword: lc.text3__1 || '',
+      campaign: lc.text_mm1c3b5w || '', firstCampaign: lc.text_mm4ntp4n || '', keyword: lc.text3__1 || '',
       email: lc.email || '', phone: lc.phone_1 || '',
       leadCreated: lead?.created_at || null
     };
@@ -191,7 +201,7 @@ async function fetchHighPotential (sinceMs) {
   const q = `query { boards(ids: ${LEADS_BOARD}) { items_page(limit: 200, query_params: {
       rules: [{ column_id: "color_mkt29g1r", compare_value: ["High Potential"], operator: contains_text }],
       order_by: [{ column_id: "__last_updated__", direction: desc }] }) {
-      items { id name created_at updated_at column_values(ids: ["text4__1","text_mm1c3b5w","text3__1","color_mkxk8y67","text_mm4ncd41","text_mm4n9t2x","email","phone_1"]) { id text } } } } }`;
+      items { id name created_at updated_at column_values(ids: ["text4__1","text_mm1c3b5w","text_mm4ntp4n","text3__1","color_mkxk8y67","text_mm4ncd41","text_mm4n9t2x","email","phone_1"]) { id text } } } } }`;
   const d = await mondayQuery(q);
   const items = d?.data?.boards?.[0]?.items_page?.items || [];
   // Audit leads CREATED in the window (this week's new HP leads), not merely
@@ -206,7 +216,7 @@ async function fetchHighPotential (sinceMs) {
     return {
       id: it.id, name: it.name, value: 300,
       gclidRaw: raw, gclid: cleanGclid(raw, c.text_mm4ncd41, c.text_mm4n9t2x),
-      campaign: c.text_mm1c3b5w || '', keyword: c.text3__1 || '',
+      campaign: c.text_mm1c3b5w || '', firstCampaign: c.text_mm4ntp4n || '', keyword: c.text3__1 || '',
       email: c.email || '', phone: c.phone_1 || '',
       leadCreated: it.created_at || null
     };
