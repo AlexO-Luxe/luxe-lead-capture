@@ -137,7 +137,7 @@ function auditRow (item, clickMap, events, action) {
     if (touches.length && !touches.some(t => looseMatch(t, click.campaign))) {
       flags.push(`campaign drift: Monday "${touches.join('" / "')}" vs Google "${click.campaign}"`);
     }
-    if (item.keyword  && click.keyword && !looseMatch(item.keyword, click.keyword)) flags.push(`keyword drift: Monday "${item.keyword}" vs Google "${click.keyword}"`);
+    if (item.keyword && click.keyword && !keywordMatch(item.keyword, click.keyword)) flags.push(`keyword drift: Monday "${item.keyword}" vs Google "${click.keyword}"`);
   }
 
   // upload status from our KV log (latest entry for this mondayId + action)
@@ -346,6 +346,27 @@ function norm (s) { return (s || '').toString().trim().toLowerCase().replace(/\s
 // campaign names carry stray "  -" suffixes). Treat prefix containment as a
 // match so a truncated/suffixed variant of the same name doesn't false-flag.
 function normLoose (s) { return norm(s).replace(/[^a-z0-9]+$/, '').replace(/^[^a-z0-9]+/, ''); }
+// Keyword compare tolerant of Google close variants. Our UTM term and the
+// matched keyword differ by pluralisation, word order and stop words far more
+// often than by genuine mis-attribution ("short term rental london" vs
+// "short term rentals london"), and every one of those was reported as drift.
+// Compare as a set of lightly stemmed tokens instead.
+function kwTokens (s) {
+  return new Set(
+    norm(s).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+      .filter(w => w && !['the', 'in', 'for', 'a', 'of', 'to'].includes(w))
+      .map(w => w.replace(/(?:ies)$/, 'y').replace(/(?:es|s)$/, ''))
+  );
+}
+function keywordMatch (a, b) {
+  const x = kwTokens(a), y = kwTokens(b);
+  if (!x.size || !y.size) return true;
+  let shared = 0;
+  x.forEach(t => { if (y.has(t)) shared++; });
+  // Same intent if most of the smaller phrase is present in the other.
+  return shared / Math.min(x.size, y.size) >= 0.8;
+}
+
 function looseMatch (a, b) {
   const x = normLoose(a), y = normLoose(b);
   if (!x || !y) return true;
