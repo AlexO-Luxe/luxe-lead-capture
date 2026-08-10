@@ -102,4 +102,21 @@ async function listIgnored () {
   catch { return []; }
 }
 
-module.exports = { logGadsEvent, readGadsEvents, claimAlert, isIgnored, setIgnore, listIgnored };
+// Short-lived token for the "align now" button in the dissonance email.
+// Emails get forwarded, archived and indexed, so the link must never carry
+// CRON_SECRET. This grants exactly one capability and expires on its own.
+async function mintActionToken (scope, ttlSec = 8 * 86400) {
+  try {
+    const k = await kv();
+    const tok = scope + '-' + crypto.randomUUID();
+    await k.set('token:' + tok, '1', { ex: ttlSec });
+    return tok;
+  } catch (err) { console.warn('mintActionToken failed:', err.message); return null; }
+}
+async function checkActionToken (tok) {
+  if (!tok) return false;
+  try { const k = await kv(); return (await k.get('token:' + tok)) === '1'; }
+  catch (err) { console.warn('checkActionToken failed:', err.message); return false; }
+}
+
+module.exports = { logGadsEvent, readGadsEvents, claimAlert, isIgnored, setIgnore, listIgnored, mintActionToken, checkActionToken };

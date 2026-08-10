@@ -26,7 +26,7 @@ const RESEND_API     = 'https://api.resend.com/emails';
 const TO             = 'alex@studentluxe.co.uk';
 const FROM           = 'Student Luxe Alerts <alerts@studentluxe.co.uk>';
 
-const { readGadsEvents, logGadsEvent } = require('./_log.js');
+const { readGadsEvents, logGadsEvent, mintActionToken, checkActionToken } = require('./_log.js');
 const { bookingValue } = require('./_booking-value.js');
 const { cleanGclid, conversionDestination, buildUserIdentifiers, ingestEvents, CONSENT_GRANTED } = require('./_dataManager.js');
 
@@ -35,12 +35,16 @@ const HP_ACTION      = () => process.env.GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID;
 
 module.exports = async function handler (req, res) {
   const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
-  if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET) {
+  // The email button authenticates with a scoped, expiring token instead of
+  // CRON_SECRET. It grants the align run and nothing else.
+  const tokenOk = await checkActionToken(req.query?.alignToken || '');
+  if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET && !tokenOk) {
     return res.status(401).json({ error: 'unauthorized' });
   }
   const days   = Math.max(1, Math.min(31, parseInt(req.query?.days || '7', 10)));
   const dryRun = req.query?.dryRun === '1';
   const fix    = req.query?.fix === '1';
+  const align  = req.query?.align === '1' || tokenOk;   // write Google's campaign + term back to Monday
   const untilMs = Date.now();
   const sinceMs = untilMs - days * 86400000;
   const sinceIso = new Date(sinceMs).toISOString().slice(0, 10);
@@ -109,6 +113,26 @@ module.exports = async function handler (req, res) {
       }
     }
 
+    // Align Monday to Google: the campaign and search term columns hold the
+    // LAST touch, while the conversion is credited to the click that acquired
+    // the lead. Rewrite them to that click so the board and Google agree.
+    if (align && !dryRun) {
+      out.aligned = [];
+      for (const r of [...bookRows, ...hpRows]) {
+        if (!r.leadId || (!r.alignCampaign && !r.alignTerm)) continue;
+        const cv = {};
+        if (r.alignCampaign) cv.text_mm1c3b5w = r.alignCampaign;
+        if (r.alignTerm)     cv.text3__1      = r.alignTerm;
+        try {
+          await mondayQuery(`mutation { change_multiple_column_values(board_id: ${LEADS_BOARD}, item_id: ${r.leadId}, column_values: ${JSON.stringify(JSON.stringify(cv))}) { id } }`);
+          r.alignedNow = true;
+          out.aligned.push({ leadId: r.leadId, name: r.name, campaign: r.alignCampaign, term: r.alignTerm });
+        } catch (err) {
+          out.aligned.push({ leadId: r.leadId, name: r.name, error: err.message.slice(0, 140) });
+        }
+      }
+    }
+
     if (!dryRun) await sendReport(out, days).catch(e => console.warn('report send failed:', e.message));
     return res.status(200).json(out);
   } catch (err) {
@@ -148,8 +172,16 @@ function auditRow (item, clickMap, events, action) {
   else if (item.value != null && latest.value != null && Math.abs(Number(item.value) - Number(latest.value)) > 1)
                             flags.push(`value drift: Monday £${item.value} vs uploaded £${latest.value}`);
 
+  // What Monday should say if it is to agree with the click Google credited.
+  let alignCampaign = null, alignTerm = null;
+  if (click) {
+    if (click.campaign && (!item.campaign || !looseMatch(item.campaign, click.campaign))) alignCampaign = click.campaign;
+    if (click.keyword  && (!item.keyword  || !keywordMatch(item.keyword,  click.keyword)))  alignTerm     = click.keyword;
+  }
+
   return {
-    id: item.id, name: item.name, value: item.value,
+    id: item.id, leadId: item.leadId || null, name: item.name, value: item.value,
+    alignCampaign, alignTerm,
     mondayCampaign: item.campaign, mondayKeyword: item.keyword,
     googleCampaign: click?.campaign || null, googleKeyword: click?.keyword || null, clickDate: click?.date || null,
     uploaded: latest ? (latest.ok ? 'ok' : 'failed') : 'none',
@@ -188,7 +220,7 @@ async function fetchBookings (sinceIso) {
     // figure, not the daily sync's snapshot.
     const value = bookingValue(cv).value;
     return {
-      id: it.id, name: it.name, value: Number.isFinite(value) ? value : null,
+      id: it.id, leadId: lead?.id || null, name: it.name, value: Number.isFinite(value) ? value : null,
       gclidRaw: raw, gclid: cleanGclid(raw, lc.text_mm4ncd41, lc.text_mm4n9t2x),
       campaign: lc.text_mm1c3b5w || '', firstCampaign: lc.text_mm4ntp4n || '', keyword: lc.text3__1 || '',
       email: lc.email || '', phone: lc.phone_1 || '',
@@ -214,7 +246,7 @@ async function fetchHighPotential (sinceMs) {
     if (!/ppc/i.test(c.color_mkxk8y67 || '')) return null;
     const raw = c.text4__1 || '';
     return {
-      id: it.id, name: it.name, value: 300,
+      id: it.id, leadId: it.id, name: it.name, value: 300,
       gclidRaw: raw, gclid: cleanGclid(raw, c.text_mm4ncd41, c.text_mm4n9t2x),
       campaign: c.text_mm1c3b5w || '', firstCampaign: c.text_mm4ntp4n || '', keyword: c.text3__1 || '',
       email: c.email || '', phone: c.phone_1 || '',
@@ -289,6 +321,10 @@ async function gadsQuery (token, gaql) {
 // ── email ──────────────────────────────────────────────────────
 async function sendReport (out, days) {
   if (!process.env.RESEND_API_KEY) return;
+  const token   = await mintActionToken('align');
+  const alignUrl = token
+    ? `https://luxe-lead-capture.vercel.app/api/gads-dissonance?days=${days}&alignToken=${encodeURIComponent(token)}`
+    : null;
   const safe = v => (v == null ? '' : String(v).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])));
   const money = v => '£' + Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -331,6 +367,16 @@ async function sendReport (out, days) {
       <p style="font-size:12.5px;color:#555;line-height:1.55;">Monday bookings and High Potential leads audited against Google's click data + our upload log. Only <b>dissonant</b> rows are listed, the ones that won't record, recorded wrong, or drifted from Google's attribution.</p>
       ${section('Step 4 — Confirmed Bookings', out.step4, out.bookings)}
       ${section('Step 3 — High Potential Leads', out.step3, out.hpleads)}
+      ${(out.aligned && out.aligned.length) ? `
+      <div style="margin-top:22px;padding:12px 16px;background:#f2f8ee;border-radius:8px;">
+        <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#2f6b16;">Monday realigned to Google &middot; ${out.aligned.length} lead${out.aligned.length === 1 ? '' : 's'}</p>
+        ${out.aligned.map(a => `<p style="margin:0;font-size:11.5px;color:#2f6b16;line-height:1.6;">${safe(a.name)}${a.campaign ? ` &middot; campaign &rarr; <b>${safe(a.campaign)}</b>` : ''}${a.term ? ` &middot; term &rarr; <b>${safe(a.term)}</b>` : ''}${a.error ? ` &middot; <span style="color:#c0392b;">failed: ${safe(a.error)}</span>` : ''}</p>`).join('')}
+      </div>` : ''}
+      ${alignUrl ? `
+      <div style="margin-top:22px;text-align:center;">
+        <a href="${alignUrl}" style="display:inline-block;background:#0d1a2e;color:#ffffff;text-decoration:none;font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;padding:12px 26px;border-radius:8px;">Realign Monday to Google</a>
+        <p style="margin:8px 0 0;font-size:10.5px;color:#9b9b9b;">Rewrites the campaign and search term columns on any lead where Monday disagrees with the click Google credited. The weekly run already does this automatically; use the button for an immediate pass.</p>
+      </div>` : ''}
       <p style="margin-top:22px;font-size:11px;color:#9b9b9b;line-height:1.6;">Sent by /api/gads-dissonance. Google totals are by click date and anonymous, headline only. Per-row truth is click_view + our KV log.</p>
     </div>
   </div>
