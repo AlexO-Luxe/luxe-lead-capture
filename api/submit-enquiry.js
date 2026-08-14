@@ -1452,7 +1452,7 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     date_1:            p.check_out ? { date: p.check_out } : {},
     budget_per_week:   p.budget ? formatBudget(p.budget, p) : '',
     text8:             p.city === 'other' ? (p.other_city || 'Other (not specified)') : (formatCity(p.city) || ''),
-    dropdown6:         p.apartment_ref     || '',
+    dropdown6:         buildingRef(p) || p.apartment_ref || '',
     apt_type_mkmn4bgg: formatAptType(p.apartment_type) || '',
     dropdown19:        p.areas || '',
     dropdown40: p.response_methods ? {
@@ -1590,7 +1590,7 @@ function stripGuiltyColumns (cv, msg, p) {
     { re: /phone/,                       cols: [['phone_1', 'Phone', p.phone]] },
     { re: /date/,                        cols: [['date47', 'Check-in', p.check_in], ['date_1', 'Check-out', p.check_out]] },
     { re: /label|dropdown|status|color/, cols: [
-      ['dropdown6', 'Apartment ref', p.apartment_ref],
+      ['dropdown6', 'Apartment ref', buildingRef(p) || p.apartment_ref],
       ['apt_type_mkmn4bgg', 'Apartment type', p.apartment_type],
       ['dropdown19', 'Areas', p.areas],
       ['dropdown40', 'Response methods', p.response_methods],
@@ -1649,9 +1649,20 @@ function nights(p) {
 }
 function formatCity(city) {
   if (!city) return '';
-  const map = {'london':'London','new-york':'New York','paris':'Paris','edinburgh':'Edinburgh','glasgow':'Glasgow','manchester':'Manchester','cambridge':'Cambridge','durham':'Durham','bristol':'Bristol','barcelona':'Barcelona','madrid':'Madrid','lisbon':'Lisbon','boston':'Boston','chicago':'Chicago','washington':'Washington DC','amsterdam':'Amsterdam','milan':'Milan','rome':'Rome','florence':'Florence','helsinki':'Helsinki','porto':'Porto','valencia':'Valencia','birmingham':'Birmingham','brighton':'Brighton','liverpool':'Liverpool','nottingham':'Nottingham','dublin':'Dublin','philadelphia':'Philadelphia'};
+  const map = {'london':'London','new-york':'New York','paris':'Paris','edinburgh':'Edinburgh','glasgow':'Glasgow','manchester':'Manchester','cambridge':'Cambridge','durham':'Durham','bristol':'Bristol','barcelona':'Barcelona','madrid':'Madrid','lisbon':'Lisbon','boston':'Boston','chicago':'Chicago','washington':'Washington DC','amsterdam':'Amsterdam','milan':'Milan','rome':'Rome','florence':'Florence','helsinki':'Helsinki','porto':'Porto','valencia':'Valencia','birmingham':'Birmingham','brighton':'Brighton','liverpool':'Liverpool','nottingham':'Nottingham','dublin':'Dublin','philadelphia':'Philadelphia','los-angeles':'Los Angeles'};
   return map[city] || city;
 }
+// Partner-portal cards (the Marangoni PBSA blocks) post the building the guest
+// clicked. Monday wants one readable value in dropdown6, e.g.
+// "Standard student living - Hoxton". Without a building this returns '' so the
+// column falls back to the site's own apartment_ref.
+function buildingRef (p) {
+  const b = (p && p.building || '').trim();
+  if (!b) return '';
+  const type = formatAptType(p.apartment_type);
+  return type ? type + ' - ' + b : b;
+}
+
 function formatAptType(t) {
   if (!t) return '';
   const map = {'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom','3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible',
