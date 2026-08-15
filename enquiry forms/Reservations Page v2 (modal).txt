@@ -857,9 +857,11 @@ html.sl-modal-open #sl-ap{display:none !important;}
 }
 #slModalRule{width:54px;height:2px;background:#B8966E;margin:14px auto 0;}
 .sl-modal-head.sl-head-choice .sl-modal-close{
-  position:absolute;top:12px;right:14px;color:rgba(255,255,255,0.8);
+  position:absolute;top:max(10px, env(safe-area-inset-top));right:12px;z-index:5;
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  color:#fff;background:rgba(255,255,255,0.16);border-radius:50%;
 }
-.sl-modal-head.sl-head-choice .sl-modal-close:hover{color:#fff;background:rgba(255,255,255,0.12);}
+.sl-modal-head.sl-head-choice .sl-modal-close:hover{color:#fff;background:rgba(255,255,255,0.28);}
 @media(max-width:640px){
   .sl-modal-overlay{padding:0;}
   .sl-modal{max-width:100%;width:100%;height:100%;max-height:100%;border-radius:0;border:none;}
