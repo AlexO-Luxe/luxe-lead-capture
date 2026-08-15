@@ -621,13 +621,13 @@ span.flatpickr-weekday{
 /* ── ANNOUNCEMENT STRIP ── */
 .slr2-ann{
   display:block;max-width:1080px;margin:0 auto 8px;
-  background:transparent;border:1px solid rgba(184,150,110,0.35);border-radius:8px;
+  background:transparent;border:none;border-radius:8px;
   text-align:center;padding:9px 16px;
   font-size:12px;letter-spacing:0.05em;color:#3d3a35;
   text-decoration:none;transition:border-color 0.18s;
 }
 .slr2-ann b{color:#0d1a2e;font-weight:600;}
-.slr2-ann:hover{border-color:#B8966E;}
+.slr2-ann:hover b{text-decoration:underline;text-underline-offset:2px;}
 
 /* ── HERO ── */
 .slr2-hero{
