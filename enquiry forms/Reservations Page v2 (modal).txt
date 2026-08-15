@@ -821,7 +821,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
 
   <!-- 2. HERO -->
   <div class="slr2-hero">
-    <p class="slr2-eyebrow">New enquiries</p>
+    <p class="slr2-eyebrow">Reservations</p>
     <h1 class="slr2-title">Availability and apartment options, <em>on request.</em></h1>
     <p class="slr2-sub">Choose an option to get started</p>
 
