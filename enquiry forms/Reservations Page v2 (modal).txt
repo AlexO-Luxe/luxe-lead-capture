@@ -621,40 +621,45 @@ span.flatpickr-weekday{
 /* ── ANNOUNCEMENT STRIP ── */
 /* (announcement strip removed) */
 
-/* ── HERO ── */
+/* ── HERO (light, inherits the site theme; navy lives in the cards) ── */
 .slr2-hero{
   max-width:1080px;margin:0 auto;padding:46px 24px 42px;
-  background:#0d1a2e;border-radius:12px;text-align:center;
+  background:transparent;text-align:center;
 }
-.slr2-eyebrow{font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:#B8966E;margin:0 0 14px;}
+.slr2-eyebrow{font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:#B8966E;margin:0 0 14px;font-weight:700;}
 .slr2-title{
   font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;
-  font-size:clamp(34px,5vw,50px);font-weight:300;color:#FBF8F2;
+  font-size:clamp(34px,5vw,50px);font-weight:300;color:#0d1a2e;
   letter-spacing:-0.04em;line-height:1.02;margin:0 0 12px;
 }
 .slr2-title em{font-style:italic;color:#B8966E;}
-.slr2-sub{font-size:13.5px;color:rgba(255,255,255,0.72);margin:0 0 28px;}
+.slr2-sub{font-size:13.5px;color:#6b6b6b;margin:0 0 28px;}
 
-/* ── HERO CHOOSER CARDS ── */
+/* ── HERO CHOOSER CARDS: two shades of navy ── */
 .slr2-choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:660px;margin:0 auto;}
 @media(max-width:540px){.slr2-choices{grid-template-columns:1fr;}}
 .slr2-choice{
-  text-align:left;background:#fff;border:1px solid rgba(184,150,110,0.35);
-  border-radius:12px;padding:1.4rem 1.25rem;cursor:pointer;
-  font-family:'DM Sans',sans-serif;
-  transition:border-color 0.2s,background 0.2s,transform 0.2s;
+  text-align:left;border:none;border-radius:14px;padding:1.4rem 1.25rem;cursor:pointer;
+  font-family:'DM Sans',sans-serif;color:#fff;
+  box-shadow:0 14px 34px rgba(13,26,46,0.25);
+  transition:transform 0.2s,box-shadow 0.2s;
 }
-.slr2-choice:hover{border-color:#B8966E;background:#F7F2EB;transform:translateY(-2px);}
-.slr2-choice .tag{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;margin-bottom:8px;}
+.slr2-choice.opt-a{background:linear-gradient(150deg,#0d1a2e 0%,#16263e 100%);}
+.slr2-choice.opt-b{background:linear-gradient(150deg,#2e415c 0%,#3c5273 100%);}
+.slr2-choice:hover{transform:translateY(-3px);box-shadow:0 18px 40px rgba(13,26,46,0.34);}
+.slr2-choice .tag{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#D4B896;margin-bottom:8px;font-weight:700;}
 .slr2-choice .ttl{
   font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;
-  font-size:24px;font-weight:400;color:#1a1a1a;line-height:1.05;letter-spacing:-0.03em;
+  font-size:24px;font-weight:400;color:#fff;line-height:1.05;letter-spacing:-0.03em;
 }
-.slr2-choice .desc{font-size:12.5px;color:#6b6b6b;line-height:1.35;margin-top:8px;}
+.slr2-choice .desc{font-size:12.5px;color:rgba(255,255,255,0.72);line-height:1.45;margin-top:8px;}
 .slr2-choice .start{
-  display:inline-flex;align-items:center;gap:6px;margin-top:14px;
-  font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#B8966E;font-weight:500;
+  display:inline-flex;align-items:center;gap:6px;margin-top:16px;
+  font-size:11px;letter-spacing:0.1em;text-transform:uppercase;font-weight:700;
+  border-radius:99px;padding:8px 16px;
 }
+.slr2-choice.opt-a .start{background:#B8966E;color:#fff;}
+.slr2-choice.opt-b .start{background:rgba(255,255,255,0.14);border:1px solid rgba(212,184,150,0.6);color:#EBDDC8;}
 
 /* ── QUIET WHATSAPP LINK UNDER THE CARDS ── */
 .slr2-wa-quiet{
@@ -821,16 +826,16 @@ html.sl-modal-open #sl-ap{display:none !important;}
     <p class="slr2-sub">Choose an option to get started</p>
 
     <div class="slr2-choices">
-      <button type="button" class="slr2-choice" data-sl-open="A">
+      <button type="button" class="slr2-choice opt-a" data-sl-open="A">
         <div class="tag">Option A</div>
         <div class="ttl">Check availability</div>
-        <div class="desc">Already have a property in mind</div>
+        <div class="desc">Seen a property on our website you like? Get a quote for your exact dates.</div>
         <span class="start">Start →</span>
       </button>
-      <button type="button" class="slr2-choice" data-sl-open="B">
+      <button type="button" class="slr2-choice opt-b" data-sl-open="B">
         <div class="tag">Option B</div>
         <div class="ttl">Send me options</div>
-        <div class="desc">Bespoke, tailored to your needs</div>
+        <div class="desc">Let our team find apartment options for you to choose from - bespoke to your needs.</div>
         <span class="start">Start →</span>
       </button>
     </div>
