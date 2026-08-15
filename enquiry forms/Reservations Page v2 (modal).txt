@@ -924,7 +924,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
         <span class="gact">Start a chat <span class="arr">&rarr;</span></span>
       </a>
 
-      <a class="slr2-gitcard" href="tel:+442030070017">
+      <a class="slr2-gitcard" id="slPhoneCard" href="tel:+442030070017">
         <span class="gicon navy" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></span>
         <span class="badge">Phone</span>
         <span class="gttl">Call the office</span>
@@ -2166,6 +2166,50 @@ html.sl-modal-open #sl-ap{display:none !important;}
     if(location.hash === '#enquiry-form' && !isOpen()) openModal();
     if(location.hash === '#speak-to-us') scrollToWays();
   });
+
+  /* Desktop phone dialog: tel: links trigger the browser's top-anchored
+     protocol prompt, so fine-pointer devices get a centered card instead.
+     Touch devices keep the native dialer. */
+  (function(){
+    var card = document.getElementById('slPhoneCard');
+    if(!card) return;
+    var dlg = null;
+    function showPhoneDialog(){
+      if(!dlg){
+        dlg = document.createElement('div');
+        dlg.className = 'sl-confirm-overlay';
+        dlg.innerHTML =
+          '<div class="sl-confirm" role="dialog" aria-labelledby="slPhoneTitle">' +
+          '<h4 id="slPhoneTitle">Call the office</h4>' +
+          '<p>020 3007 0017<br>Mon to Fri, 10:00 to 18:00 London time</p>' +
+          '<div class="sl-confirm-btns">' +
+          '<a class="sl-confirm-stay" style="text-decoration:none;display:inline-block;" href="tel:+442030070017">Call now</a>' +
+          '<button type="button" class="sl-confirm-leave" id="slPhoneCopy">Copy number</button>' +
+          '</div></div>';
+        document.body.appendChild(dlg);
+        dlg.addEventListener('click', function(e){ if(e.target === dlg) dlg.classList.remove('sl-show-confirm'); });
+        document.addEventListener('keydown', function(e){
+          if(e.key === 'Escape' && dlg.classList.contains('sl-show-confirm')) dlg.classList.remove('sl-show-confirm');
+        });
+        dlg.querySelector('#slPhoneCopy').addEventListener('click', function(){
+          var btn = this;
+          try {
+            navigator.clipboard.writeText('020 3007 0017').then(function(){
+              btn.textContent = 'Copied';
+              setTimeout(function(){ btn.textContent = 'Copy number'; }, 1800);
+            });
+          } catch(err) { btn.textContent = '020 3007 0017'; }
+        });
+      }
+      dlg.classList.add('sl-show-confirm');
+    }
+    card.addEventListener('click', function(e){
+      if(window.matchMedia('(hover:hover) and (pointer:fine)').matches){
+        e.preventDefault();
+        showPhoneDialog();
+      }
+    });
+  })();
 })();
 </script>
 
