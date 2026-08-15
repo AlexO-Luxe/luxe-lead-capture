@@ -865,7 +865,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
     <span class="slr2-guest-pill">Current guests</span>
     <p class="slr2-guest-eyebrow">Guest Experience</p>
     <h2>Already staying with us?</h2>
-    <p class="slr2-guest-copy">Message Guest Experience on WhatsApp or email <a href="mailto:guestexperience@studentluxe.co.uk">guestexperience@studentluxe.co.uk</a>. Either way, the team responds immediately. Maintenance, deliveries, extensions, anything at all.</p>
+    <p class="slr2-guest-copy">Message Guest Experience on WhatsApp or email <a href="mailto:guestexperience@studentluxe.co.uk">guestexperience@studentluxe.co.uk</a>. We remain at your service on both channels.</p>
     <div class="slr2-guest-btns">
       <!-- Dedicated Guest Experience WhatsApp line; data-slwa-skip keeps the enquiry pre-chat popup from intercepting this link -->
       <a class="slr2-btn-wa" href="https://wa.me/447763776021" data-slwa-skip="1">
