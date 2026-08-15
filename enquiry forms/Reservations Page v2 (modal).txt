@@ -679,6 +679,7 @@ span.flatpickr-weekday{
 .slr2-ways{max-width:1080px;margin:18px auto 0;background:#FBF8F2;border-radius:12px;padding:30px 28px 32px;}
 @media(max-width:580px){.slr2-ways{padding:24px 18px 26px;}}
 .slr2-ways-label{
+  font-family:'DM Sans',sans-serif;font-weight:700;
   font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#B8966E;
   margin:0 0 16px;display:flex;align-items:center;gap:10px;
 }
@@ -693,6 +694,7 @@ span.flatpickr-weekday{
 .slr2-git{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
 @media(max-width:720px){.slr2-git{grid-template-columns:1fr;}}
 .slr2-gitcard{
+  font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
   border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:6px;
   background:#fff;border:0.5px solid rgba(184,150,110,0.4);
   text-decoration:none;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;
