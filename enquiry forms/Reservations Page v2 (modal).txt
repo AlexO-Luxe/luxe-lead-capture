@@ -713,7 +713,7 @@ span.flatpickr-weekday{
   font-size:clamp(26px,3.6vw,34px);font-weight:300;color:#1a1a1a;
   letter-spacing:-0.03em;line-height:1.05;margin:0 0 12px;
 }
-.slr2-guest-copy{font-size:13.5px;color:#4a4a4a;line-height:1.7;max-width:56ch;margin:0 auto;}
+.slr2-guest-copy{font-size:13.5px;color:#4a4a4a;line-height:1.7;max-width:86ch;margin:0 auto;}
 .slr2-guest-copy a{color:#B8966E;text-decoration:none;border-bottom:0.5px solid rgba(184,150,110,0.5);}
 .slr2-guest-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:22px;}
 .slr2-btn-wa{
@@ -865,7 +865,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
     <span class="slr2-guest-pill">Current guests</span>
     <p class="slr2-guest-eyebrow">Guest Experience</p>
     <h2>Already staying with us?</h2>
-    <p class="slr2-guest-copy">Message Guest Experience on WhatsApp or email <a href="mailto:guestexperience@studentluxe.co.uk">guestexperience@studentluxe.co.uk</a>. We remain at your service on both channels.</p>
+    <p class="slr2-guest-copy">We remain at your service on both channels.</p>
     <div class="slr2-guest-btns">
       <!-- Dedicated Guest Experience WhatsApp line; data-slwa-skip keeps the enquiry pre-chat popup from intercepting this link -->
       <a class="slr2-btn-wa" href="https://wa.me/447763776021" data-slwa-skip="1">
