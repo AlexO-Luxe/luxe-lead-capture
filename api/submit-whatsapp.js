@@ -14,6 +14,44 @@ const RESEND_API = 'https://api.resend.com/emails';
 
 const { logError } = require('./_errlog.js');
 
+// Upstash Redis, lazy singleton (same pattern as _attribution.js)
+let _kv = null;
+async function kv() {
+  if (_kv) return _kv;
+  const { Redis } = await import('@upstash/redis');
+  _kv = Redis.fromEnv();
+  return _kv;
+}
+
+const REF_TTL = 60 * 60 * 24 * 90; // 90 days, matches click attribution window
+// No 0/O/1/I/L so the ref survives being read aloud or retyped
+const REF_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+
+function randomRef() {
+  let s = '';
+  for (let i = 0; i < 4; i++) {
+    s += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
+  }
+  return 'SL-' + s;
+}
+
+// Mint a collision-free ref and store the click bundle under it.
+// Returns null on any failure so the modal can proceed without a ref.
+async function mintRef(bundle) {
+  try {
+    const k = await kv();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const ref = randomRef();
+      const claimed = await k.set('waref:' + ref, bundle, { nx: true, ex: REF_TTL });
+      if (claimed === 'OK' || claimed === true) return ref;
+    }
+    return null;
+  } catch (err) {
+    console.error('submit-whatsapp: ref mint failed (non-fatal):', err.message);
+    return null;
+  }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -34,6 +72,12 @@ module.exports = async function handler(req, res) {
 
     const leadSource = p.gclid ? 'PPC' : (p.utm_source || 'Unknown');
     const isPPC      = !!p.gclid;
+
+    // Mint the enquiry ref and persist the whole click bundle for Oskar
+    const ref = await mintRef({
+      ...p,
+      created_at: new Date().toISOString(),
+    });
 
     const row = (label, value) => value ? `
       <tr>
@@ -70,6 +114,9 @@ module.exports = async function handler(req, res) {
           <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:0.06em;background:${isPPC ? 'rgba(66,133,244,0.1)' : 'rgba(184,150,110,0.1)'};color:${isPPC ? '#1a56d6' : '#8a6540'};">${leadSource}</span>
         </td>
       </tr>
+      ${row('Enquiry ref', ref)}
+      ${row('Name', p.guest_name)}
+      ${row('Looking for', p.guest_need)}
       ${row('Page', p.page_path || p.last_page)}
       ${row('Landing page', p.landing_page)}
       ${row('Campaign', p.utm_campaign)}
@@ -101,8 +148,8 @@ module.exports = async function handler(req, res) {
       })
     });
 
-    console.log('WhatsApp notification email sent');
-    return res.status(200).json({ success: true });
+    console.log('WhatsApp notification email sent, ref:', ref);
+    return res.status(200).json({ success: true, ref });
 
   } catch (err) {
     console.error('submit-whatsapp error:', err.message);
