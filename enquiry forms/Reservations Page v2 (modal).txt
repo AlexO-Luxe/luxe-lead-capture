@@ -966,7 +966,6 @@ html.sl-modal-open #sl-ap{display:none !important;}
     <!-- TYPE OF ENQUIRY -->
     <div class="sl-section" style="padding-top:2rem;">
       <p id="slTypeEyebrow" style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#B8966E;text-align:center;margin:0 0 14px;font-family:'DM Sans',sans-serif;font-weight:500;background:linear-gradient(90deg,#7a5c35,#e8c88a,#B8966E,#f5dfa8,#8a6840);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:300% auto;animation:sl-shimmer 10s linear infinite;">Choose an option to get started &darr;</p>
-      <p id="slTypeChangeRow" style="display:none;text-align:center;margin:-6px 0 14px;"><button type="button" id="slTypeChange" style="background:none;border:none;cursor:pointer;font-size:11px;color:#6b6b6b;text-decoration:underline;text-underline-offset:2px;font-family:'DM Sans',sans-serif;">Change option</button></p>
       <div class="sl-eq-toggle">
         <label class="sl-eq-option">
           <input type="radio" name="enquiryType" value="A" id="slTypeA">
@@ -2021,30 +2020,23 @@ html.sl-modal-open #sl-ap{display:none !important;}
   });
 
   /* Once an option is chosen (hero card, prefill, or in-form click), the modal
-     header confirms it instead of repeating the two cards. */
+     title confirms it and the in-form chooser disappears. Picking the other
+     hero card re-runs this and swaps the title. */
   var typeEyebrow = document.getElementById('slTypeEyebrow');
   var typeToggle = document.querySelector('.sl-eq-toggle');
-  var typeChangeRow = document.getElementById('slTypeChangeRow');
-  var TYPE_LABELS = { A: 'Enquiry A: Check availability', B: 'Enquiry B: Send me options' };
+  var modalTitleEl = document.querySelector('.sl-modal-title');
+  var TYPE_TITLES = { A: 'Your enquiry: check availability', B: 'Your enquiry: send me options' };
   function collapseTypeChooser(type){
-    if(!typeEyebrow || !typeToggle || !TYPE_LABELS[type]) return;
-    typeEyebrow.textContent = TYPE_LABELS[type];
-    typeToggle.style.display = 'none';
+    if(!TYPE_TITLES[type]) return;
+    if(modalTitleEl) modalTitleEl.textContent = TYPE_TITLES[type];
+    if(typeEyebrow) typeEyebrow.style.display = 'none';
+    if(typeToggle) typeToggle.style.display = 'none';
     var err = document.getElementById('slErr-enquiryType');
     if(err) err.style.display = 'none';
-    if(typeChangeRow) typeChangeRow.style.display = 'block';
-  }
-  function expandTypeChooser(){
-    if(!typeEyebrow || !typeToggle) return;
-    typeEyebrow.innerHTML = 'Choose an option to get started \u2193';
-    typeToggle.style.display = '';
-    if(typeChangeRow) typeChangeRow.style.display = 'none';
   }
   document.querySelectorAll('input[name="enquiryType"]').forEach(function(r){
     r.addEventListener('change', function(){ if(r.checked) collapseTypeChooser(r.value); });
   });
-  var typeChangeBtn = document.getElementById('slTypeChange');
-  if(typeChangeBtn) typeChangeBtn.addEventListener('click', expandTypeChooser);
 
   /* Close: X, overlay click, ESC. All confirm-then-hide, never reset. */
   var closeBtn = document.getElementById('slModalClose');
