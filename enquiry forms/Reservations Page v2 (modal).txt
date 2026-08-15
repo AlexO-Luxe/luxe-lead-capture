@@ -98,7 +98,7 @@
 /* ── SECTIONS ── */
 .sl-enq .sl-section{
   background:transparent;
-  padding:1.5rem 0;
+  padding:0.9rem 0;
   margin-bottom:0;
 }
 
@@ -600,7 +600,7 @@ span.flatpickr-weekday{
 
 @media(max-width:580px){
   .sl-enq{padding:0 1rem 2.5rem;}
-  .sl-enq .sl-section{padding:1.1rem 0;}
+  .sl-enq .sl-section{padding:0.75rem 0;}
   .sl-enq .sl-form-row{gap:16px;margin-bottom:16px;}
   .sl-enq .sl-field{gap:7px;}
 }
@@ -701,14 +701,17 @@ span.flatpickr-weekday{
 .slr2-gitcard.wa{background:linear-gradient(135deg,#0e3d24 0%,#1DA851 100%);border:none;}
 .slr2-gitcard.wa:hover{box-shadow:0 14px 30px rgba(14,61,36,0.32);}
 /* Plain left-aligned glyphs, no containers */
+.slr2-gitcard .gtop{display:flex;align-items:center;gap:9px;margin-bottom:2px;}
+.slr2-gitcard .gtop .gicon{margin-bottom:0;}
+.slr2-gitcard .gtop .badge{display:inline;}
 .slr2-gitcard .gicon{display:block;margin-bottom:4px;}
-.slr2-gitcard .gicon svg{width:26px;height:26px;display:block;}
+.slr2-gitcard .gicon svg{width:22px;height:22px;display:block;}
 .slr2-gitcard.wa .gicon{color:#fff;}
 .slr2-gitcard .gicon.navy{color:#0d1a2e;}
 .slr2-gitcard .gicon.gold{color:#B8966E;}
 .slr2-gitcard .badge{font-size:9px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;display:block;color:#B8966E;}
 .slr2-gitcard.wa .badge{color:rgba(255,255,255,0.75);}
-.slr2-gitcard .gttl{font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;font-size:18px;font-weight:400;color:#0d1a2e;letter-spacing:-0.02em;line-height:1.1;}
+.slr2-gitcard .gttl{font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;font-size:21px;font-weight:400;color:#0d1a2e;letter-spacing:-0.02em;line-height:1.1;}
 .slr2-gitcard.wa .gttl{color:#fff;}
 .slr2-gitcard .gcopy{font-size:11.5px;color:#6b6b6b;line-height:1.55;flex:1;}
 .slr2-gitcard .gcopy b{color:#1a1a1a;font-weight:600;}
@@ -925,24 +928,21 @@ html.sl-modal-open #sl-ap{display:none !important;}
     <div class="slr2-git">
 
       <a class="slr2-gitcard wa" href="https://wa.me/442030070017">
-        <span class="gicon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.975 0C5.372 0 0 5.373 0 11.976c0 2.109.553 4.09 1.524 5.805L0 24l6.335-1.506A11.927 11.927 0 0011.975 24C18.578 24 24 18.627 24 12.024 24 5.373 18.578 0 11.975 0zm0 21.818a9.837 9.837 0 01-5.011-1.372l-.36-.214-3.762.894.951-3.649-.236-.374A9.83 9.83 0 012.18 12.024c0-5.405 4.394-9.8 9.795-9.8 5.4 0 9.794 4.395 9.794 9.8 0 5.404-4.394 9.794-9.794 9.794z"/></svg></span>
-        <span class="badge">WhatsApp</span>
+        <span class="gtop"><span class="gicon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.975 0C5.372 0 0 5.373 0 11.976c0 2.109.553 4.09 1.524 5.805L0 24l6.335-1.506A11.927 11.927 0 0011.975 24C18.578 24 24 18.627 24 12.024 24 5.373 18.578 0 11.975 0zm0 21.818a9.837 9.837 0 01-5.011-1.372l-.36-.214-3.762.894.951-3.649-.236-.374A9.83 9.83 0 012.18 12.024c0-5.405 4.394-9.8 9.795-9.8 5.4 0 9.794 4.395 9.794 9.8 0 5.404-4.394 9.794-9.794 9.794z"/></svg></span><span class="badge">WhatsApp</span></span>
         <span class="gttl">Message our team</span>
-        <span class="gcopy">Any enquiry, any of our cities. <b>Real people, not bots,</b> typically replying within minutes during desk hours.</span>
+        <span class="gcopy">Any enquiry, any of our cities. <b>Real people, not bots.</b></span>
         <span class="gact">Start a chat <span class="arr">&rarr;</span></span>
       </a>
 
       <a class="slr2-gitcard" id="slPhoneCard" href="tel:+442030070017">
-        <span class="gicon navy" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></span>
-        <span class="badge">Phone</span>
+        <span class="gtop"><span class="gicon navy" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span><span class="badge">Phone</span></span>
         <span class="gttl">Call the office</span>
         <span class="gcopy">Speak to a member of our London team about any enquiry, a general question or an existing quote.</span>
         <span class="gact">020 3007 0017 <span class="arr">&rarr;</span></span>
       </a>
 
       <a class="slr2-gitcard" href="https://maps.google.com/?q=Dog+%26+Duck+Yard+Princeton+St+London+WC1R+4BH" target="_blank" rel="noopener">
-        <span class="gicon gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/></svg></span>
-        <span class="badge">Head Office</span>
+        <span class="gtop"><span class="gicon gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/></svg></span><span class="badge">Head Office</span></span>
         <span class="gttl">Visit us in Holborn</span>
         <span class="gcopy"><b>Drop in, no appointment needed.</b> Discuss your apartment requirements with the team. Dog &amp; Duck Yard, Princeton St, WC1R 4BH.</span>
         <span class="gact">Directions <span class="arr">&rarr;</span></span>
@@ -1805,7 +1805,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
         <input type="checkbox" name="responseMethod" value="phone">
         <span class="sl-resp-chip">
           <span class="sl-resp-bubble">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           </span>
           Phone call
           <span class="sl-resp-tick" aria-hidden="true">
