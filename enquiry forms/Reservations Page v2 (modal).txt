@@ -110,6 +110,8 @@
 .sl-enq .sl-sec-label::after{content:'';flex:1;height:0.5px;background:var(--border-gold);}
 
 /* ── CONDITIONAL ── */
+/* Tighter gap between the conditional field (apt ref / city) and Stay details */
+#slStaySection{padding-top:0.5rem;}
 .sl-enq .sl-conditional{
   overflow:hidden;max-height:0;opacity:0;
   transition:max-height 0.4s ease,opacity 0.3s ease,margin-top 0.3s ease;
@@ -1023,7 +1025,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
     <div id="slStep1">
 
     <!-- TYPE OF ENQUIRY -->
-    <div class="sl-section" style="padding-top:2rem;">
+    <div class="sl-section" id="slTypeSection" style="padding-top:2rem;padding-bottom:0.4rem;">
       <p id="slTypeEyebrow" style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#B8966E;text-align:center;margin:0 0 14px;font-family:'DM Sans',sans-serif;font-weight:500;background:linear-gradient(90deg,#7a5c35,#e8c88a,#B8966E,#f5dfa8,#8a6840);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:300% auto;animation:sl-shimmer 10s linear infinite;">Choose an option to get started &darr;</p>
       <div class="sl-eq-toggle">
         <label class="sl-eq-option">
