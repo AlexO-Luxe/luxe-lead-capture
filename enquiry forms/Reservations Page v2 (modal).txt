@@ -684,21 +684,67 @@ span.flatpickr-weekday{
 .slr2-ways-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
 @media(max-width:720px){.slr2-ways-grid{grid-template-columns:1fr;}}
 .slr2-way{
-  display:flex;align-items:flex-start;gap:12px;
-  background:#fff;border:0.5px solid rgba(184,150,110,0.4);border-radius:10px;
-  padding:16px;text-decoration:none;transition:border-color 0.18s;
+  display:flex;flex-direction:column;
+  background:#fff;border:0.5px solid rgba(184,150,110,0.4);border-radius:12px;
+  padding:18px;text-decoration:none;transition:border-color 0.18s,box-shadow 0.18s;
 }
-.slr2-way:hover{border-color:#B8966E;}
+.slr2-way:hover{border-color:#B8966E;box-shadow:0 10px 26px rgba(13,26,46,0.08);}
+.slr2-way .top{display:flex;align-items:center;gap:11px;margin-bottom:9px;}
 .slr2-way .ico{
-  width:34px;height:34px;border-radius:50%;
+  width:38px;height:38px;border-radius:10px;
   display:inline-flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;
 }
-.slr2-way .ico svg{width:15px;height:15px;}
+.slr2-way .ico svg{width:17px;height:17px;}
 .slr2-way .ico.wa{background:#25D366;}
 .slr2-way .ico.navy{background:#0d1a2e;}
 .slr2-way .ico.gold{background:#B8966E;}
-.slr2-way .k{font-size:13.5px;font-weight:500;color:#1a1a1a;}
-.slr2-way .v{font-size:12px;color:#6b6b6b;line-height:1.5;margin-top:2px;}
+.slr2-way .badge{font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#B8966E;font-weight:700;display:block;}
+.slr2-way .ttl{
+  font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;
+  font-size:19px;font-weight:400;color:#0d1a2e;letter-spacing:-0.02em;line-height:1.1;
+}
+.slr2-way .copy{font-size:12px;color:#6b6b6b;line-height:1.6;margin:0 0 12px;}
+.slr2-way .copy b{color:#1a1a1a;font-weight:600;}
+.slr2-way .val{
+  margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:8px;
+  border-top:1px solid #F3EEE4;padding-top:10px;
+  font-size:12.5px;font-weight:600;color:#0d1a2e;
+}
+.slr2-way .val .arr{color:#B8966E;flex-shrink:0;}
+.slr2-ways-hours{
+  display:flex;gap:22px;flex-wrap:wrap;justify-content:center;
+  margin-top:16px;padding-top:14px;border-top:1px solid #ECE5D8;
+  font-size:11px;color:#6b6b6b;
+}
+.slr2-ways-hours b{color:#0d1a2e;font-weight:600;}
+
+/* ── LEAVE-ENQUIRY CONFIRM (replaces the browser's top-anchored confirm) ── */
+.sl-confirm-overlay{
+  display:none;position:fixed;inset:0;z-index:2147483200;
+  background:rgba(8,15,26,0.5);align-items:center;justify-content:center;padding:20px;
+}
+.sl-confirm-overlay.sl-show-confirm{display:flex;}
+.sl-confirm{
+  background:#fff;border:1px solid rgba(184,150,110,0.5);border-radius:12px;
+  max-width:360px;width:100%;padding:26px 24px 22px;text-align:center;
+  font-family:'DM Sans',sans-serif;box-shadow:0 24px 70px rgba(8,15,26,0.35);
+}
+.sl-confirm h4{
+  font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;
+  font-size:21px;font-weight:400;color:#0d1a2e;letter-spacing:-0.02em;margin:0 0 6px;
+}
+.sl-confirm p{font-size:13px;color:#6b6b6b;margin:0 0 18px;line-height:1.5;}
+.sl-confirm-btns{display:flex;gap:10px;justify-content:center;}
+.sl-confirm-stay{
+  background:#B8966E;color:#fff;border:none;border-radius:99px;padding:10px 22px;
+  font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
+}
+.sl-confirm-stay:hover{background:#A6845C;}
+.sl-confirm-leave{
+  background:#fff;border:1px solid #d4cab8;color:#6b6b6b;border-radius:99px;padding:10px 22px;
+  font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+}
+.sl-confirm-leave:hover{color:#0d1a2e;border-color:#B8966E;}
 
 /* ── CURRENT GUESTS BAND ── */
 .slr2-guest{
@@ -848,21 +894,34 @@ html.sl-modal-open #sl-ap{display:none !important;}
     <div class="slr2-ways-grid">
 
       <a class="slr2-way" href="https://wa.me/442030070017">
-        <span class="ico wa" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.975 0C5.372 0 0 5.373 0 11.976c0 2.109.553 4.09 1.524 5.805L0 24l6.335-1.506A11.927 11.927 0 0011.975 24C18.578 24 24 18.627 24 12.024 24 5.373 18.578 0 11.975 0zm0 21.818a9.837 9.837 0 01-5.011-1.372l-.36-.214-3.762.894.951-3.649-.236-.374A9.83 9.83 0 012.18 12.024c0-5.405 4.394-9.8 9.795-9.8 5.4 0 9.794 4.395 9.794 9.8 0 5.404-4.394 9.794-9.794 9.794z"/></svg></span>
-        <span><span class="k">WhatsApp</span><span class="v" style="display:block;">Any enquiry or general question</span></span>
+        <span class="top">
+          <span class="ico wa" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.975 0C5.372 0 0 5.373 0 11.976c0 2.109.553 4.09 1.524 5.805L0 24l6.335-1.506A11.927 11.927 0 0011.975 24C18.578 24 24 18.627 24 12.024 24 5.373 18.578 0 11.975 0zm0 21.818a9.837 9.837 0 01-5.011-1.372l-.36-.214-3.762.894.951-3.649-.236-.374A9.83 9.83 0 012.18 12.024c0-5.405 4.394-9.8 9.795-9.8 5.4 0 9.794 4.395 9.794 9.8 0 5.404-4.394 9.794-9.794 9.794z"/></svg></span>
+          <span><span class="badge">WhatsApp</span><span class="ttl">Message our team</span></span>
+        </span>
+        <p class="copy">The fastest way to reach us for any enquiry, in any of our cities. <b>Real people, not bots,</b> typically replying within minutes during desk hours.</p>
+        <span class="val">Start a chat <span class="arr">&rarr;</span></span>
       </a>
 
       <a class="slr2-way" href="tel:+442030070017">
-        <span class="ico navy" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></span>
-        <span><span class="k">Call us</span><span class="v" style="display:block;">020 3007 0017</span></span>
+        <span class="top">
+          <span class="ico navy" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></span>
+          <span><span class="badge">Phone</span><span class="ttl">Call the office</span></span>
+        </span>
+        <p class="copy">Prefer to talk it through? <b>Speak to a member of our London team</b> about any enquiry, a general question or an existing quote.</p>
+        <span class="val">020 3007 0017 <span class="arr">&rarr;</span></span>
       </a>
 
       <a class="slr2-way" href="https://maps.google.com/?q=Dog+%26+Duck+Yard+Princeton+St+London+WC1R+4BH" target="_blank" rel="noopener">
-        <span class="ico gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/></svg></span>
-        <span><span class="k">Drop in to Holborn</span><span class="v" style="display:block;">Drop in, no appointment needed. Dog &amp; Duck Yard, Princeton St, WC1R 4BH</span></span>
+        <span class="top">
+          <span class="ico gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/></svg></span>
+          <span><span class="badge">Head Office</span><span class="ttl">Visit us in Holborn</span></span>
+        </span>
+        <p class="copy"><b>Drop in, no appointment needed.</b> Discuss your apartment requirements with the team over a coffee at Dog &amp; Duck Yard, Princeton St, WC1R 4BH.</p>
+        <span class="val">Get directions <span class="arr">&rarr;</span></span>
       </a>
 
     </div>
+    <div class="slr2-ways-hours"><span><b>Mon to Fri</b> 10:00 to 18:00</span><span><b>Sat / Sun</b> Closed</span><span><b>Nearest tube</b> Holborn</span></div>
   </div>
 
   <!-- 4. CURRENT GUESTS -->
@@ -1855,16 +1914,50 @@ html.sl-modal-open #sl-ap{display:none !important;}
     return false;
   }
 
-  function closeModal(){
-    var success = document.getElementById('slEnqSuccess');
-    var sent = success && success.classList.contains('sl-show');
-    if(!sent && formHasValues()){
-      if(!confirm('Leave your enquiry? Your answers are kept if you return.')) return;
-    }
+  function reallyClose(){
     overlay.style.display = 'none'; /* hide only; never reset the form */
     document.body.style.overflow = '';
     document.documentElement.classList.remove('sl-modal-open');
     if(history && history.replaceState) history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+
+  /* Branded centered confirm; the native confirm() pins to the top of the window */
+  var confirmEl = null;
+  function showLeaveConfirm(){
+    if(!confirmEl){
+      confirmEl = document.createElement('div');
+      confirmEl.className = 'sl-confirm-overlay';
+      confirmEl.innerHTML =
+        '<div class="sl-confirm" role="alertdialog" aria-labelledby="slConfirmTitle">' +
+        '<h4 id="slConfirmTitle">Leave your enquiry?</h4>' +
+        '<p>Your answers are kept if you return.</p>' +
+        '<div class="sl-confirm-btns">' +
+        '<button type="button" class="sl-confirm-stay">Keep writing</button>' +
+        '<button type="button" class="sl-confirm-leave">Leave</button>' +
+        '</div></div>';
+      document.body.appendChild(confirmEl);
+      confirmEl.querySelector('.sl-confirm-stay').addEventListener('click', hideLeaveConfirm);
+      confirmEl.querySelector('.sl-confirm-leave').addEventListener('click', function(){
+        hideLeaveConfirm();
+        reallyClose();
+      });
+      confirmEl.addEventListener('click', function(e){ if(e.target === confirmEl) hideLeaveConfirm(); });
+    }
+    confirmEl.classList.add('sl-show-confirm');
+    confirmEl.querySelector('.sl-confirm-stay').focus();
+  }
+  function hideLeaveConfirm(){
+    if(confirmEl) confirmEl.classList.remove('sl-show-confirm');
+  }
+
+  function closeModal(){
+    var success = document.getElementById('slEnqSuccess');
+    var sent = success && success.classList.contains('sl-show');
+    if(!sent && formHasValues()){
+      showLeaveConfirm();
+      return;
+    }
+    reallyClose();
   }
 
   /* Step-1-only subset of the full handleSubmit validation */
@@ -1964,6 +2057,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
   document.addEventListener('keydown', function(e){
     if(e.key !== 'Escape' || !isOpen()) return;
     if(document.querySelector('.sl-dial-dropdown.sl-open')) return; /* let the dial picker consume this ESC */
+    if(confirmEl && confirmEl.classList.contains('sl-show-confirm')){ hideLeaveConfirm(); return; }
     closeModal();
   });
 
