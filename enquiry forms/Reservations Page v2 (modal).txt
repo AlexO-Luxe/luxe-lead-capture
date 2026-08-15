@@ -638,10 +638,10 @@ span.flatpickr-weekday{
 .slr2-sub{font-size:13.5px;color:#6b6b6b;margin:0 0 28px;}
 
 /* ── HERO CHOOSER CARDS: two shades of navy ── */
-.slr2-choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:660px;margin:0 auto;}
+.slr2-choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:726px;margin:0 auto;}
 @media(max-width:540px){.slr2-choices{grid-template-columns:1fr;}}
 .slr2-choice{
-  text-align:left;border:none;border-radius:14px;padding:1.4rem 1.25rem;cursor:pointer;
+  text-align:left;border:none;border-radius:14px;padding:1.55rem 1.4rem;cursor:pointer;
   font-family:'DM Sans',sans-serif;color:#fff;
   box-shadow:0 14px 34px rgba(13,26,46,0.25);
   transition:transform 0.2s,box-shadow 0.2s;
