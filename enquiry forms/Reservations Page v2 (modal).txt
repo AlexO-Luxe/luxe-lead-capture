@@ -682,13 +682,12 @@ span.flatpickr-weekday{
   font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#B8966E;
   margin:0 0 16px;display:flex;align-items:center;gap:10px;
 }
-.slr2-ways-label::after{content:'';flex:1;height:0.5px;background:rgba(184,150,110,0.4);}
 .slr2-ways-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
 @media(max-width:720px){.slr2-ways-grid{grid-template-columns:1fr;}}
 .slr2-ways-title{
   font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;
-  font-size:clamp(23px,3.3vw,33px);font-weight:300;color:#0d1a2e;
-  letter-spacing:-0.03em;line-height:1.05;text-align:center;margin:4px 0 22px;
+  font-size:clamp(26px,3.8vw,38px);font-weight:300;color:#0d1a2e;
+  letter-spacing:-0.03em;line-height:1.05;text-align:left;margin:2px 0 20px;
 }
 .slr2-ways-title em{font-style:italic;color:#B8966E;}
 .slr2-git{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
@@ -921,8 +920,8 @@ html.sl-modal-open #sl-ap{display:none !important;}
 
   <!-- 3. GET IN TOUCH -->
   <div class="slr2-ways" id="get-in-touch">
-    <p class="slr2-ways-label">Get in touch</p>
-    <h2 class="slr2-ways-title">Questions &amp; general contact, <em>anytime.</em></h2>
+    <p class="slr2-ways-label">General enquiries</p>
+    <h2 class="slr2-ways-title">Get in touch</h2>
     <div class="slr2-git">
 
       <a class="slr2-gitcard wa" href="https://wa.me/442030070017">
