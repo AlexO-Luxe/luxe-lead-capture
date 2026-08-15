@@ -683,22 +683,42 @@ span.flatpickr-weekday{
 .slr2-ways-label::after{content:'';flex:1;height:0.5px;background:rgba(184,150,110,0.4);}
 .slr2-ways-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
 @media(max-width:720px){.slr2-ways-grid{grid-template-columns:1fr;}}
-.slr2-way{
-  display:flex;align-items:flex-start;gap:12px;
-  background:#fff;border:0.5px solid rgba(184,150,110,0.4);border-radius:10px;
-  padding:16px;text-decoration:none;transition:border-color 0.18s;
+.slr2-wab{
+  display:flex;align-items:center;gap:18px;
+  background:linear-gradient(120deg,#0e3d24 0%,#1DA851 95%);
+  border-radius:12px;padding:20px 22px;color:#fff;margin-bottom:12px;
+  text-decoration:none;transition:transform 0.2s,box-shadow 0.2s;
 }
-.slr2-way:hover{border-color:#B8966E;}
-.slr2-way .ico{
-  width:34px;height:34px;border-radius:50%;
-  display:inline-flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;
+.slr2-wab:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(14,61,36,0.3);}
+.slr2-wab .ico{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,0.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;}
+.slr2-wab .ico svg{width:21px;height:21px;}
+.slr2-wab .ttl{font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;font-size:20px;font-weight:400;letter-spacing:-0.01em;color:#fff;}
+.slr2-wab .copy{font-size:11.5px;color:rgba(255,255,255,0.85);max-width:52ch;margin-top:2px;line-height:1.55;}
+.slr2-wab .cta{margin-left:auto;background:#fff;color:#0e3d24;border-radius:99px;padding:11px 20px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;}
+@media(max-width:640px){.slr2-wab{flex-direction:column;text-align:center;gap:12px;}.slr2-wab .cta{margin-left:0;}}
+.slr2-minis{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:720px){.slr2-minis{grid-template-columns:1fr;}}
+.slr2-mini{
+  background:#fff;border:0.5px solid rgba(184,150,110,0.4);border-radius:12px;
+  padding:14px 16px;display:flex;align-items:center;gap:12px;
+  text-decoration:none;transition:border-color 0.18s;
 }
-.slr2-way .ico svg{width:15px;height:15px;}
-.slr2-way .ico.wa{background:#25D366;}
-.slr2-way .ico.navy{background:#0d1a2e;}
-.slr2-way .ico.gold{background:#B8966E;}
-.slr2-way .k{font-size:13.5px;font-weight:500;color:#1a1a1a;}
-.slr2-way .v{font-size:12px;color:#6b6b6b;line-height:1.5;margin-top:2px;}
+.slr2-mini:hover{border-color:#B8966E;}
+.slr2-mini .ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;}
+.slr2-mini .ico svg{width:16px;height:16px;}
+.slr2-mini .ico.navy{background:#0d1a2e;}
+.slr2-mini .ico.gold{background:#B8966E;}
+.slr2-mini .main{flex:1;min-width:0;}
+.slr2-mini .badge{font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#B8966E;font-weight:700;display:block;}
+.slr2-mini .copy{font-size:11px;color:#6b6b6b;line-height:1.5;}
+.slr2-mini .copy b{color:#1a1a1a;font-weight:600;}
+.slr2-mini .val{font-size:12px;font-weight:600;color:#0d1a2e;white-space:nowrap;flex-shrink:0;}
+.slr2-ways-hours{
+  display:flex;gap:22px;flex-wrap:wrap;justify-content:center;
+  margin-top:16px;padding-top:14px;border-top:1px solid #ECE5D8;
+  font-size:11px;color:#6b6b6b;
+}
+.slr2-ways-hours b{color:#0d1a2e;font-weight:600;}
 
 /* ── LEAVE-ENQUIRY CONFIRM (replaces the browser's top-anchored confirm) ── */
 .sl-confirm-overlay{
@@ -824,8 +844,8 @@ html.sl-modal-open #sl-ap{display:none !important;}
 }
 
 /* ── STEP FOOTER + BACK LINK ── */
-.sl-step-footer{display:flex;justify-content:flex-end;margin-top:1.25rem;}
-.sl-back-link{
+.sl-step-footer{display:none;} /* single-page form */
+.sl-back-link{display:none !important;} .sl-back-link-unused{
   background:none;border:none;cursor:pointer;
   font-family:'DM Sans',sans-serif;font-size:12px;letter-spacing:0.1em;
   text-transform:uppercase;color:#B8966E;padding:14px 0 4px;
@@ -873,24 +893,30 @@ html.sl-modal-open #sl-ap{display:none !important;}
   <!-- 3. GET IN TOUCH -->
   <div class="slr2-ways" id="get-in-touch">
     <p class="slr2-ways-label">Get in touch</p>
-    <div class="slr2-ways-grid">
 
-      <a class="slr2-way" href="https://wa.me/442030070017">
-        <span class="ico wa" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.975 0C5.372 0 0 5.373 0 11.976c0 2.109.553 4.09 1.524 5.805L0 24l6.335-1.506A11.927 11.927 0 0011.975 24C18.578 24 24 18.627 24 12.024 24 5.373 18.578 0 11.975 0zm0 21.818a9.837 9.837 0 01-5.011-1.372l-.36-.214-3.762.894.951-3.649-.236-.374A9.83 9.83 0 012.18 12.024c0-5.405 4.394-9.8 9.795-9.8 5.4 0 9.794 4.395 9.794 9.8 0 5.404-4.394 9.794-9.794 9.794z"/></svg></span>
-        <span><span class="k">WhatsApp</span><span class="v" style="display:block;">Any enquiry or general question</span></span>
-      </a>
+    <a class="slr2-wab" href="https://wa.me/442030070017">
+      <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.975 0C5.372 0 0 5.373 0 11.976c0 2.109.553 4.09 1.524 5.805L0 24l6.335-1.506A11.927 11.927 0 0011.975 24C18.578 24 24 18.627 24 12.024 24 5.373 18.578 0 11.975 0zm0 21.818a9.837 9.837 0 01-5.011-1.372l-.36-.214-3.762.894.951-3.649-.236-.374A9.83 9.83 0 012.18 12.024c0-5.405 4.394-9.8 9.795-9.8 5.4 0 9.794 4.395 9.794 9.8 0 5.404-4.394 9.794-9.794 9.794z"/></svg></span>
+      <span>
+        <span class="ttl">Message our team on WhatsApp</span>
+        <span class="copy" style="display:block;">Any enquiry, any of our cities. Real people, not bots, typically replying within minutes during desk hours.</span>
+      </span>
+      <span class="cta">Start a chat</span>
+    </a>
 
-      <a class="slr2-way" href="tel:+442030070017">
+    <div class="slr2-minis">
+      <a class="slr2-mini" href="tel:+442030070017">
         <span class="ico navy" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></span>
-        <span><span class="k">Call us</span><span class="v" style="display:block;">020 3007 0017</span></span>
+        <span class="main"><span class="badge">Phone</span><span class="copy">Speak to our London team about any enquiry or existing quote.</span></span>
+        <span class="val">020 3007 0017</span>
       </a>
-
-      <a class="slr2-way" href="https://maps.google.com/?q=Dog+%26+Duck+Yard+Princeton+St+London+WC1R+4BH" target="_blank" rel="noopener">
+      <a class="slr2-mini" href="https://maps.google.com/?q=Dog+%26+Duck+Yard+Princeton+St+London+WC1R+4BH" target="_blank" rel="noopener">
         <span class="ico gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/></svg></span>
-        <span><span class="k">Drop in to Holborn</span><span class="v" style="display:block;">Drop in, no appointment needed. Dog &amp; Duck Yard, Princeton St, WC1R 4BH</span></span>
+        <span class="main"><span class="badge">Head Office</span><span class="copy"><b>Drop in, no appointment needed.</b> Dog &amp; Duck Yard, Princeton St, WC1R 4BH.</span></span>
+        <span class="val">Directions &rarr;</span>
       </a>
-
     </div>
+
+    <div class="slr2-ways-hours"><span><b>Mon to Fri</b> 10:00 to 18:00</span><span><b>Sat / Sun</b> Closed</span><span><b>Nearest tube</b> Holborn</span></div>
   </div>
 
   <!-- 4. CURRENT GUESTS -->
@@ -924,10 +950,9 @@ html.sl-modal-open #sl-ap{display:none !important;}
 <div class="sl-modal-overlay" id="slModalOverlay" role="dialog" aria-modal="true" aria-labelledby="slModalTitle">
   <div class="sl-modal">
     <div class="sl-modal-head">
-      <h2 class="sl-modal-title" id="slModalTitle">Your enquiry</h2>
-      <div class="sl-modal-progress" id="slModalProgress" aria-hidden="true">
-        <span class="seg on"></span><span class="seg" id="slSeg2"></span>
-        <span class="lbl" id="slStepLabel">Step 1 of 2</span>
+      <div style="flex:1;">
+        <span id="slModalEyebrow" style="display:none;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#B8966E;font-weight:700;font-family:'DM Sans',sans-serif;">Option A</span>
+        <h2 class="sl-modal-title" id="slModalTitle">Your enquiry</h2>
       </div>
       <button type="button" class="sl-modal-close" id="slModalClose" aria-label="Close enquiry form">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -1139,7 +1164,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
 
 
     <!-- ── STEP 2: your details + tell us more + response method + submit (moved unchanged from tab-swap version) ── -->
-    <div id="slStep2" style="display:none;">
+    <div id="slStep2">
       <button type="button" class="sl-back-link" id="slBackBtn">← Back</button>
 
     <!-- YOUR DETAILS -->
@@ -1834,19 +1859,16 @@ html.sl-modal-open #sl-ap{display:none !important;}
   function showErr(id, show){ var e = document.getElementById(id); if(e) e.classList.toggle('sl-show', show); }
   function setFs(el, state){ if(!el) return; el.classList.remove('sl-err','sl-ok'); if(state) el.classList.add('sl-' + state); }
 
+  /* Single-page form: both sections always visible; kept as a function
+     because chooser cards and deep links still call it. */
   function setStep(n){
     var s1 = document.getElementById('slStep1');
     var s2 = document.getElementById('slStep2');
-    if(!s1 || !s2) return;
-    s1.style.display = (n === 1) ? '' : 'none';
-    s2.style.display = (n === 2) ? '' : 'none';
-    var seg2 = document.getElementById('slSeg2');
-    if(seg2) seg2.classList.toggle('on', n === 2);
-    var lbl = document.getElementById('slStepLabel');
-    if(lbl) lbl.textContent = 'Step ' + n + ' of 2';
+    if(s1) s1.style.display = '';
+    if(s2) s2.style.display = '';
     var body = document.getElementById('slModalBody');
-    if(body) body.scrollTop = 0;
-    currentStep = n;
+    if(body && n === 1) body.scrollTop = 0;
+    currentStep = 1;
   }
 
   /* Called from the submit handler when validation fails: if the first
@@ -2025,9 +2047,11 @@ html.sl-modal-open #sl-ap{display:none !important;}
   var typeEyebrow = document.getElementById('slTypeEyebrow');
   var typeToggle = document.querySelector('.sl-eq-toggle');
   var modalTitleEl = document.querySelector('.sl-modal-title');
-  var TYPE_TITLES = { A: 'Your enquiry: check availability', B: 'Your enquiry: send me options' };
+  var modalEyebrowEl = document.getElementById('slModalEyebrow');
+  var TYPE_TITLES = { A: 'Check availability', B: 'Send me options' };
   function collapseTypeChooser(type){
     if(!TYPE_TITLES[type]) return;
+    if(modalEyebrowEl){ modalEyebrowEl.textContent = 'Option ' + type; modalEyebrowEl.style.display = 'block'; }
     if(modalTitleEl) modalTitleEl.textContent = TYPE_TITLES[type];
     if(typeEyebrow) typeEyebrow.style.display = 'none';
     if(typeToggle) typeToggle.style.display = 'none';
