@@ -683,36 +683,38 @@ span.flatpickr-weekday{
 .slr2-ways-label::after{content:'';flex:1;height:0.5px;background:rgba(184,150,110,0.4);}
 .slr2-ways-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
 @media(max-width:720px){.slr2-ways-grid{grid-template-columns:1fr;}}
-.slr2-wab{
-  display:flex;align-items:center;gap:18px;
-  background:linear-gradient(120deg,#0e3d24 0%,#1DA851 95%);
-  border-radius:12px;padding:20px 22px;color:#fff;margin-bottom:12px;
-  text-decoration:none;transition:transform 0.2s,box-shadow 0.2s;
+.slr2-git{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+@media(max-width:720px){.slr2-git{grid-template-columns:1fr;}}
+.slr2-gitcard{
+  border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:6px;
+  background:#fff;border:0.5px solid rgba(184,150,110,0.4);
+  text-decoration:none;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;
 }
-.slr2-wab:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(14,61,36,0.3);}
-.slr2-wab .ico{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,0.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;}
-.slr2-wab .ico svg{width:21px;height:21px;}
-.slr2-wab .ttl{font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;font-size:20px;font-weight:400;letter-spacing:-0.01em;color:#fff;}
-.slr2-wab .copy{font-size:11.5px;color:rgba(255,255,255,0.85);max-width:52ch;margin-top:2px;line-height:1.55;}
-.slr2-wab .cta{margin-left:auto;background:#fff;color:#0e3d24;border-radius:99px;padding:11px 20px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;}
-@media(max-width:640px){.slr2-wab{flex-direction:column;text-align:center;gap:12px;}.slr2-wab .cta{margin-left:0;}}
-.slr2-minis{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-@media(max-width:720px){.slr2-minis{grid-template-columns:1fr;}}
-.slr2-mini{
-  background:#fff;border:0.5px solid rgba(184,150,110,0.4);border-radius:12px;
-  padding:14px 16px;display:flex;align-items:center;gap:12px;
-  text-decoration:none;transition:border-color 0.18s;
+.slr2-gitcard:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(13,26,46,0.1);border-color:#B8966E;}
+.slr2-gitcard.wa{background:linear-gradient(135deg,#0e3d24 0%,#1DA851 100%);border:none;}
+.slr2-gitcard.wa:hover{box-shadow:0 14px 30px rgba(14,61,36,0.32);}
+/* Plain left-aligned glyphs, no containers */
+.slr2-gitcard .gicon{display:block;margin-bottom:4px;}
+.slr2-gitcard .gicon svg{width:26px;height:26px;display:block;}
+.slr2-gitcard.wa .gicon{color:#fff;}
+.slr2-gitcard .gicon.navy{color:#0d1a2e;}
+.slr2-gitcard .gicon.gold{color:#B8966E;}
+.slr2-gitcard .badge{font-size:9px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;display:block;color:#B8966E;}
+.slr2-gitcard.wa .badge{color:rgba(255,255,255,0.75);}
+.slr2-gitcard .gttl{font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;font-size:18px;font-weight:400;color:#0d1a2e;letter-spacing:-0.02em;line-height:1.1;}
+.slr2-gitcard.wa .gttl{color:#fff;}
+.slr2-gitcard .gcopy{font-size:11.5px;color:#6b6b6b;line-height:1.55;flex:1;}
+.slr2-gitcard .gcopy b{color:#1a1a1a;font-weight:600;}
+.slr2-gitcard.wa .gcopy{color:rgba(255,255,255,0.85);}
+.slr2-gitcard.wa .gcopy b{color:#fff;}
+.slr2-gitcard .gact{
+  margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;
+  border-top:1px solid rgba(13,26,46,0.08);padding-top:10px;
+  font-size:12.5px;font-weight:700;color:#0d1a2e;
 }
-.slr2-mini:hover{border-color:#B8966E;}
-.slr2-mini .ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;}
-.slr2-mini .ico svg{width:16px;height:16px;}
-.slr2-mini .ico.navy{background:#0d1a2e;}
-.slr2-mini .ico.gold{background:#B8966E;}
-.slr2-mini .main{flex:1;min-width:0;}
-.slr2-mini .badge{font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#B8966E;font-weight:700;display:block;}
-.slr2-mini .copy{font-size:11px;color:#6b6b6b;line-height:1.5;}
-.slr2-mini .copy b{color:#1a1a1a;font-weight:600;}
-.slr2-mini .val{font-size:12px;font-weight:600;color:#0d1a2e;white-space:nowrap;flex-shrink:0;}
+.slr2-gitcard.wa .gact{border-top-color:rgba(255,255,255,0.25);color:#fff;}
+.slr2-gitcard .gact .arr{color:#B8966E;flex-shrink:0;}
+.slr2-gitcard.wa .gact .arr{color:#A8F0C2;}
 .slr2-ways-hours{
   display:flex;gap:22px;flex-wrap:wrap;justify-content:center;
   margin-top:16px;padding-top:14px;border-top:1px solid #ECE5D8;
@@ -827,6 +829,25 @@ html.sl-modal-open #sl-ap{display:none !important;}
 }
 .sl-modal-close:hover{color:#1a1a1a;background:#F7F2EB;}
 .sl-modal-body{overflow-y:auto;flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch;}
+
+/* ── CHOSEN-OPTION HEADER: centered navy statement (M3) ── */
+.sl-modal-head.sl-head-choice{
+  flex-direction:column;align-items:center;text-align:center;
+  padding:26px 20px 22px;border-bottom:none;position:relative;
+}
+.sl-modal-head.sl-head-choice.sl-type-a{background:linear-gradient(160deg,#0d1a2e 0%,#1b2c47 100%);}
+.sl-modal-head.sl-head-choice.sl-type-b{background:linear-gradient(160deg,#2e415c 0%,#42597e 100%);}
+.sl-modal-head.sl-head-choice .sl-modal-title{color:#fff;font-size:clamp(26px,4vw,31px);font-weight:300;}
+.sl-modal-head.sl-head-choice #slModalEyebrow{color:#D4B896;margin-bottom:5px;}
+#slModalSub{
+  font-family:'DM Sans',sans-serif;font-size:12.5px;color:rgba(255,255,255,0.72);
+  margin:8px auto 0;max-width:42ch;line-height:1.55;
+}
+#slModalRule{width:54px;height:2px;background:#B8966E;margin:14px auto 0;}
+.sl-modal-head.sl-head-choice .sl-modal-close{
+  position:absolute;top:12px;right:14px;color:rgba(255,255,255,0.8);
+}
+.sl-modal-head.sl-head-choice .sl-modal-close:hover{color:#fff;background:rgba(255,255,255,0.12);}
 @media(max-width:640px){
   .sl-modal-overlay{padding:0;}
   .sl-modal{max-width:100%;width:100%;height:100%;max-height:100%;border-radius:0;border:none;}
@@ -893,29 +914,33 @@ html.sl-modal-open #sl-ap{display:none !important;}
   <!-- 3. GET IN TOUCH -->
   <div class="slr2-ways" id="get-in-touch">
     <p class="slr2-ways-label">Get in touch</p>
+    <div class="slr2-git">
 
-    <a class="slr2-wab" href="https://wa.me/442030070017">
-      <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.975 0C5.372 0 0 5.373 0 11.976c0 2.109.553 4.09 1.524 5.805L0 24l6.335-1.506A11.927 11.927 0 0011.975 24C18.578 24 24 18.627 24 12.024 24 5.373 18.578 0 11.975 0zm0 21.818a9.837 9.837 0 01-5.011-1.372l-.36-.214-3.762.894.951-3.649-.236-.374A9.83 9.83 0 012.18 12.024c0-5.405 4.394-9.8 9.795-9.8 5.4 0 9.794 4.395 9.794 9.8 0 5.404-4.394 9.794-9.794 9.794z"/></svg></span>
-      <span>
-        <span class="ttl">Message our team on WhatsApp</span>
-        <span class="copy" style="display:block;">Any enquiry, any of our cities. Real people, not bots, typically replying within minutes during desk hours.</span>
-      </span>
-      <span class="cta">Start a chat</span>
-    </a>
+      <a class="slr2-gitcard wa" href="https://wa.me/442030070017">
+        <span class="gicon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.975 0C5.372 0 0 5.373 0 11.976c0 2.109.553 4.09 1.524 5.805L0 24l6.335-1.506A11.927 11.927 0 0011.975 24C18.578 24 24 18.627 24 12.024 24 5.373 18.578 0 11.975 0zm0 21.818a9.837 9.837 0 01-5.011-1.372l-.36-.214-3.762.894.951-3.649-.236-.374A9.83 9.83 0 012.18 12.024c0-5.405 4.394-9.8 9.795-9.8 5.4 0 9.794 4.395 9.794 9.8 0 5.404-4.394 9.794-9.794 9.794z"/></svg></span>
+        <span class="badge">WhatsApp</span>
+        <span class="gttl">Message our team</span>
+        <span class="gcopy">Any enquiry, any of our cities. <b>Real people, not bots,</b> typically replying within minutes during desk hours.</span>
+        <span class="gact">Start a chat <span class="arr">&rarr;</span></span>
+      </a>
 
-    <div class="slr2-minis">
-      <a class="slr2-mini" href="tel:+442030070017">
-        <span class="ico navy" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></span>
-        <span class="main"><span class="badge">Phone</span><span class="copy">Speak to our London team about any enquiry or existing quote.</span></span>
-        <span class="val">020 3007 0017</span>
+      <a class="slr2-gitcard" href="tel:+442030070017">
+        <span class="gicon navy" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></span>
+        <span class="badge">Phone</span>
+        <span class="gttl">Call the office</span>
+        <span class="gcopy">Speak to a member of our London team about any enquiry, a general question or an existing quote.</span>
+        <span class="gact">020 3007 0017 <span class="arr">&rarr;</span></span>
       </a>
-      <a class="slr2-mini" href="https://maps.google.com/?q=Dog+%26+Duck+Yard+Princeton+St+London+WC1R+4BH" target="_blank" rel="noopener">
-        <span class="ico gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/></svg></span>
-        <span class="main"><span class="badge">Head Office</span><span class="copy"><b>Drop in, no appointment needed.</b> Dog &amp; Duck Yard, Princeton St, WC1R 4BH.</span></span>
-        <span class="val">Directions &rarr;</span>
+
+      <a class="slr2-gitcard" href="https://maps.google.com/?q=Dog+%26+Duck+Yard+Princeton+St+London+WC1R+4BH" target="_blank" rel="noopener">
+        <span class="gicon gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/></svg></span>
+        <span class="badge">Head Office</span>
+        <span class="gttl">Visit us in Holborn</span>
+        <span class="gcopy"><b>Drop in, no appointment needed.</b> Discuss your apartment requirements with the team. Dog &amp; Duck Yard, Princeton St, WC1R 4BH.</span>
+        <span class="gact">Directions <span class="arr">&rarr;</span></span>
       </a>
+
     </div>
-
     <div class="slr2-ways-hours"><span><b>Mon to Fri</b> 10:00 to 18:00</span><span><b>Sat / Sun</b> Closed</span><span><b>Nearest tube</b> Holborn</span></div>
   </div>
 
@@ -949,10 +974,12 @@ html.sl-modal-open #sl-ap{display:none !important;}
      ══════════════════════════════════════════════════════════ -->
 <div class="sl-modal-overlay" id="slModalOverlay" role="dialog" aria-modal="true" aria-labelledby="slModalTitle">
   <div class="sl-modal">
-    <div class="sl-modal-head">
-      <div style="flex:1;">
-        <span id="slModalEyebrow" style="display:none;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#B8966E;font-weight:700;font-family:'DM Sans',sans-serif;">Option A</span>
+    <div class="sl-modal-head" id="slModalHead">
+      <div class="sl-mh-inner" style="flex:1;">
+        <span id="slModalEyebrow" style="display:none;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:#B8966E;font-weight:700;font-family:'DM Sans',sans-serif;">Option A</span>
         <h2 class="sl-modal-title" id="slModalTitle">Your enquiry</h2>
+        <p id="slModalSub" style="display:none;">&nbsp;</p>
+        <div id="slModalRule" style="display:none;"></div>
       </div>
       <button type="button" class="sl-modal-close" id="slModalClose" aria-label="Close enquiry form">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -2046,13 +2073,27 @@ html.sl-modal-open #sl-ap{display:none !important;}
      hero card re-runs this and swaps the title. */
   var typeEyebrow = document.getElementById('slTypeEyebrow');
   var typeToggle = document.querySelector('.sl-eq-toggle');
-  var modalTitleEl = document.querySelector('.sl-modal-title');
+  var modalHeadEl = document.getElementById('slModalHead');
+  var modalTitleEl = document.getElementById('slModalTitle');
   var modalEyebrowEl = document.getElementById('slModalEyebrow');
+  var modalSubEl = document.getElementById('slModalSub');
+  var modalRuleEl = document.getElementById('slModalRule');
   var TYPE_TITLES = { A: 'Check availability', B: 'Send me options' };
+  var TYPE_SUBS = {
+    A: 'Seen a property on our website you like? Get a quote for your exact dates.',
+    B: 'Let our team find apartment options for you to choose from - bespoke to your needs.'
+  };
   function collapseTypeChooser(type){
     if(!TYPE_TITLES[type]) return;
+    if(modalHeadEl){
+      modalHeadEl.classList.add('sl-head-choice');
+      modalHeadEl.classList.remove('sl-type-a', 'sl-type-b');
+      modalHeadEl.classList.add(type === 'A' ? 'sl-type-a' : 'sl-type-b');
+    }
     if(modalEyebrowEl){ modalEyebrowEl.textContent = 'Option ' + type; modalEyebrowEl.style.display = 'block'; }
     if(modalTitleEl) modalTitleEl.textContent = TYPE_TITLES[type];
+    if(modalSubEl){ modalSubEl.textContent = TYPE_SUBS[type]; modalSubEl.style.display = 'block'; }
+    if(modalRuleEl) modalRuleEl.style.display = 'block';
     if(typeEyebrow) typeEyebrow.style.display = 'none';
     if(typeToggle) typeToggle.style.display = 'none';
     var err = document.getElementById('slErr-enquiryType');
