@@ -619,15 +619,7 @@ span.flatpickr-weekday{
 .slr2{font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
 
 /* ── ANNOUNCEMENT STRIP ── */
-.slr2-ann{
-  display:block;max-width:1080px;margin:0 auto 8px;
-  background:transparent;border:none;border-radius:8px;
-  text-align:center;padding:9px 16px;
-  font-size:12px;letter-spacing:0.05em;color:#3d3a35;
-  text-decoration:none;transition:border-color 0.18s;
-}
-.slr2-ann b{color:#0d1a2e;font-weight:600;}
-.slr2-ann:hover b{text-decoration:underline;text-underline-offset:2px;}
+/* (announcement strip removed) */
 
 /* ── HERO ── */
 .slr2-hero{
@@ -743,6 +735,13 @@ span.flatpickr-weekday{
 .slr2-btn-mail svg{width:15px;height:15px;}
 
 /* ── MODAL SHELL ── */
+/* The aperture header pins itself at the maximum z-index, so while the modal
+   is open we remove it from the page entirely (restored on close). */
+html.sl-modal-open #sl-ap{display:none !important;}
+/* Land #speak-to-us / #get-in-touch scrolls with breathing room above */
+#get-in-touch{scroll-margin-top:96px;}
+#guest-experience{scroll-margin-top:96px;}
+
 .sl-modal-overlay{
   /* Above the Squarespace sticky header, which stacks higher than 99999 */
   display:none;position:fixed;inset:0;z-index:2147483000;
@@ -814,7 +813,6 @@ span.flatpickr-weekday{
 <div class="slr2 slp-reveal">
 
   <!-- 1. ANNOUNCEMENT STRIP -->
-  <a class="slr2-ann" href="#guest-experience">Already staying with us? <b>Speak to Lina &amp; Jessica from Guest Experience &darr;</b></a>
 
   <!-- 2. HERO -->
   <div class="slr2-hero">
@@ -1835,6 +1833,9 @@ span.flatpickr-weekday{
   function openModal(){
     overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden'; /* also makes the old scrollToNextField window-scrolls harmless no-ops */
+    /* The aperture site header stacks at the max z-index, so it can never sit
+       below the overlay; hide it entirely while the modal is open. */
+    document.documentElement.classList.add('sl-modal-open');
     if(history && history.replaceState) history.replaceState(null, '', '#enquiry-form');
   }
 
@@ -1862,6 +1863,7 @@ span.flatpickr-weekday{
     }
     overlay.style.display = 'none'; /* hide only; never reset the form */
     document.body.style.overflow = '';
+    document.documentElement.classList.remove('sl-modal-open');
     if(history && history.replaceState) history.replaceState(null, '', window.location.pathname + window.location.search);
   }
 
