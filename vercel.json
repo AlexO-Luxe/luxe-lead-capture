@@ -34,7 +34,7 @@
       "schedule": "0 8 * * 1"
     },
     {
-      "path": "/api/audience-sync",
+      "path": "/api/audience-sync?since=2019-01-01",
       "schedule": "45 5 * * *"
     }
   ]
