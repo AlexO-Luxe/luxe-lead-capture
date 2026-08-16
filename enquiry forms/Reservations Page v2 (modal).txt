@@ -642,13 +642,26 @@ span.flatpickr-weekday{
 @media(max-width:540px){.slr2-choices{grid-template-columns:1fr;}}
 .slr2-choice{
   text-align:left;border:none;border-radius:14px;padding:1.55rem 1.4rem;cursor:pointer;
-  font-family:'DM Sans',sans-serif;color:#fff;
+  font-family:'DM Sans',sans-serif;color:#fff;position:relative;
   box-shadow:0 14px 34px rgba(13,26,46,0.25);
-  transition:transform 0.2s,box-shadow 0.2s;
+  transition:transform 0.28s cubic-bezier(0.23,1,0.32,1),box-shadow 0.28s cubic-bezier(0.23,1,0.32,1);
+}
+/* gold ring + soft sheen that wake up on hover */
+.slr2-choice::after{
+  content:'';position:absolute;inset:0;border-radius:14px;pointer-events:none;
+  border:1.5px solid rgba(212,184,150,0);
+  background:linear-gradient(165deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0) 45%);
+  opacity:0;transition:opacity 0.28s,border-color 0.28s;
 }
 .slr2-choice.opt-a{background:linear-gradient(150deg,#0d1a2e 0%,#16263e 100%);}
 .slr2-choice.opt-b{background:linear-gradient(150deg,#2e415c 0%,#3c5273 100%);}
-.slr2-choice:hover{transform:translateY(-3px);box-shadow:0 18px 40px rgba(13,26,46,0.34);}
+.slr2-choice:hover{transform:translateY(-6px) scale(1.025);box-shadow:0 26px 54px rgba(13,26,46,0.42);}
+.slr2-choice:hover::after{opacity:1;border-color:rgba(212,184,150,0.85);}
+.slr2-choice:active{transform:translateY(-2px) scale(0.99);}
+@media (prefers-reduced-motion:reduce){
+  .slr2-choice,.slr2-choice::after{transition:none;}
+  .slr2-choice:hover{transform:none;}
+}
 .slr2-choice .tag{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#D4B896;margin-bottom:8px;font-weight:700;}
 .slr2-choice .ttl{
   font-family:'Baskerville Display PT','Baskerville','Big Caslon',Georgia,serif;
@@ -660,7 +673,10 @@ span.flatpickr-weekday{
   font-size:11px;letter-spacing:0.1em;text-transform:uppercase;font-weight:700;
   border-radius:99px;padding:8px 16px;
 }
+.slr2-choice .start{transition:background 0.2s,gap 0.2s;}
 .slr2-choice.opt-a .start{background:#B8966E;color:#fff;}
+.slr2-choice.opt-a:hover .start{background:#CBA678;gap:10px;}
+.slr2-choice.opt-b:hover .start{background:rgba(255,255,255,0.24);gap:10px;}
 .slr2-choice.opt-b .start{background:rgba(255,255,255,0.14);border:1px solid rgba(212,184,150,0.6);color:#EBDDC8;}
 
 /* ── QUIET WHATSAPP LINK UNDER THE CARDS ── */
