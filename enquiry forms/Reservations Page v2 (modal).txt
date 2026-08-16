@@ -713,11 +713,25 @@ span.flatpickr-weekday{
   font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
   border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:6px;
   background:#fff;border:0.5px solid rgba(184,150,110,0.4);
-  text-decoration:none;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;
+  text-decoration:none;transition:transform 0.28s cubic-bezier(0.23,1,0.32,1),box-shadow 0.28s cubic-bezier(0.23,1,0.32,1),border-color 0.28s;
 }
-.slr2-gitcard:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(13,26,46,0.1);border-color:#B8966E;}
+.slr2-gitcard{position:relative;}
+.slr2-gitcard::after{
+  content:'';position:absolute;inset:0;border-radius:12px;pointer-events:none;
+  border:1.5px solid rgba(184,150,110,0);
+  background:linear-gradient(165deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0) 45%);
+  opacity:0;transition:opacity 0.28s,border-color 0.28s;
+}
+.slr2-gitcard:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 22px 46px rgba(13,26,46,0.18);border-color:transparent;}
+.slr2-gitcard:hover::after{opacity:1;border-color:rgba(184,150,110,0.85);}
+.slr2-gitcard:active{transform:translateY(-2px) scale(0.99);}
 .slr2-gitcard.wa{background:linear-gradient(135deg,#0e3d24 0%,#1DA851 100%);border:none;}
-.slr2-gitcard.wa:hover{box-shadow:0 14px 30px rgba(14,61,36,0.32);}
+.slr2-gitcard.wa:hover{box-shadow:0 24px 48px rgba(14,61,36,0.36);}
+.slr2-gitcard.wa:hover::after{border-color:rgba(212,184,150,0.85);}
+@media (prefers-reduced-motion:reduce){
+  .slr2-gitcard,.slr2-gitcard::after{transition:none;}
+  .slr2-gitcard:hover{transform:none;}
+}
 /* Plain left-aligned glyphs, no containers */
 .slr2-gitcard .gtop{display:flex;align-items:center;gap:9px;margin-bottom:2px;}
 .slr2-gitcard .gtop .gicon{margin-bottom:0;}
