@@ -6,6 +6,7 @@
 const MONDAY_API = 'https://api.monday.com/v2';
 const { logGadsEvent }  = require('./_log.js');
 const { bookingValue }  = require('./_booking-value.js');
+const { ingestBookers }  = require('./_audience.js');
 
 // The only booking status that must NOT upload to Google. Every other status
 // (Confirmed, Paying/Approved, Payment Complete, Extensions, Awaiting
@@ -166,6 +167,13 @@ module.exports = async function handler(req, res) {
         try {
           const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
           await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+
+          // Customer Match: add the booker to the Google Ads customer list.
+          // Non-fatal, the nightly audience-sync sweep heals any miss.
+          if (!result?.skipped && (leadEmail || leadPhone)) {
+            try { await ingestBookers([{ email: leadEmail, phone: leadPhone }]); }
+            catch (e) { console.warn('customer list add failed (non-fatal):', e.message); }
+          }
           return res.status(200).json({ success: true, itemId, value: cleanValue });
         } catch (uploadErr) {
           console.error('submit-booking upload error:', uploadErr.message);
@@ -201,6 +209,13 @@ module.exports = async function handler(req, res) {
       try {
         const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
         await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+
+          // Customer Match: add the booker to the Google Ads customer list.
+          // Non-fatal, the nightly audience-sync sweep heals any miss.
+          if (!result?.skipped && (leadEmail || leadPhone)) {
+            try { await ingestBookers([{ email: leadEmail, phone: leadPhone }]); }
+            catch (e) { console.warn('customer list add failed (non-fatal):', e.message); }
+          }
         return res.status(200).json({ success: true, itemId, value: cleanValue });
       } catch (uploadErr) {
         console.error('submit-booking upload error:', uploadErr.message);

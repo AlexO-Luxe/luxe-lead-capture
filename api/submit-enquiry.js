@@ -8,6 +8,7 @@ const MONDAY_API   = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch } = require('./_attribution.js');
+const { recordOptOut } = require('./_audience.js');
 const { logGadsEvent }  = require('./_log.js');
 
 // ── IP BLOCKLIST ──────────────────────────────────────────────
@@ -139,6 +140,12 @@ module.exports = async function handler(req, res) {
     // Log only. Alerting is owned by /api/replay-failed-events, which emails
     // once a fail has not self-healed after STUCK_MS.
     await logGadsEvent({ ...gadsCtx, ok: false, error: err.message });
+  }
+
+  // Marketing opt-out: remember it (hashed) so the Customer Match list never
+  // includes this guest, even via the nightly sweep.
+  if (p.marketing_opt_in === false && p.email) {
+    await recordOptOut(p.email);
   }
 
   // ── Attach submission summary to KV session (non-fatal) ───
