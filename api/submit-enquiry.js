@@ -973,7 +973,9 @@ ${steps}
   return resendSend({
     from:     `${portal.fromName} <${portal.fromEmail}>`,
     to:       [p.email],
-    reply_to: portal.fromEmail,
+    // Paige's enquiries reply to the partner alias, which she reads. Sales
+    // enquiries reply straight into the Reservations inbox that works them.
+    reply_to: isPaige ? portal.fromEmail : (process.env.TEAM_EMAIL || portal.fromEmail),
     subject:  `Your ${portal.school} accommodation enquiry`,
     html
   });
@@ -1255,10 +1257,13 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     </tr></table>
   </td></tr>
 
-  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${PARTNER_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;text-align:center;">
-    <img src="${PARTNER_IMG.wordmark}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 14px;">
-    <p class="sl-foot-line sl-on-dark-gold" style="margin:0 0 12px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#D4B896;line-height:1.5;">The accommodation office for ${escHtml(portal.school)}</p>
-    <p style="margin:0;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,.55);">Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>+44 (0)203 007 0017 &middot; Mon to Fri, 10am to 6pm</p>
+  <!-- Footer is the guest email's, unchanged, so both sides of the enquiry
+       close the same way. -->
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${PARTNER_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;">
+    <img src="${PARTNER_IMG.wordmark}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 18px;">
+    <p class="sl-on-dark sl-foot-line" style="margin:0 0 8px;text-align:center;font-family:Georgia,serif;font-size:15px;color:#ffffff;letter-spacing:-.01em;">The accommodation office for ${escHtml(portal.school)}</p>
+    <p style="margin:0 0 16px;text-align:center;font-size:12px;line-height:1.7;color:rgba(255,255,255,.6);">Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>+44 (0)203 007 0017 &middot; Mon to Fri, 10am to 6pm</p>
+    <p style="margin:0;text-align:center;font-size:11.5px;"><a href="${PARTNER_IMG.page}" style="color:#D4B896;text-decoration:none;border-bottom:1px solid rgba(184,150,110,.45);">Back to the Accommodation Hub</a></p>
   </td></tr>
 
 </table>
@@ -1364,7 +1369,15 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     from:    portal
       ? `${portal.fromName} <${portal.fromEmail}>`
       : `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
-    to:      [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
+    // Partner routing: PBSA and undecided enquiries are Paige's, and she reads
+    // the partner alias, so they stop there. Anything the sales team actually
+    // sells (private apartments, serviced) also goes to the Reservations inbox
+    // so it is worked like any other lead.
+    to:      portal
+      ? (routedAssigneeId(p)
+          ? [portal.fromEmail]
+          : [...new Set([portal.fromEmail, process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean))])
+      : [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
     // Reply goes to the guest, not back to the partner alias (which is itself an
     // alias of the team inbox, so Reply would otherwise be self-addressed).
     // Resend expects snake_case here; replyTo is silently dropped.
