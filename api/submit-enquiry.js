@@ -683,7 +683,7 @@ async function sendGuestConfirmation(p) {
 <body style="margin:0;padding:0;background:#f4f1ec;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" class="sl-outer-wrap" style="background:#f4f1ec;padding:32px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" class="sl-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
+<table width="600" cellpadding="0" cellspacing="0" class="sl-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(0,0,0,0.15);">
 
   <!-- HEADER -->
   <tr><td style="background:#B8966E;padding:22px 32px;">
@@ -805,6 +805,22 @@ async function sendGuestConfirmation(p) {
 // ──────────────────────────────────────────────────────────────
 //  EMAIL 1b — Guest confirmation, partner portals
 // ──────────────────────────────────────────────────────────────
+// Hosted artwork for the co-branded emails. Both logos are white on
+// transparency, so every band they sit on has to stay dark. The photos are
+// laid under a black gradient wash; Outlook drops the image and keeps the
+// bgcolor, which is why each band carries both.
+const PARTNER_IMG = {
+  seal:     'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/83bf050f-4124-4da2-8fec-073287bd8495/seal-wordmark-ivory-on-transparent-2.png?content-type=image%2Fpng',
+  wordmark: 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/3b2d0218-5cf8-4041-8460-2ec2228c864b/Logo+White+website.png?content-type=image%2Fpng',
+  school:   'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/60fe613f-b4ce-4e6e-bd0c-ef94e187ddf9/istituto-marangoni-png.png?content-type=image%2Fpng',
+  // Squarer lockup, used where the mark sits small in a condensed band.
+  schoolAlt:'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/d2ee5c81-8e9f-4ebd-a142-4234962fde80/istituto-marangoni-london-logo-1.png?content-type=image%2Fpng',
+  hero:     'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/860cc079-de7e-42c8-835a-d5ff12c84f34/marangoni-2.jpg?content-type=image%2Fjpeg',
+  footer:   'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/1709156541414-LL1XG1IVRXX4IXKZWPHR/12.+3++Bed+Westminster+Amphora+Apartments+Bed.jpg?content-type=image%2Fjpeg',
+  paige:    'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/54094f14-2f02-479b-b1ba-5e01bbab2afd/Paige-student-luxe-1.jpg',
+  page:     'https://www.studentluxe.co.uk/istituto-marangoni-london-accommodation',
+};
+
 async function sendPartnerGuestConfirmation(p, portal) {
   if (!p.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) {
     console.warn('Partner guest confirmation skipped — invalid email:', p.email);
@@ -813,143 +829,140 @@ async function sendPartnerGuestConfirmation(p, portal) {
 
   const firstName  = (p.full_name || '').split(' ')[0] || 'there';
   const nightCount = nights(p);
-
-  const _submitted = new Date(p.submitted_at || Date.now()).toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Europe/London'});
-  // Node 20+ ICU already renders "16 July 2026 at 4:57 pm"; older builds used a
-  // comma. Swallow either separator so we don't emit "at at".
-  const _parts     = _submitted.match(/^(\d+ \w+ \d+),?\s+(?:at\s+)?(.+)$/);
-  const _dateFmt   = _parts ? `on ${_parts[1]} at ${_parts[2]}` : _submitted;
+  // Standard student living and Not sure yet are auto-assigned to a named
+  // owner, so those guests get her name and sign-off. Everything else stays
+  // with the Reservations team and reads as "a Student Luxe advisor".
+  const isPaige    = !!routedAssigneeId(p);
+  const building   = (p.building || '').trim();
 
   // Each cell renders only when we actually hold the value, so a sparse
   // enquiry produces a tidy card rather than a grid of dashes.
   const cell = (label, value, accent) => value ? `
-            <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:16px;">
-              <p style="margin:0 0 3px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
-              <p style="margin:0;font-size:13.5px;color:${accent ? '#B8966E' : '#1a1a1a'};font-weight:500;">${escHtml(String(value))}</p>
+            <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:15px;">
+              <p style="margin:0 0 3px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+              <p style="margin:0;font-size:13.5px;font-weight:500;color:${accent ? '#B8966E' : '#1a1a1a'};">${escHtml(String(value))}</p>
             </td>` : '<td class="sl-half" width="50%"></td>';
 
-  const step = (n, title, body) => `
-          <tr>
-            <td width="26" style="vertical-align:top;padding:0 0 16px;"><span style="font-family:Georgia,serif;font-size:15px;color:#B8966E;">${n}</span></td>
-            <td style="vertical-align:top;padding:0 0 16px;">
-              <p style="margin:0 0 3px;font-size:13px;color:#1a1a1a;font-weight:500;">${title}</p>
-              <p style="margin:0;font-size:12px;color:#6b6b6b;line-height:1.5;">${body}</p>
-            </td>
-          </tr>`;
+  const step = (n, title, body, last) => `
+        <tr><td width="34" style="vertical-align:top;font-family:Georgia,serif;font-size:15px;color:#B8966E;${last ? '' : 'padding-bottom:14px;'}">${n})</td>
+            <td${last ? '' : ' style="padding-bottom:14px;"'}><p style="margin:0 0 2px;font-size:13.5px;font-weight:500;color:#1a1a1a;">${title}</p><p style="margin:0;font-size:12.5px;color:#6b6b6b;line-height:1.55;">${body}</p></td></tr>`;
+
+  const steps = isPaige
+    ? step('01', 'Paige from Student Luxe will contact you', 'On your preferred channel, to talk through areas, budget and dates')
+    + step('02', 'Receive your shortlist', 'A hand-picked selection matched to your preferences and budget, with our honest recommendation on which is right for you')
+    + step('03', 'Book your home', 'Either with us, or with one of our partners, we&rsquo;ll ensure a seamless booking process so you can relax and enjoy your new home', true)
+    : step('01', 'A Student Luxe advisor will contact you', 'On your preferred channel, to talk through areas, budget and dates')
+    + step('02', 'We&rsquo;ll send you apartment options', 'Marangoni began with a tailor, and we take the same approach to finding your accommodation. Hand-picked, bespoke to your needs.')
+    + step('03', 'Book, and move-in to your new home', 'Our simple booking process means you can relax and enjoy your new home quickly. Remember, all apartments are furnished, set up and ready to move in, with all bills included.', true);
+
+  // Paige is named to the guest, so she gets a face. Team-owned enquiries get a
+  // plain closing line instead.
+  const closingSlot = isPaige ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 0;padding:22px 0 0;border-top:1px solid rgba(184,150,110,.3);"><tr><td>
+      <table cellpadding="0" cellspacing="0"><tr>
+        <td style="vertical-align:middle;padding-right:16px;width:62px;">
+          <img src="${PARTNER_IMG.paige}" alt="Paige Grinter" width="62" height="62" style="width:62px;height:62px;display:block;border-radius:50%;object-fit:cover;">
+        </td>
+        <td style="vertical-align:middle;">
+          <p style="margin:0 0 3px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b8f7d;">Your point of contact</p>
+          <p style="margin:0 0 2px;font-family:Georgia,serif;font-size:18px;color:#1a1a1a;">Paige Grinter</p>
+          <p style="margin:0;font-size:12px;color:#9b8f7d;">Our accommodation advisor for ${escHtml(portal.school)}</p>
+        </td>
+      </tr></table>
+      <p style="margin:14px 0 0;font-size:12.5px;line-height:1.6;color:#6b6b6b;">Any replies to this email go straight to Paige and the Student Luxe Reservations team.</p>
+    </td></tr></table>`
+    : `
+    <p style="margin:0;font-size:12.5px;color:#9b9b9b;">Anything to change? Just reply to this email and we will update it.</p>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your accommodation enquiry — ${escHtml(portal.school)}</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your accommodation enquiry, ${escHtml(portal.school)}</title>
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <style>
-@media only screen and (max-width:600px){
-  .sl-outer-wrap { padding:0 !important; }
-  .sl-card { border-radius:0 !important; border-left:none !important; border-right:none !important; }
-  .sl-body-cell { padding:22px 20px 0 !important; }
-  .sl-half { display:block !important; width:100% !important; padding-bottom:14px !important; }
-}
+  :root{color-scheme:light dark;supported-color-schemes:light dark}
+  /* The logos are white artwork on transparency, so the bands behind them must
+     stay dark in every scheme. Declaring dark support stops iOS Mail inverting
+     them; these rules cover the clients that invert anyway. */
+  .sl-dark{background-color:#000000!important}
+  .sl-on-dark{color:#ffffff!important}
+  .sl-on-dark-gold{color:#D4B896!important}
+  @media (prefers-color-scheme:dark){
+    .sl-dark{background-color:#000000!important}
+    .sl-on-dark{color:#ffffff!important}
+    .sl-on-dark-gold{color:#D4B896!important}
+  }
+  @media (max-width:620px){
+    .sl-pad{padding-left:22px!important;padding-right:22px!important}
+    .sl-half{display:block!important;width:100%!important}
+    .sl-foot-line{font-size:12.5px!important;line-height:1.4!important}
+  }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#f4f1ec;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" class="sl-outer-wrap" style="background:#f4f1ec;padding:32px 16px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" class="sl-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(0,0,0,0.15);">
+<body style="margin:0;padding:0;background:#EDE9E1;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#EDE9E1;padding:32px 16px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:.5px solid rgba(0,0,0,.15);">
 
-  <!-- HEADER -->
-  <tr><td style="background:#000000;padding:24px 32px;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="vertical-align:middle;">
-        <p style="margin:0 0 7px;font-size:9.5px;letter-spacing:0.2em;text-transform:uppercase;color:#D4B896;">${escHtml(portal.school)}</p>
-        <p style="margin:0 0 5px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">Your accommodation enquiry.</p>
-        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.5);">${_dateFmt}</p>
+  <!-- HEADER: centred lockup. The rule sits on the header centre line, with
+       each mark hugging it from its own half, so the wider logo cannot pull it
+       off centre. Both marks are white artwork, so this band must stay dark.
+       Outlook drops the photo and falls back to the bgcolor. -->
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.hero}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.75),rgba(0,0,0,.75)),url('${PARTNER_IMG.hero}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px 26px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;"><tr>
+      <td width="50%" align="right" style="vertical-align:middle;padding-right:24px;">
+        <img src="${PARTNER_IMG.school}" alt="${escHtml(portal.school)}" height="84" style="height:84px;width:auto;display:block;margin-left:auto;">
       </td>
-      <td style="text-align:right;vertical-align:middle;">
-        <p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.45);line-height:1.6;">Managed by</p>
-        <p style="margin:0;font-family:Georgia,serif;font-style:italic;font-size:17px;color:#ffffff;">Student Luxe</p>
+      <td width="1" style="width:1px;vertical-align:middle;padding:0;font-size:0;line-height:0;">
+        <table cellpadding="0" cellspacing="0" border="0"><tr>
+          <td width="1" height="60" bgcolor="#4A4A4A" style="width:1px;height:60px;line-height:60px;font-size:0;background-color:#4A4A4A;">&nbsp;</td>
+        </tr></table>
+      </td>
+      <td width="50%" align="left" style="vertical-align:middle;padding-left:24px;">
+        <img src="${PARTNER_IMG.seal}" alt="Student Luxe" height="96" style="height:96px;width:auto;display:block;margin-right:auto;">
       </td>
     </tr></table>
+    <p class="sl-on-dark" style="margin:24px 0 0;text-align:center;font-family:Georgia,serif;font-size:23.5px;color:#ffffff;letter-spacing:-.035em;line-height:1.25;">We&rsquo;ve received your accommodation enquiry.</p>
   </td></tr>
 
-  <!-- BODY -->
-  <tr><td class="sl-body-cell" style="background:#ffffff;padding:28px 32px 0;">
+  <tr><td class="sl-pad" style="padding:28px 32px 0;">
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#1a1a1a;">Dear ${escHtml(firstName)},</p>
+    <p style="margin:0 0 22px;font-size:14px;line-height:1.75;color:#3c3c3c;">Thank you for your enquiry with Student Luxe, the accommodation office for ${escHtml(portal.school)}. We will now put together a shortlist of options matched to your needs, budget and lifestyle.</p>
 
-    <p style="margin:0 0 14px;font-size:14px;color:#1a1a1a;line-height:1.5;">Dear ${escHtml(firstName)},</p>
-    <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.5;">Thank you for your enquiry. We are the accommodation office for <strong>${escHtml(portal.school)}</strong>, and we will put together a shortlist of options matched to your needs, budget and lifestyle.</p>
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">What happens next</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;"><tr><td style="padding:18px 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+${steps}
+      </table>
+    </td></tr></table>
 
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr><td style="border-top:0.5px solid #ede9e3;"></td></tr></table>
-
-    <!-- WHAT HAPPENS NEXT -->
-    <p style="margin:18px 0 10px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">What happens next</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;">
-      <tr><td style="padding:20px;">
-        <table width="100%" cellpadding="0" cellspacing="0">
-          ${step('01', 'A Student Luxe advisor makes contact', 'On your preferred channel, to talk through areas, budget and dates.')}
-          ${step('02', 'Get a shortlist of recommendations', 'Receive options for your preferences &amp; price-range. In-person &amp; virtual viewings possible.')}
-          <tr>
-            <td width="26" style="vertical-align:top;"><span style="font-family:Georgia,serif;font-size:15px;color:#B8966E;">03</span></td>
-            <td style="vertical-align:top;">
-              <p style="margin:0 0 3px;font-size:13px;color:#1a1a1a;font-weight:500;">Book an accommodation option</p>
-              <p style="margin:0;font-size:12px;color:#6b6b6b;line-height:1.5;">Time to begin your exciting new chapter at ${escHtml(portal.school)}.</p>
-            </td>
-          </tr>
-        </table>
-      </td></tr>
-    </table>
-
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr><td style="border-top:0.5px solid #ede9e3;"></td></tr></table>
-
-    <!-- YOUR ENQUIRY -->
-    <p style="margin:18px 0 10px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Your enquiry</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid rgba(184,150,110,0.35);border-radius:10px;">
-      <tr><td style="padding:20px;">
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            ${cell('Accommodation type', formatAptType(p.apartment_type))}
-            ${cell('Guide price', p.budget ? formatBudget(p.budget, p) + ' /' + budgetPeriod(p.city) : '', true)}
-          </tr>
-          <tr>
-            ${cell('Check-in', formatDate(p.check_in))}
-            ${cell('Check-out', formatDate(p.check_out))}
-          </tr>
-          <tr>
-            ${cell('Course', p.course)}
-            ${cell('Preferred area', formatArea(p.areas))}
-          </tr>
-        </table>
-        ${nightCount ? `
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
-          <tr><td style="border-top:0.5px solid rgba(184,150,110,0.25);padding-top:12px;">
-            <p style="margin:0;font-size:11.5px;color:#9b9b9b;">Staying <span style="color:#B8966E;">${nightCount} nights</span></p>
-          </td></tr>
-        </table>` : ''}
-      </td></tr>
-    </table>
+    <p style="margin:24px 0 12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">Your enquiry</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,.35);border-radius:10px;"><tr><td style="padding:18px 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>${cell('Accommodation type', formatAptType(p.apartment_type))}${cell('Building', building, true)}</tr>
+        <tr>${cell('Guide price', p.budget ? formatBudget(p.budget, p) + ' /' + budgetPeriod(p.city) : '')}${cell('Staying', nightCount ? nightCount + ' nights' : '')}</tr>
+        <tr>${cell('Check-in', formatDate(p.check_in))}${cell('Check-out', formatDate(p.check_out))}</tr>
+        <tr>${cell('Preferred contact', formatResponseMethods(p.response_methods))}${cell('Preferred areas', formatArea(p.areas))}</tr>
+      </table>
+    </td></tr></table>
 
     ${p.message ? `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
-      <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;padding:12px 16px;">
-        <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Your message</p>
-        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">"${escHtml(p.message)}"</p>
-      </td></tr>
-    </table>` : ''}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 0;"><tr>
+      <td style="background:#FBF8F2;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:14px 16px;">
+        <p style="margin:0 0 4px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">Your message</p>
+        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">&ldquo;${escHtml(p.message)}&rdquo;</p>
+      </td>
+    </tr></table>` : ''}
 
-    <p style="margin:12px 0 0;font-size:11.5px;color:#9b9b9b;line-height:1.6;">Anything to change? Just reply to this email and we will update it.</p>
-
-    <div style="height:28px;"></div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 28px;"><tr><td>${closingSlot}</td></tr></table>
   </td></tr>
 
-  <!-- FOOTER -->
-  <tr><td style="background:#000000;padding:26px 32px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;"><tr>
-      <td style="vertical-align:top;">
-        <p style="margin:0 0 3px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#D4B896;">Accommodation office</p>
-        <p style="margin:0 0 12px;font-family:Georgia,serif;font-size:15px;color:#ffffff;">${escHtml(portal.school)} <span style="color:rgba(255,255,255,0.35);">&#215;</span> <em>Student Luxe</em></p>
-        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.55);line-height:1.85;">Dog &amp; Duck Yard, Princeton St<br>London, WC1R 4BH<br>+44 (0)203 007 0017<br>Mon–Fri, 10am–6pm GMT</p>
-      </td>
-    </tr></table>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid rgba(255,255,255,0.15);"><tr>
-      <td style="padding-top:16px;"><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.35);line-height:1.6;">&copy; ${new Date().getFullYear()} Student Luxe Apartments. All rights reserved.</p></td>
-      <td style="text-align:right;padding-top:16px;"><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.35);line-height:1.6;">If you didn’t submit this enquiry, please disregard.</p></td>
-    </tr></table>
+  <!-- FOOTER: seal, one line of who we are, then contact, over the same style
+       of photo wash as the header. -->
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${PARTNER_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;">
+    <img src="${PARTNER_IMG.wordmark}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 18px;">
+    <p class="sl-on-dark sl-foot-line" style="margin:0 0 8px;text-align:center;font-family:Georgia,serif;font-size:15px;color:#ffffff;letter-spacing:-.01em;">The accommodation office for ${escHtml(portal.school)}</p>
+    <p style="margin:0 0 16px;text-align:center;font-size:12px;line-height:1.7;color:rgba(255,255,255,.6);">Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>+44 (0)203 007 0017 &middot; Mon to Fri, 10am to 6pm</p>
+    <p style="margin:0;text-align:center;font-size:11.5px;"><a href="${PARTNER_IMG.page}" style="color:#D4B896;text-decoration:none;border-bottom:1px solid rgba(184,150,110,.45);">Back to the Accommodation Hub</a></p>
   </td></tr>
 
 </table>
@@ -958,9 +971,10 @@ async function sendPartnerGuestConfirmation(p, portal) {
 </body></html>`;
 
   return resendSend({
-    from:    `${portal.fromName} <${portal.fromEmail}>`,
-    to:      [p.email],
-    subject: `Your ${portal.school} accommodation enquiry`,
+    from:     `${portal.fromName} <${portal.fromEmail}>`,
+    to:       [p.email],
+    reply_to: portal.fromEmail,
+    subject:  `Your ${portal.school} accommodation enquiry`,
     html
   });
 }
@@ -1116,6 +1130,143 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       <span style="display:inline-block;padding:7px 16px;border-radius:100px;background:rgba(184,150,110,0.14);border:0.5px solid rgba(184,150,110,0.45);font-size:13.5px;font-weight:500;color:#8a6540;line-height:1.3;">${escHtml(String(value))}</span>
     </td>` : '';
 
+  // Partner portals get their own layout, matched to the co-branded guest
+  // email. The three banners above are shared: each is a self-contained table
+  // row, so it drops into either shell unchanged.
+  const partnerHtml = !portal ? '' : (function () {
+    const isPaige  = !!routedAssigneeId(p);
+    const building = (p.building || '').trim();
+    const phone    = (p.phone || '').trim();
+
+    const kv = (label, value, gold) => value ? `
+            <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:15px;">
+              <p style="margin:0 0 3px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+              <p style="margin:0;font-size:13.5px;font-weight:500;color:${gold ? '#B8966E' : '#1a1a1a'};">${value}</p>
+            </td>` : '<td class="sl-half" width="50%"></td>';
+
+    const kvPill = (label, value) => `
+            <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:15px;">
+              <p style="margin:0 0 5px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+              <span style="display:inline-block;padding:6px 15px;border-radius:100px;background:rgba(184,150,110,.14);border:.5px solid rgba(184,150,110,.45);font-size:13px;font-weight:500;color:#8a6540;line-height:1.3;">${escHtml(String(value || 'Not specified'))}</span>
+            </td>`;
+
+    // Who the lead lands with, and what the guest was told to expect. Paige is
+    // named in her version of the guest email, so the two sides match.
+    const ownerBlock = isPaige ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;margin:0 0 22px;"><tr><td style="padding:14px 18px;">
+      <table cellpadding="0" cellspacing="0"><tr>
+        <td style="vertical-align:middle;padding-right:14px;width:46px;">
+          <img src="${PARTNER_IMG.paige}" alt="Paige Grinter" width="46" height="46" style="width:46px;height:46px;display:block;border-radius:50%;object-fit:cover;">
+        </td>
+        <td style="vertical-align:middle;">
+          <p style="margin:0 0 2px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b8f7d;">Auto-assigned to</p>
+          <p style="margin:0;font-size:14px;font-weight:500;color:#1a1a1a;">Paige Grinter <span style="font-weight:400;color:#9b8f7d;">&middot; to send PBSA + our cheapest options</span></p>
+        </td>
+      </tr></table>
+    </td></tr></table>` : `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;margin:0 0 22px;"><tr><td style="padding:14px 18px;">
+      <p style="margin:0 0 2px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b8f7d;">Sent to Leads Board</p>
+      <p style="margin:0;font-size:14px;font-weight:500;color:#1a1a1a;">Reservations team <span style="font-weight:400;color:#9b8f7d;">&middot; please deal with it like a normal enquiry</span></p>
+    </td></tr></table>`;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New enquiry, ${escHtml(guestName)}</title>
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<style>
+  :root{color-scheme:light dark;supported-color-schemes:light dark}
+  .sl-dark{background-color:#000000!important}
+  .sl-on-dark{color:#ffffff!important}
+  .sl-on-dark-gold{color:#D4B896!important}
+  @media (prefers-color-scheme:dark){
+    .sl-dark{background-color:#000000!important}
+    .sl-on-dark{color:#ffffff!important}
+    .sl-on-dark-gold{color:#D4B896!important}
+  }
+  @media (max-width:620px){
+    .sl-pad{padding-left:22px!important;padding-right:22px!important}
+    .sl-half{display:block!important;width:100%!important}
+    .sl-foot-line{font-size:12.5px!important;line-height:1.4!important}
+    .sl-hd-logo{height:38px!important}
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#EDE9E1;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#EDE9E1;padding:32px 16px;"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:.5px solid rgba(0,0,0,.15);">
+
+  <!-- Single centred band, no side-by-side cells: those break up on phones.
+       Partner mark only, over the hero photo with a black wash. Outlook drops
+       the photo and keeps the bgcolor. -->
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.hero}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.7),rgba(0,0,0,.7)),url('${PARTNER_IMG.hero}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:20px 32px 18px;text-align:center;">
+    <img class="sl-hd-logo" src="${PARTNER_IMG.schoolAlt}" alt="${escHtml(portal.school)}" height="44" style="height:44px;width:auto;max-width:100%;display:block;margin:0 auto 12px;">
+    <p class="sl-on-dark-gold" style="margin:0 0 5px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#D4B896;">New Enquiry</p>
+    <p class="sl-on-dark" style="margin:0 0 5px;font-family:Georgia,serif;font-size:24px;color:#ffffff;letter-spacing:-.035em;line-height:1.2;">${escHtml(guestName)}</p>
+    <p class="sl-on-dark" style="margin:0;font-size:11.5px;color:rgba(255,255,255,.6);">${submittedFormatted}</p>
+  </td></tr>
+  ${mondayErrorBanner}
+  ${omittedBanner}
+  ${dupBannerHtml}
+
+  <tr><td class="sl-pad" style="padding:26px 32px 0;">
+    ${ownerBlock}
+
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">The enquiry</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,.35);border-radius:10px;"><tr><td style="padding:18px 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>${kvPill('Accommodation type', formatAptType(p.apartment_type))}${kv('Building', escHtml(building), true)}</tr>
+        <tr>${kv('Guide price', p.budget ? escHtml(formatBudget(p.budget, p) + ' /' + budgetPeriod(p.city)) : '')}${kv('Preferred areas', escHtml(formatArea(p.areas)))}</tr>
+        <tr>${kv('Check-in', formatDate(p.check_in))}${kv('Check-out', formatDate(p.check_out))}</tr>
+        <tr>${kv('Nights', nightCount ? nightCount + ' nights' : '')}${kv('City', escHtml(formatCity(p.city) || portal.city))}</tr>
+      </table>
+    </td></tr></table>
+
+    ${p.message ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 0;"><tr>
+      <td style="background:#FBF8F2;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:14px 16px;">
+        <p style="margin:0 0 4px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">Message from guest</p>
+        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">&ldquo;${escHtml(p.message)}&rdquo;</p>
+      </td>
+    </tr></table>` : ''}
+
+    <p style="margin:24px 0 12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">Contact</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,.35);border-radius:10px;"><tr><td style="padding:18px 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>${kv('Name', escHtml(p.full_name || ''))}${kv('Respond via', escHtml(formatResponseMethods(p.response_methods)), true)}</tr>
+        <tr>${kv('Email', p.email ? `<a href="mailto:${escHtml(p.email)}" style="color:#1a1a1a;text-decoration:none;">${escHtml(p.email)}</a>` : '')}${kv('Phone', phone ? `<a href="tel:${escHtml(phone.replace(/\s/g, ''))}" style="color:#1a1a1a;text-decoration:none;">${escHtml(phone)}</a>` : '')}</tr>
+        <tr>${kv('Timezone', escHtml(p.timezone || ''))}${kv('University', escHtml(portal.channel))}</tr>
+      </table>
+    </td></tr></table>
+
+    <p style="margin:24px 0 12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">Tracking</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;"><tr><td style="padding:14px 18px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr><td style="padding:3px 0;font-size:11.5px;color:#9b9b9b;width:150px;">Lead source (where)</td><td style="padding:3px 0;font-size:11.5px;color:#1a1a1a;font-weight:500;">${escHtml(leadSource || '—')}</td></tr>
+        <tr><td style="padding:3px 0;font-size:11.5px;color:#9b9b9b;">Lead source (how)</td><td style="padding:3px 0;font-size:11.5px;color:#1a1a1a;font-weight:500;">${escHtml(leadChannel || '—')}</td></tr>
+        <tr><td style="padding:3px 0;font-size:11.5px;color:#9b9b9b;">Form</td><td style="padding:3px 0;font-size:11.5px;color:#1a1a1a;font-weight:500;">${escHtml(portal.formName)}</td></tr>
+      </table>
+    </td></tr></table>
+  </td></tr>
+
+  <tr><td class="sl-pad" style="padding:24px 32px 28px;">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td><a href="${crmUrl}" style="display:inline-block;padding:11px 22px;background:#B8966E;border-radius:8px;font-size:12px;font-weight:500;color:#ffffff;text-decoration:none;">Open in Leads Board</a></td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${PARTNER_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;text-align:center;">
+    <img src="${PARTNER_IMG.wordmark}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 14px;">
+    <p class="sl-foot-line sl-on-dark-gold" style="margin:0 0 12px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#D4B896;line-height:1.5;">The accommodation office for ${escHtml(portal.school)}</p>
+    <p style="margin:0;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,.55);">Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>+44 (0)203 007 0017 &middot; Mon to Fri, 10am to 6pm</p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+  })();
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New enquiry — ${escHtml(guestName)}</title>
@@ -1131,11 +1282,11 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 <table width="100%" cellpadding="0" cellspacing="0" class="sl-t-outer" style="background:#f4f1ec;padding:32px 16px;">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" class="sl-t-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
-  <tr><td style="background:#B8966E;padding:22px 32px;">
+  <tr><td style="background:#000000;padding:24px 32px;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="vertical-align:middle;">
         <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:22px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">${escHtml(guestName)}</p>
-        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);">${submittedFormatted}</p>
+        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.6);">${submittedFormatted}</p>
       </td>
       <td style="text-align:right;vertical-align:middle;">
         <img src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng" alt="Student Luxe" style="height:44px;width:auto;display:block;margin-left:auto;">
@@ -1216,13 +1367,14 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     to:      [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
     // Reply goes to the guest, not back to the partner alias (which is itself an
     // alias of the team inbox, so Reply would otherwise be self-addressed).
-    replyTo: p.email,
+    // Resend expects snake_case here; replyTo is silently dropped.
+    reply_to: p.email,
     subject: portal
       ? `Marangoni Enquiry - ${formatAptType(p.apartment_type) || 'Accommodation'}${nightCount ? ', ' + nightCount + ' nights' : ''}`
       : isTypeA
       ? `New Guest Enquiry — ${p.apartment_ref || 'Specific Apartment'}${nightCount ? ', ' + nightCount + ' Nights' : ''}`
       : `New Guest Enquiry — ${formatCity(p.city) || 'Unknown City'}${nightCount ? ', ' + nightCount + ' Nights' : ''}`,
-    html
+    html: portal ? partnerHtml : html
   });
 }
 
@@ -1728,6 +1880,17 @@ function formatBudget(b, p) {
   if ((m = /^(\d+)-(\d+)$/.exec(b)))       return `${sym}${n(m[1])} – ${sym}${n(m[2])}`;
   if ((m = /^(\d+)(?:\+|-plus)$/.exec(b))) return `${sym}${n(m[1])}+`;
   return b;
+}
+// The forms post the preferred reply channels as a CSV of slugs
+// ('whatsapp,email'). Both emails show them to a human, so they get proper
+// labels and an Oxford-free comma list. Unknown slugs title-case rather than
+// leak raw.
+function formatResponseMethods(v) {
+  if (!v) return '';
+  const map = {'whatsapp':'WhatsApp','email':'Email','phone':'Phone call','call':'Phone call','sms':'SMS','text':'Text message','wechat':'WeChat'};
+  return String(v).split(',').map(s => s.trim()).filter(Boolean)
+    .map(s => map[s.toLowerCase()] || s.charAt(0).toUpperCase() + s.slice(1))
+    .join(', ');
 }
 function formatStayType(type, university) {
   if (!type) return '';
