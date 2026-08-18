@@ -1326,7 +1326,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
   <!-- Single centred band, no side-by-side cells: those break up on phones.
        Wordmark over an apartment photo with a black wash. Outlook drops the
        photo and keeps the bgcolor. -->
-  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${EMAIL_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.72),rgba(0,0,0,.72)),url('${EMAIL_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:20px 32px 18px;text-align:center;">
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${EMAIL_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),url('${EMAIL_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:20px 32px 18px;text-align:center;">
     <img class="sl-hd-logo" src="${EMAIL_IMG.wordmark}" alt="Student Luxe" height="22" style="height:22px;width:auto;max-width:100%;display:block;margin:0 auto 22px;">
     <p class="sl-on-dark-gold" style="margin:0 0 5px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#D4B896;">New Enquiry</p>
     <p class="sl-on-dark" style="margin:0 0 5px;font-family:Georgia,serif;font-size:24px;color:#ffffff;letter-spacing:-.035em;line-height:1.2;">${escHtml(guestName)}</p>
