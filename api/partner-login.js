@@ -8,8 +8,10 @@
 //  Attempts are rate limited so the pair cannot be walked through.
 // ============================================================
 
-const { partnerByUsername, issueToken, passcodeMatches, applyCors } = require('./_partner-auth.js');
-const { isRateLimited, bumpRateLimit, clientIp } = require('./_guest-auth.js');
+const {
+  partnerByUsername, issueToken, passcodeMatches, applyCors,
+  isRateLimited, bumpRateLimit, clientIp
+} = require('./_partner-auth.js');
 const { logError } = require('./_errlog.js');
 
 const WINDOW_SECONDS = 15 * 60;

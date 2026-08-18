@@ -18,6 +18,7 @@
 
 const crypto = require('crypto');
 
+const MONDAY_API = 'https://api.monday.com/v2';
 const TTL = Number(process.env.PARTNER_SESSION_TTL_SECONDS || 60 * 60 * 12);
 
 // A lead belongs to a partner when EITHER the source pair says so
@@ -116,6 +117,72 @@ function passcodeMatches (partner, supplied) {
   return crypto.timingSafeEqual(a, b);
 }
 
+// ── REDIS ─────────────────────────────────────────────────────
+// Same lazy Upstash client as the rest of the app. Every helper below
+// fails OPEN: this portal is a read-only view of leads, so a Redis
+// outage must not lock a partner out or hide their board.
+let _kv = null;
+async function kv () {
+  if (_kv) return _kv;
+  const { Redis } = await import('@upstash/redis');
+  _kv = Redis.fromEnv();
+  return _kv;
+}
+async function kvGet (key) {
+  try { const k = await kv(); return await k.get(key); }
+  catch (err) { return null; }
+}
+async function kvSet (key, value, ttlSeconds) {
+  try { const k = await kv(); await k.set(key, value, { ex: ttlSeconds }); }
+  catch (err) { /* cache miss next time, nothing more */ }
+}
+async function isRateLimited (key, limit) {
+  try {
+    const k = await kv();
+    return (Number(await k.get('partner:rl:' + key)) || 0) >= limit;
+  } catch (err) { return false; }
+}
+async function bumpRateLimit (key, windowSeconds) {
+  try {
+    const k = await kv();
+    const redisKey = 'partner:rl:' + key;
+    await k.incr(redisKey);
+    await k.expire(redisKey, windowSeconds);
+  } catch (err) { /* counter is best effort */ }
+}
+function clientIp (req) {
+  const fwd = (req.headers && req.headers['x-forwarded-for']) || '';
+  return String(fwd).split(',')[0].trim() || 'unknown';
+}
+
+// ── MONDAY ────────────────────────────────────────────────────
+// Retry on transient failures, per repo rule. Monday answers 200 with an
+// `errors` array on GraphQL problems, so status alone is not enough.
+async function monday (query, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const r = await fetch(MONDAY_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': process.env.MONDAY_API_KEY,
+          'API-Version': '2024-10'
+        },
+        body: JSON.stringify({ query })
+      });
+      const json = await r.json();
+      if (json.errors) throw new Error(JSON.stringify(json.errors).slice(0, 400));
+      if (!r.ok) throw new Error('Monday HTTP ' + r.status);
+      return json.data;
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await new Promise(res => setTimeout(res, 400 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 function applyCors (req, res) {
   const list = (process.env.PARTNER_PORTAL_ORIGINS || '')
     .split(',').map(s => s.trim()).filter(Boolean);
@@ -130,4 +197,8 @@ function applyCors (req, res) {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
 }
 
-module.exports = { PARTNERS, partnerByKey, partnerByUsername, issueToken, readToken, requirePartner, passcodeMatches, applyCors };
+module.exports = {
+  PARTNERS, partnerByKey, partnerByUsername,
+  issueToken, readToken, requirePartner, passcodeMatches,
+  applyCors, monday, kvGet, kvSet, isRateLimited, bumpRateLimit, clientIp
+};

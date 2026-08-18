@@ -19,8 +19,7 @@
 //  here. Anything outside GROUP_ORDER lands in "Other".
 // ============================================================
 
-const { requirePartner, applyCors } = require('./_partner-auth.js');
-const { monday, kvGet, kvSet } = require('./_guest-auth.js');
+const { requirePartner, applyCors, monday, kvGet, kvSet } = require('./_partner-auth.js');
 const { logError } = require('./_errlog.js');
 
 const LEADS_BOARD = '2171015719';
