@@ -17,15 +17,54 @@ const BRAND = {
   navy:   '#0d1a2e',
   navy2:  '#13233d',
   gold:   '#B8966E',
-  cream:  '#f4f1ec',
-  panel:  '#f7f2eb',
+  goldLabel: '#8B6E4E',
+  goldSoft:  'rgba(184,150,110,0.35)',
+  cream:  '#EDE9E1',
+  panel:  '#FBF8F2',
   green:  '#417505',
   greenL: '#9ed36a',
   amber:  '#e0a64b',
   ink:    '#1a1a1a',
   muted:  '#9b9b9b',
-  logoWhite: 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng'
+  logoWhite: 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng',
+  // Same wordmark and photo wash as the enquiry emails, so every internal
+  // notification reads as one family.
+  wordmark:  'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/3b2d0218-5cf8-4041-8460-2ec2228c864b/Logo+White+website.png?content-type=image%2Fpng',
+  bandPhoto: 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/1709156541414-LL1XG1IVRXX4IXKZWPHR/12.+3++Bed+Westminster+Amphora+Apartments+Bed.jpg?content-type=image%2Fjpeg',
+  headerPhoto: 'https://images.squarespace-cdn.com/content/v1/5de66dfc5511bf790e4476bd/886169ef-649a-4d18-bb36-aadf18dd4d40/new-office-002-2.jpg?format=1000w'
 };
+
+// Headshots from studentluxe.co.uk/meet-the-team, keyed by full name as it
+// appears on the Monday assignee. Anyone missing falls back to a gold initials
+// disc, so a new starter never breaks the layout. Keep in step with the page.
+const TEAM_PHOTOS = {
+  'Sam Smithies':         'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/1576ec6c-4743-4e3f-998f-11ed3e818e74/team%3ASam.jpg',
+  'Edoardo Martelli':     'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/2ed7e4c3-9b2b-496c-aaef-14d174695a9e/edo-team.jpg',
+  'Lina Staugaityte':     'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/149f2c5c-4d51-47e6-beea-be191c82e207/Lina-student-luxe-team.jpg',
+  'Rongrong Luo':         'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/9be6b8d9-399a-41ea-9820-7292033a2680/rongrong-student-luxe.jpg',
+  'Stefan Hrebenciuc':    'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/80aa6dbf-ddda-472f-855e-2d5329001a3a/stefan-student-luxe.jpg',
+  'Jessica Charriz':      'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/826c78af-c970-496d-b534-0b7d02218e19/Jessica-team.jpg',
+  'Joe Li':               'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/73adf913-5d3e-480d-b381-6c725ff98d80/joe-team.jpg',
+  'Michele Gargiulo':     'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/8b5b6bdb-8804-43fb-a877-157601e05709/michele-team.jpg',
+  'Sarika Clemmow':       'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/d1ae4835-54bb-4c05-b133-e599aa2a19d8/sarika-team.jpg',
+  'Josh Danan':           'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/cdda286e-7fa7-4469-8c7b-ed4395073168/Joshua-Danan-Student-Luxe.jpg',
+  'Paige Grinter':        'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/54094f14-2f02-479b-b1ba-5e01bbab2afd/Paige-student-luxe-1.jpg',
+  'Dana Danan':           'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/82439802-83de-480a-926a-db9c44a6afe0/dana-team.jpg',
+  'George Toskov':        'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/d29d869f-eca2-4386-aba3-3eafa0d86ad4/George-student-luxe.jpg',
+  'Lillian Cheng':        'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/82c434f9-e292-4bd7-85ca-d83c493ff2dd/Lillian-team.jpeg',
+  'Aleksandra Bitjukova': 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/ed65180e-4245-45cf-ac1c-151aa93e84a4/Aleks-student-luxe.jpeg',
+  'Alessandra Weigel':    'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/bd615afa-3a33-4ea3-b1ac-73993ebe4794/alessandra-team.jpg',
+};
+
+// Exact match first, then first name, so "Sarika" still finds Sarika Clemmow.
+function headshotFor (name) {
+  const n = String(name || '').trim();
+  if (!n) return null;
+  if (TEAM_PHOTOS[n]) return TEAM_PHOTOS[n];
+  const first = n.split(/\s+/)[0].toLowerCase();
+  const hit = Object.keys(TEAM_PHOTOS).find(k => k.split(/\s+/)[0].toLowerCase() === first);
+  return hit ? TEAM_PHOTOS[hit] : null;
+}
 
 function escHtml(str) {
   return String(str == null ? '' : str)
@@ -82,7 +121,14 @@ function gbp(n) {
  *   mondayUrl, whatsappUrl
  */
 function renderLeadQualified(lead) {
-  const cookingTime = formatDuration(lead.createdAt, lead.qualifiedAt);
+  // Under 24 hours reads as "Same day": the exact hour count adds nothing
+  // when the win is simply that it closed same-day. Stage timeline rows keep
+  // their precise durations, only the headline stat rounds up.
+  const cookingMs   = new Date(lead.qualifiedAt) - new Date(lead.createdAt);
+  const cookingTime = (cookingMs >= 0 && cookingMs < 86400000)
+    ? 'Same day'
+    : formatDuration(lead.createdAt, lead.qualifiedAt);
+  const ownerPhoto  = headshotFor(lead.assignedTo);
 
   const dotFor = kind =>
     kind === 'qualified' ? BRAND.green : kind === 'open' ? BRAND.gold : '#cdb893';
@@ -143,16 +189,16 @@ function renderLeadQualified(lead) {
     ? `<span style="color:${BRAND.muted};font-weight:400;">Not set yet</span>` : null;
   const bkCell = (label, valueHtml, opts = {}) => `
         <td width="${opts.width || '50%'}"${opts.colspan ? ` colspan="${opts.colspan}"` : ''} style="padding:11px 16px;${opts.last ? '' : 'border-bottom:0.5px solid #f0ece3;'}${opts.noRight ? '' : 'border-right:0.5px solid #f0ece3;'}">
-          <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">${label}</p>
-          <p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${valueHtml}</p>
+          <p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">${label}</p>
+          <p style="margin:0;font-size:12.5px;color:${BRAND.ink};font-weight:500;word-break:break-word;">${valueHtml}</p>
         </td>`;
   const bookingHtml = bk ? `
   <tr><td style="background:#ffffff;padding:24px 32px 0;" class="le-pad">
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;"><tr>
-      <td><p style="margin:0;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND.gold};">Booking Agreed</p></td>
+      <td><p style="margin:0;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.goldLabel};">Booking Agreed</p></td>
       <td style="text-align:right;"><p style="margin:0;font-size:10px;color:${BRAND.muted};">Booking Flow board${bk.status ? ` &middot; ${escHtml(bk.status)}` : ''}</p></td>
     </tr></table>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #ede9e3;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${BRAND.goldSoft};border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
       <tr>${bkCell('Apartment agreed', pend(bk.apartment) || escHtml(bk.apartment), { width: '100%', colspan: 2, noRight: true })}</tr>
       <tr>
         ${bkCell('Check-in', pend(bk.checkIn) || fmtDate(bk.checkIn))}
@@ -161,7 +207,7 @@ function renderLeadQualified(lead) {
       <tr>
         ${bkCell('Agreed nightly rate', pend(bk.nightlyRate) || `${gbp(bk.nightlyRate)}/night`, { last: true })}
         <td style="padding:11px 16px;background:#fbf7f1;">
-          <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Total Luxe commission</p>
+          <p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">Total Luxe commission</p>
           ${(bk.commission === null || bk.commission === undefined || bk.commission === '')
             ? `<p style="margin:0;font-size:11px;color:${BRAND.muted};font-weight:400;line-height:1.4;">${escHtml(bk.salesperson || 'The salesperson')} has not filled this in on Booking Flow yet</p>`
             : `<p style="margin:0;font-size:15px;color:${BRAND.ink};font-weight:700;">${gbp(bk.commission)}${
@@ -177,12 +223,23 @@ function renderLeadQualified(lead) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <title>Lead Qualified: ${escHtml(lead.guestName)} | Student Luxe</title>
 <style>
+  :root{color-scheme:light dark;supported-color-schemes:light dark}
+  .le-dark{background-color:#000000!important}
+  .le-on-dark{color:#ffffff!important}
+  @media (prefers-color-scheme:dark){
+    .le-dark{background-color:#000000!important}
+    .le-on-dark{color:#ffffff!important}
+  }
   @media only screen and (max-width:600px){
     .le-wrap{padding:0 !important;}
     .le-card{border-radius:0 !important;border-left:none !important;border-right:none !important;}
-    .le-pad{padding-left:22px !important;padding-right:22px !important;}
+    .le-pad{padding-left:14px !important;padding-right:14px !important;}
+    .le-hlogo-img{height:19px !important;}
+    .le-cook{display:block !important;width:100% !important;text-align:left !important;padding-top:12px !important;}
     .le-stack{display:block !important;width:100% !important;}
     .le-hcol{display:block !important;width:100% !important;}
     .le-hlogo{display:block !important;width:100% !important;text-align:left !important;padding-top:16px !important;}
@@ -198,64 +255,41 @@ function renderLeadQualified(lead) {
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" class="le-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
 
-  <!-- HEADER -->
-  <tr><td style="background:${BRAND.navy};padding:26px 32px 24px;" class="le-pad">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td class="le-hcol" style="vertical-align:top;">
-        <span style="display:inline-block;background:rgba(65,117,5,0.18);border:0.5px solid rgba(126,196,55,0.45);border-radius:100px;padding:4px 11px;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.greenL};font-weight:600;">&#9679;&nbsp; Lead Qualified</span>
-        <h1 style="margin:14px 0 2px;font-family:Georgia,serif;font-size:26px;font-weight:400;color:#f0ece2;letter-spacing:-0.02em;line-height:1.15;">${escHtml(lead.guestName)}</h1>
-        <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.5);line-height:1.5;">Qualified by <span style="color:${BRAND.gold};font-weight:600;">${escHtml(lead.qualifiedBy)}</span> &middot; ${fmtDateTime(lead.qualifiedAt)}</p>
-      </td>
-      <td class="le-hlogo" style="text-align:right;vertical-align:top;width:120px;">
-        <img src="${BRAND.logoWhite}" alt="Student Luxe" style="height:30px;width:auto;display:block;margin-left:auto;">
-      </td>
-    </tr></table>
+  <!-- HEADER: single centred band, same treatment as the enquiry emails. The
+       wordmark is white artwork, so this band stays dark in every scheme and
+       Outlook falls back to the bgcolor. -->
+  <tr><td class="le-pad le-dark" bgcolor="#000000" background="${BRAND.headerPhoto}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),url('${BRAND.headerPhoto}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:20px 32px 20px;text-align:center;">
+    <img class="le-hlogo-img" src="${BRAND.wordmark}" alt="Student Luxe" height="22" style="height:22px;width:auto;max-width:100%;display:block;margin:0 auto 20px;">
+    <p style="margin:0 0 8px;"><span style="display:inline-block;background:rgba(65,117,5,0.22);border:0.5px solid rgba(126,196,55,0.45);border-radius:100px;padding:4px 12px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND.greenL};font-weight:500;">&#9679;&nbsp; Lead Qualified</span></p>
+    <p class="le-on-dark" style="margin:0 0 5px;font-family:Georgia,serif;font-size:24px;color:#ffffff;letter-spacing:-0.035em;line-height:1.2;">${escHtml(lead.guestName)}</p>
+    <p class="le-on-dark" style="margin:0;font-size:11.5px;color:rgba(255,255,255,0.6);line-height:1.5;">Qualified by <span style="color:#D4B896;">${escHtml(lead.qualifiedBy)}</span> &middot; ${fmtDateTime(lead.qualifiedAt)}</p>
   </td></tr>
 
-  <!-- LEAD COOKING TIME -->
-  <tr><td style="background:#ffffff;padding:24px 32px 0;" class="le-pad">
-    <p style="margin:0 0 11px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND.gold};">Lead Cooking Time</p>
+  <!-- OWNER STRIP: who has the lead, how long it took, where it came from.
+       One panel instead of three, per the approved option 1. -->
+  <tr><td class="le-pad" style="background:#ffffff;padding:22px 32px 0;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border-radius:10px;"><tr><td style="padding:16px 18px;">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>
-        <td class="le-stack" width="40%" style="vertical-align:middle;">
-          <p style="margin:0;font-family:Georgia,serif;font-size:28px;font-weight:400;color:${BRAND.ink};letter-spacing:-0.02em;line-height:1;">${escHtml(cookingTime)}</p>
-          ${lead.teamAvgCooking ? `<p style="margin:6px 0 0;font-size:11px;color:${BRAND.green};">vs team avg ${escHtml(lead.teamAvgCooking)}</p>` : ''}
+        <td style="vertical-align:middle;width:52px;padding-right:14px;">
+          ${ownerPhoto
+            ? `<img src="${escHtml(ownerPhoto)}" alt="${escHtml(lead.assignedTo)}" width="52" height="52" style="width:52px;height:52px;border-radius:50%;object-fit:cover;display:block;">`
+            : `<span style="display:inline-block;width:52px;height:52px;border-radius:50%;background:${BRAND.gold};color:#fff;font-size:16px;font-weight:600;text-align:center;line-height:52px;">${escHtml(initials(lead.assignedTo))}</span>`}
         </td>
-        <td class="le-stack" width="60%" style="vertical-align:middle;">
-          ${timelineRowsHtml}
+        <td style="vertical-align:middle;">
+          <p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#9b8f7d;">Assigned to</p>
+          <p style="margin:0;font-size:15px;font-weight:500;color:${BRAND.ink};">${escHtml(lead.assignedTo)}</p>
+          <p style="margin:1px 0 0;font-size:11.5px;color:${BRAND.muted};">${escHtml(lead.assignedToRole || 'Reservations')}</p>
+        </td>
+        <td class="le-cook" style="text-align:right;vertical-align:middle;">
+          <p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#9b8f7d;">Cooking time</p>
+          <p style="margin:0;font-family:Georgia,serif;font-size:22px;color:${BRAND.ink};letter-spacing:-0.02em;line-height:1;">${escHtml(cookingTime)}</p>
+          ${lead.teamAvgCooking ? `<p style="margin:4px 0 0;font-size:11px;color:${BRAND.green};">vs avg ${escHtml(lead.teamAvgCooking)}</p>` : ''}
         </td>
       </tr></table>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0 0;"><tr><td style="border-top:1px solid rgba(184,150,110,0.25);padding-top:11px;">
+        <p style="margin:0;font-size:12px;color:#6b6b6b;line-height:1.6;"><span style="font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#9b8f7d;">Source</span>&nbsp;&nbsp;<span style="color:${BRAND.ink};font-weight:500;">${escHtml(lead.source)}</span>${lead.sourceFirstTouch ? ` <span style="color:${BRAND.muted};">(${escHtml(lead.sourceFirstTouch)})</span>` : ''}${lead.campaign ? ` &middot; ${escHtml(lead.campaign)}` : ''}</p>
+      </td></tr></table>
     </td></tr></table>
-  </td></tr>
-
-  <!-- ASSIGNMENT / SOURCE -->
-  <tr><td style="background:#ffffff;padding:24px 32px 0;" class="le-pad">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td class="le-stack" width="50%" style="vertical-align:top;padding-right:8px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border-radius:10px;"><tr><td style="padding:14px 16px;">
-          <p style="margin:0 0 8px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.gold};">Assigned To</p>
-          <table cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:middle;"><span style="display:inline-block;width:34px;height:34px;border-radius:50%;background:${BRAND.gold};color:#fff;font-size:13px;font-weight:600;text-align:center;line-height:34px;">${escHtml(initials(lead.assignedTo))}</span></td>
-            <td style="vertical-align:middle;padding-left:11px;">
-              <p style="margin:0;font-size:14px;color:${BRAND.ink};font-weight:600;">${escHtml(lead.assignedTo)}</p>
-              <p style="margin:1px 0 0;font-size:11px;color:${BRAND.muted};">${escHtml(lead.assignedToRole || 'Reservations')} &middot; owner</p>
-            </td>
-          </tr></table>
-        </td></tr></table>
-      </td>
-      <td class="le-stack" width="50%" style="vertical-align:top;padding-left:8px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border-radius:10px;"><tr><td style="padding:14px 16px;">
-          <p style="margin:0 0 8px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.gold};">Lead Source</p>
-          <table cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:middle;"><span style="display:inline-block;width:34px;height:34px;border-radius:8px;background:${BRAND.navy};color:#fff;font-size:14px;text-align:center;line-height:34px;">&#9733;</span></td>
-            <td style="vertical-align:middle;padding-left:11px;">
-              <p style="margin:0;font-size:14px;color:${BRAND.ink};font-weight:600;">${escHtml(lead.source)}${lead.sourceFirstTouch ? ` <span style="color:${BRAND.muted};font-weight:400;">(${escHtml(lead.sourceFirstTouch)})</span>` : ''}</p>
-              <p style="margin:1px 0 0;font-size:11px;color:${BRAND.muted};">${escHtml(lead.campaign || '')}</p>
-            </td>
-          </tr></table>
-        </td></tr></table>
-      </td>
-    </tr></table>
   </td></tr>
 
   <!-- BOOKING AGREED (booking flow board, when a row exists) -->
@@ -263,19 +297,19 @@ function renderLeadQualified(lead) {
 
   <!-- STAY DETAILS -->
   <tr><td style="background:#ffffff;padding:22px 32px 0;" class="le-pad">
-    <p style="margin:0 0 11px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND.gold};">Original Form Entry from Guest</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #ede9e3;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
+    <p style="margin:0 0 11px;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.goldLabel};">Original Form Entry from Guest</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${BRAND.goldSoft};border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
       <tr>
-        <td width="50%" style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;border-right:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Check-in</p><p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${fmtDate(lead.checkIn)}</p></td>
-        <td width="50%" style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Check-out</p><p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${fmtDate(lead.checkOut)}</p></td>
+        <td width="50%" style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;border-right:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">Check-in</p><p style="margin:0;font-size:12.5px;color:${BRAND.ink};font-weight:500;word-break:break-word;">${fmtDate(lead.checkIn)}</p></td>
+        <td width="50%" style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">Check-out</p><p style="margin:0;font-size:12.5px;color:${BRAND.ink};font-weight:500;word-break:break-word;">${fmtDate(lead.checkOut)}</p></td>
       </tr>
       <tr>
-        <td style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;border-right:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Length of stay</p><p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${escHtml(lead.nights)} nights &middot; ${escHtml(lead.guests || 1)} guests</p></td>
-        <td style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Location wanted</p><p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${escHtml(lead.location)}</p></td>
+        <td style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;border-right:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">Length of stay</p><p style="margin:0;font-size:12.5px;color:${BRAND.ink};font-weight:500;word-break:break-word;">${escHtml(lead.nights)} nights &middot; ${escHtml(lead.guests || 1)} guests</p></td>
+        <td style="padding:11px 16px;border-bottom:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">Location wanted</p><p style="margin:0;font-size:12.5px;color:${BRAND.ink};font-weight:500;word-break:break-word;">${escHtml(lead.location)}</p></td>
       </tr>
       <tr>
-        <td style="padding:11px 16px;border-right:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Budget</p><p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${gbp(lead.weeklyRate)}/week ${lead.budgetNote ? `<span style="color:${BRAND.muted};font-weight:400;">(${escHtml(lead.budgetNote)})</span>` : ''}</p></td>
-        <td style="padding:11px 16px;"><p style="margin:0 0 2px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:${BRAND.muted};">Contact</p><p style="margin:0;font-size:13px;color:${BRAND.ink};font-weight:500;">${escHtml(lead.contactPhone)}</p></td>
+        <td style="padding:11px 16px;border-right:0.5px solid #f0ece3;"><p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">Budget</p><p style="margin:0;font-size:12.5px;color:${BRAND.ink};font-weight:500;word-break:break-word;">${gbp(lead.weeklyRate)}/week ${lead.budgetNote ? `<span style="color:${BRAND.muted};font-weight:400;">(${escHtml(lead.budgetNote)})</span>` : ''}</p></td>
+        <td style="padding:11px 16px;"><p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">Contact</p><p style="margin:0;font-size:12.5px;color:${BRAND.ink};font-weight:500;word-break:break-word;">${escHtml(lead.contactPhone)}</p></td>
       </tr>
     </table>
   </td></tr>
@@ -286,7 +320,7 @@ function renderLeadQualified(lead) {
   <!-- SALES PROGRESS NOTES -->
   <tr><td style="background:#ffffff;padding:24px 32px 0;" class="le-pad">
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;"><tr>
-      <td><p style="margin:0;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND.gold};">Sales Progress Notes</p></td>
+      <td><p style="margin:0;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.goldLabel};">Sales Progress Notes</p></td>
       <td style="text-align:right;"><p style="margin:0;font-size:10px;color:${BRAND.muted};">${(lead.notes || []).length} updates</p></td>
     </tr></table>
     ${notesHtml}
@@ -294,18 +328,19 @@ function renderLeadQualified(lead) {
 
   <!-- NEXT ACTION + CTAs -->
   <tr><td style="background:#ffffff;padding:22px 32px 4px;" class="le-pad">
-    ${lead.nextAction ? `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fbf4e8;border:0.5px solid #ecd9b6;border-radius:10px;margin-bottom:18px;"><tr><td style="padding:12px 16px;">
-      <p style="margin:0;font-size:12px;color:#8a6d2f;line-height:1.5;"><span style="font-weight:700;">Next action${lead.nextActionDue ? ` &middot; due ${escHtml(lead.nextActionDue)}` : ''}:</span> ${escHtml(lead.nextAction)}</p>
-    </td></tr></table>` : ''}
+    ${`<table width="100%" cellpadding="0" cellspacing="0" style="background:#fbf4e8;border:0.5px solid #ecd9b6;border-radius:10px;margin-bottom:18px;"><tr><td style="padding:12px 16px;">
+      <p style="margin:0;font-size:12px;color:#8a6d2f;line-height:1.5;"><span style="font-weight:700;">Next action</span> &middot; Awaiting for guest initial payment to confirm booking</p>
+    </td></tr></table>`}
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td align="center"><a href="${escHtml(lead.mondayUrl || '#')}" style="display:block;background:${BRAND.navy};color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:13px 8px;border-radius:8px;text-align:center;">Open in Monday</a></td>
+      <td align="center"><a href="${escHtml(lead.mondayUrl || '#')}" style="display:inline-block;background:${BRAND.gold};color:#ffffff;text-decoration:none;font-size:12.5px;font-weight:500;padding:12px 26px;border-radius:8px;text-align:center;">Open in Monday</a></td>
     </tr></table>
     <div style="height:24px;"></div>
   </td></tr>
 
   <!-- FOOTER -->
-  <tr><td style="background:${BRAND.navy};padding:18px 32px;text-align:center;" class="le-pad">
-    <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.45);line-height:1.8;">Student Luxe Apartments &middot; Internal lead notification<br>Triggered by Monday automation when status changes to <span style="color:${BRAND.gold};">Qualified</span></p>
+  <tr><td class="le-pad le-dark" bgcolor="#000000" background="${BRAND.bandPhoto}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${BRAND.bandPhoto}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:26px 32px;text-align:center;">
+    <img src="${BRAND.wordmark}" alt="Student Luxe" height="18" style="height:18px;width:auto;display:block;margin:0 auto 14px;">
+    <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.5);line-height:1.8;">Internal lead notification<br>Sent when the Monday status changes to <span style="color:#D4B896;">Qualified</span></p>
   </td></tr>
 
 </table>
