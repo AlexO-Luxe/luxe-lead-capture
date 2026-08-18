@@ -1742,6 +1742,9 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     ...(leadSource  && { color_mkxk8y67: { label: leadSource } }),
     ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
     dropdown_mm1v31yb: { labels: [partnerPortal(p)?.formName || '/Reservations Form'] },
+    // Partner portal leads are flagged on the Group / Partnership Label column
+    // so the board can group and report on them without reading the source.
+    ...(partnerPortal(p) && { status1__1: { label: 'Partnership / Agency Booking' } }),
     ...(p.city && currencyForCity(p.city, p.other_city) && { status0__1: { label: currencyForCity(p.city, p.other_city) } }),
   };
 
