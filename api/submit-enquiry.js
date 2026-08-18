@@ -559,8 +559,8 @@ function getResponseStatus(submittedAt) {
     }
   }
 
-  // Weekend (Sat=6, Sun=0) or Friday after 6pm
-  const isFriAfter6  = dayOfWeek === 5 && minuteOfDay >= 18 * 60;
+  // Weekend (Sat=6, Sun=0) or Friday after 5pm
+  const isFriAfter6  = dayOfWeek === 5 && minuteOfDay >= 17 * 60;
   const isSat        = dayOfWeek === 6;
   const isSun        = dayOfWeek === 0;
   if (isFriAfter6 || isSat || isSun) {
@@ -642,14 +642,8 @@ async function sendGuestConfirmation(p) {
     p.check_out                && ['Check-out',            formatDate(p.check_out)],
     nights(p)                  && ['Stay length',          nights(p) + ' nights'],
     !isTypeA && p.areas        && ['Areas of interest',    formatArea(p.areas)],
-    p.response_methods         && ["We\u2019ll try to respond via", p.response_methods],
+    p.response_methods         && ["We\u2019ll respond via", formatResponseMethods(p.response_methods)],
   ].filter(Boolean);
-
-  const summaryRows = rows.map(([label, value]) => `
-    <tr>
-      <td style="padding:9px 0;font-size:12px;color:#6b6b6b;border-bottom:0.5px solid #ede9e3;width:50%;">${label}</td>
-      <td style="padding:9px 0;font-size:12px;color:#1a1a1a;font-weight:500;border-bottom:0.5px solid #ede9e3;text-align:right;">${escHtml(String(value))}</td>
-    </tr>`).join('');
 
   // Greeting body copy — adapts per enquiry type and response state
   // "A member of our Reservations team..." removed — covered by Expected Response Time section
@@ -657,9 +651,12 @@ async function sendGuestConfirmation(p) {
     ? `Thank you for your enquiry about <strong>${escHtml(p.apartment_ref || 'your chosen apartment')}</strong> \u2014 we\u2019re checking the latest availability and pricing for your chosen dates.`
     : `Thank you for your <strong>${escHtml(formatCity(p.city) || '')}</strong> apartment enquiry \u2014 we\u2019re curating the best available options for your dates and budget.`;
 
-  const FOOTER_BG = 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/dc5adc8f-739b-4db0-8698-c08a6e6b85d3/luxury-student-apartments.jpg?content-type=image%2Fjpeg';
+  const HEADER_BG = 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/dc5adc8f-739b-4db0-8698-c08a6e6b85d3/luxury-student-apartments.jpg?content-type=image%2Fjpeg';
+  const FOOTER_BG = EMAIL_IMG.footer;
+  const tick = text => `
+            <td width="50%" class="sl-tick" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
+              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>${text}</td>`;
   const LOGO_WHITE = 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/b4112f3c-4153-4544-b7bd-2c93282a68a2/Logo+White+website.png?content-type=image%2Fpng';
-  const LOGO_HEADER = 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng';
 
   const _submittedDate = new Date(p.submitted_at || Date.now()).toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Europe/London'});
   // Format: "21 May 2026, 4:57 pm" → "on 21 May 2026 at 4:57 pm"
@@ -668,118 +665,138 @@ async function sendGuestConfirmation(p) {
   const _dateParts = _submittedDate.match(/^(\d+ \w+ \d+),?\s+(?:at\s+)?(.+)$/);
   const _dateFormatted = _dateParts ? `on ${_dateParts[1]} at ${_dateParts[2]}` : _submittedDate;
 
+  // Cells match the team notification, so both sides of an enquiry read the
+  // same. Two per row, stacked into pairs from whatever we actually hold.
+  const cell = (label, value) => `
+            <td class="sl-half" width="50%" style="vertical-align:top;padding:0 10px 15px 0;">
+              <p style="margin:0 0 3px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
+              <p style="margin:0;font-size:12.5px;font-weight:500;color:#1a1a1a;word-break:break-word;">${escHtml(String(value))}</p>
+            </td>`;
+  const summaryRows = rows.reduce((acc, _, i) => {
+    if (i % 2) return acc;
+    const right = rows[i + 1] ? cell(rows[i + 1][0], rows[i + 1][1]) : '<td class="sl-half" width="50%"></td>';
+    return acc + `<tr>${cell(rows[i][0], rows[i][1])}${right}</tr>`;
+  }, '');
+
+  // Weekend and bank holiday enquiries get a strip under the header, so nobody
+  // waits by the phone on a Saturday. Everything else stays quiet.
+  const backOn = String(status.heading || '').replace(/^From /, '');
+  const closedBanner = (status.state === 'weekend' || status.state === 'holiday') ? `
+  <tr><td class="sl-pad" style="background:#FBF8F2;border-top:2px solid #B8966E;border-bottom:1px solid rgba(184,150,110,0.35);padding:12px 32px;text-align:center;">
+    <p style="margin:0;font-size:12.5px;color:#8B6E4E;line-height:1.5;">${status.state === 'weekend'
+      ? `<span style="font-weight:500;">Office closed for the weekend.</span> We&rsquo;ll respond first thing Monday.`
+      : `<span style="font-weight:500;">Our office is closed.</span> We&rsquo;ll respond as soon as we are back on ${escHtml(backOn)}.`}</p>
+  </td></tr>` : '';
+
+  // The bold promise at the end of the intro tracks the same status, so it
+  // never promises 24 hours on a Sunday.
+  const replyPromise = status.state === 'weekend'
+    ? 'first thing on Monday morning.'
+    : status.state === 'holiday'
+    ? `as soon as we are back on ${escHtml(backOn)}.`
+    : 'within the next 24 hours, or within 1 business day.';
+
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your enquiry with us \u2014 Student Luxe</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your enquiry with Student Luxe</title>
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <style>
-@media only screen and (max-width:600px){
-  .sl-outer-wrap { padding:0 !important; }
-  .sl-card { border-radius:0 !important; border-left:none !important; border-right:none !important; }
-  .sl-body-cell { padding:22px 20px 0 !important; }
-  .sl-tick-td { display:block !important; width:100% !important; }
-}
+  :root{color-scheme:light dark;supported-color-schemes:light dark}
+  /* The wordmark is white artwork on transparency, so its bands stay dark in
+     every scheme. */
+  .sl-dark{background-color:#000000!important}
+  .sl-on-dark{color:#ffffff!important}
+  .sl-on-dark-gold{color:#D4B896!important}
+  @media (prefers-color-scheme:dark){
+    .sl-dark{background-color:#000000!important}
+    .sl-on-dark{color:#ffffff!important}
+    .sl-on-dark-gold{color:#D4B896!important}
+  }
+  @media only screen and (max-width:600px){
+    .sl-outer-wrap { padding:0 !important; }
+    .sl-card { border-radius:0 !important; border-left:none !important; border-right:none !important; }
+    .sl-pad { padding-left:14px !important; padding-right:14px !important; }
+    .sl-cardpad { padding:14px 14px !important; }
+    .sl-tick { display:block !important; width:100% !important; }
+    .sl-hd-logo { height:19px !important; }
+    .sl-foot-links { line-height:2.4 !important; }
+  }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#f4f1ec;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" class="sl-outer-wrap" style="background:#f4f1ec;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#EDE9E1;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" class="sl-outer-wrap" style="background:#EDE9E1;padding:32px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" class="sl-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(0,0,0,0.15);">
+<table width="600" cellpadding="0" cellspacing="0" class="sl-card" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:0.5px solid rgba(0,0,0,0.15);">
 
-  <!-- HEADER -->
-  <tr><td style="background:#B8966E;padding:22px 32px;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="vertical-align:middle;">
-        <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">Your enquiry with us.</p>
-        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.7);">${_dateFormatted}</p>
-      </td>
-      <td style="text-align:right;vertical-align:middle;">
-        <img src="${LOGO_HEADER}" alt="Student Luxe" style="height:40px;width:auto;display:block;margin-left:auto;">
-      </td>
-    </tr></table>
+  <!-- HEADER: centred band over an apartment photo with a black wash. Outlook
+       drops the photo and keeps the bgcolor. -->
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${HEADER_BG}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)),url('${HEADER_BG}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:26px 32px 24px;text-align:center;">
+    <img class="sl-hd-logo" src="${LOGO_WHITE}" alt="Student Luxe" height="22" style="height:22px;width:auto;display:block;margin:0 auto 20px;">
+    <p class="sl-on-dark-gold" style="margin:0 0 6px;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#D4B896;">Thank you</p>
+    <p class="sl-on-dark" style="margin:0 0 6px;font-family:Georgia,serif;font-size:24px;color:#ffffff;letter-spacing:-0.035em;line-height:1.25;">We&rsquo;ve received your enquiry.</p>
+    <p class="sl-on-dark" style="margin:0;font-size:11.5px;color:rgba(255,255,255,0.6);">Sent ${_dateFormatted}</p>
+  </td></tr>
+${closedBanner}
+  <!-- INTRO -->
+  <tr><td class="sl-pad" style="padding:28px 32px 0;">
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#1a1a1a;">Dear ${escHtml(firstName)},</p>
+    <p style="margin:0 0 22px;font-size:14px;line-height:1.75;color:#3c3c3c;">${isTypeA
+      ? `Thank you for your enquiry about <strong>${escHtml(p.apartment_ref || 'your chosen apartment')}</strong>. We are checking the latest availability and pricing for your dates`
+      : `Thank you for your <strong>${escHtml(formatCity(p.city) || '')}</strong> apartment enquiry. We are curating the best available options for your dates and budget`}, and one of our advisors will be in touch on your preferred channel <strong>${replyPromise}</strong></p>
+
+    <!-- WHAT HAPPENS NEXT -->
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:#8B6E4E;">What happens next</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;"><tr><td class="sl-cardpad" style="padding:18px 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr><td width="34" style="vertical-align:top;font-family:Georgia,serif;font-size:15px;color:#B8966E;padding-bottom:14px;">01)</td>
+            <td style="padding-bottom:14px;"><p style="margin:0 0 2px;font-size:13.5px;font-weight:500;color:#1a1a1a;">We&rsquo;ll be in touch shortly</p><p style="margin:0;font-size:12.5px;color:#6b6b6b;line-height:1.55;">Your dedicated advisor will contact you on your preferred channel to share our latest availability and apartment options. Any questions, they&rsquo;re your point of contact throughout.</p></td></tr>
+        <tr><td width="34" style="vertical-align:top;font-family:Georgia,serif;font-size:15px;color:#B8966E;padding-bottom:14px;">02)</td>
+            <td style="padding-bottom:14px;"><p style="margin:0 0 2px;font-size:13.5px;font-weight:500;color:#1a1a1a;">View your favourites</p><p style="margin:0;font-size:12.5px;color:#6b6b6b;line-height:1.55;">In-person and virtual viewings available, arranged around your schedule.</p></td></tr>
+        <tr><td width="34" style="vertical-align:top;font-family:Georgia,serif;font-size:15px;color:#B8966E;">03)</td>
+            <td><p style="margin:0 0 2px;font-size:13.5px;font-weight:500;color:#1a1a1a;">Book and move in</p><p style="margin:0;font-size:12.5px;color:#6b6b6b;line-height:1.55;">Our simple booking process secures your apartment quickly, so all that&rsquo;s left is to settle in and enjoy your new home.</p></td></tr>
+      </table>
+    </td></tr></table>
   </td></tr>
 
-  <!-- BODY -->
-  <tr><td class="sl-body-cell" style="background:#ffffff;padding:28px 32px 0;">
-
-    <p style="margin:0 0 14px;font-size:14px;color:#1a1a1a;line-height:1.5;">Dear ${escHtml(firstName)},</p>
-    <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.5;">${bodyTypeA}</p>
-
-    ${responseStatusHtml(status)}
-
-    <!-- DIVIDER -->
-    <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:0.5px solid #ede9e3;padding-top:0;margin-top:22px;display:block;height:22px;"></td></tr></table>
-
-    <!-- ABOUT -->
-    <p style="margin:0 0 10px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">About Student Luxe</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:10px;">
-      <tr><td style="padding:18px 20px;">
-        <p style="margin:0 0 12px;font-family:Georgia,serif;font-size:15px;font-weight:400;color:#1a1a1a;letter-spacing:-0.01em;">Simply unpack and <em style="color:#B8966E;">start living.</em></p>
-        <p style="margin:0 0 16px;font-size:12.5px;color:#6b6b6b;line-height:1.5;">All of our professionally-managed apartments are private, furnished, set up and ready to move in. All bills, Wi-Fi, housekeeping and resident support are included as standard. No guarantors or credit checks required.</p>
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
-              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Fully furnished &amp; equipped</td>
-            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
-              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Weekly housekeeping</td>
-          </tr>
-          <tr>
-            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
-              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>All bills &amp; everything included</td>
-            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
-              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Flexible lengths of stay</td>
-          </tr>
-          <tr>
-            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
-              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Hotel-style amenities</td>
-            <td width="50%" class="sl-tick-td" style="padding:4px 0;font-size:12px;color:#1a1a1a;vertical-align:middle;">
-              <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:0.75px solid #B8966E;text-align:center;line-height:14px;font-size:8px;color:#B8966E;margin-right:7px;vertical-align:middle;">&#10003;</span>Ongoing resident support</td>
-          </tr>
-        </table>
-      </td></tr>
-    </table>
-
-    <!-- DIVIDER -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr><td style="border-top:0.5px solid #ede9e3;"></td></tr></table>
-
-    <!-- SUMMARY -->
-    <p style="margin:18px 0 10px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">What you've told us so far</p>
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tbody>${summaryRows}</tbody>
-    </table>
+  <!-- WHAT YOU TOLD US -->
+  <tr><td class="sl-pad" style="padding:24px 32px 0;">
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:#8B6E4E;">What you&rsquo;ve told us so far</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,0.35);border-radius:10px;"><tr><td class="sl-cardpad" style="padding:18px 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0">${summaryRows}</table>
+    </td></tr></table>
 
     ${p.message ? `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
-      <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;padding:12px 16px;">
-        <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Your message</p>
-        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">"${escHtml(p.message)}"</p>
-      </td></tr>
-    </table>` : ''}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 0;"><tr>
+      <td style="background:#FBF8F2;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:14px 16px;">
+        <p style="margin:0 0 4px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#8B6E4E;">Your message</p>
+        <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.7;font-style:italic;">&ldquo;${escHtml(p.message)}&rdquo;</p>
+      </td>
+    </tr></table>` : ''}
+  </td></tr>
 
-    <div style="height:28px;"></div>
+  <!-- ABOUT -->
+  <tr><td class="sl-pad" style="padding:24px 32px 0;">
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:#8B6E4E;">About Student Luxe</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;"><tr><td class="sl-cardpad" style="padding:18px 20px;">
+      <p style="margin:0 0 12px;font-family:Georgia,serif;font-size:16px;color:#1a1a1a;letter-spacing:-0.01em;">Simply unpack and <em style="color:#B8966E;">start living.</em></p>
+      <p style="margin:0 0 16px;font-size:12.5px;color:#6b6b6b;line-height:1.6;">All of our professionally-managed apartments are private, furnished, set up and ready to move in. All bills, Wi-Fi, housekeeping and resident support are included as standard. No guarantors or credit checks required.</p>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>${tick('Fully furnished &amp; equipped')}${tick('Weekly housekeeping')}</tr>
+        <tr>${tick('All bills &amp; everything included')}${tick('Flexible lengths of stay')}</tr>
+        <tr>${tick('Hotel-style amenities')}${tick('Ongoing resident support')}</tr>
+      </table>
+    </td></tr></table>
+    <p style="margin:18px 0 28px;font-size:12.5px;color:#9b9b9b;">Anything to change? Just reply to this email and we will update it.</p>
   </td></tr>
 
   <!-- FOOTER -->
-  <tr><td style="background-image:url('${FOOTER_BG}');background-size:cover;background-position:center top;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(139,107,69,0.90);">
-      <tr><td style="padding:28px 32px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;"><tr>
-          <td style="vertical-align:top;">
-            <img src="${LOGO_WHITE}" alt="Student Luxe" style="height:22px;width:auto;display:block;margin-bottom:12px;opacity:0.95;">
-            <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.65);line-height:1.85;">Dog &amp; Duck Yard, Princeton St<br>London, WC1R 4BH<br>+44 (0)203 007 0017<br>Mon\u2013Fri, 10am\u20136pm GMT</p>
-          </td>
-          <td style="text-align:right;vertical-align:top;padding-top:34px;">
-            <a href="${siteUrl}/services" style="display:block;font-size:11px;color:rgba(255,255,255,0.75);text-decoration:none;line-height:2.1;">What\u2019s included</a>
-            <a href="${siteUrl}/our-reviews" style="display:block;font-size:11px;color:rgba(255,255,255,0.75);text-decoration:none;line-height:2.1;">Reviews</a>
-            <a href="${siteUrl}/faqs" style="display:block;font-size:11px;color:rgba(255,255,255,0.75);text-decoration:none;line-height:2.1;">FAQs</a>
-            <a href="${siteUrl}/meet-the-team" style="display:block;font-size:11px;color:rgba(255,255,255,0.75);text-decoration:none;line-height:2.1;">Meet the team</a>
-          </td>
-        </tr></table>
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:0.5px solid rgba(255,255,255,0.2);padding-top:16px;margin-top:0;"><tr>
-          <td><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.4);line-height:1.6;">&copy; 2026 Student Luxe Apartments. All rights reserved.</p></td>
-          <td style="text-align:right;"><p style="margin:0;font-size:10px;color:rgba(255,255,255,0.4);line-height:1.6;">If you didn\u2019t submit this enquiry, please disregard.</p></td>
-        </tr></table>
-      </td></tr>
-    </table>
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${FOOTER_BG}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,0.8),rgba(0,0,0,0.8)),url('${FOOTER_BG}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;">
+    <img src="${LOGO_WHITE}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 18px;">
+    <p class="sl-on-dark" style="margin:0 0 8px;text-align:center;font-family:Georgia,serif;font-size:15px;color:#ffffff;letter-spacing:-0.01em;">Luxury student and serviced apartments</p>
+    <p style="margin:0 0 16px;text-align:center;font-size:12px;line-height:1.7;color:rgba(255,255,255,0.6);">Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>+44 (0)203 007 0017 &middot; Mon to Fri, 10am to 6pm</p>
+    <p class="sl-foot-links" style="margin:0;text-align:center;font-size:12px;line-height:2;"><a href="${siteUrl}/services" style="color:#D4B896;text-decoration:none;">What&rsquo;s included</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/our-reviews" style="color:#D4B896;text-decoration:none;">Reviews</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/faqs" style="color:#D4B896;text-decoration:none;">FAQs</a> &nbsp;&middot;&nbsp; <a href="${siteUrl}/meet-the-team" style="color:#D4B896;text-decoration:none;">Meet the team</a></p>
+    <p style="margin:16px 0 0;text-align:center;font-size:10.5px;color:rgba(255,255,255,0.35);">&copy; ${new Date().getFullYear()} Student Luxe Apartments &middot; If you did not submit this enquiry, please disregard.</p>
   </td></tr>
 
 </table>
