@@ -25,10 +25,10 @@ const { logError } = require('./_errlog.js');
 const LEADS_BOARD = '2171015719';
 const CACHE_TTL   = Number(process.env.PARTNER_CACHE_SECONDS || 120);
 
-// The four stages the schools care about, in the order they read. Anything
-// else on the board (Approached Lead, Spam, Postponed) is kept but parked in
-// Other, so a lead can never silently vanish from their view.
-const GROUP_ORDER = ['New Lead', 'Lead In Progress', 'Qualified Lead', 'Unqualified Lead'];
+// The stages the schools care about, in pipeline order. Anything else on the
+// board (Spam, Postponed, Duplicated) is kept but parked in Other, so a lead
+// can never silently vanish from their view.
+const GROUP_ORDER = ['New Lead', 'Approached Lead', 'Lead In Progress', 'Qualified Lead', 'Unqualified Lead'];
 
 const COLS = [
   'status',              // Top Level Status, drives the groups
