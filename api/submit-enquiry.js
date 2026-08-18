@@ -1158,7 +1158,12 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     <td class="sl-half" width="50%" style="vertical-align:top;padding:0 10px 15px 0;">
       <p style="margin:0 0 3px;font-size:9px;letter-spacing:0.16em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
       <p style="margin:0;font-size:12.5px;color:#1a1a1a;font-weight:500;word-break:break-word;">${escHtml(String(value))}</p>
-    </td>` : '<td class="sl-half" width="50%"></td>';
+    </td>` : '';
+
+  // Pairs whatever cells actually exist into rows, two up, so a missing value
+  // never leaves a hole. Only the final row can be half empty.
+  const pairUp = cells => cells.filter(Boolean).reduce((acc, cell, i, arr) =>
+    i % 2 ? acc : acc + `<tr>${cell}${arr[i + 1] || '<td class="sl-half" width="50%"></td>'}</tr>`, '');
 
   // Same as field(), but the value renders as a pill. Used for the one fact the
   // team triages a partner lead on.
@@ -1180,7 +1185,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
             <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:15px;">
               <p style="margin:0 0 3px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b9b9b;">${label}</p>
               <p style="margin:0;font-size:13.5px;font-weight:500;color:${gold ? '#B8966E' : '#1a1a1a'};">${value}</p>
-            </td>` : '<td class="sl-half" width="50%"></td>';
+            </td>` : '';
 
     const kvPill = (label, value) => `
             <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:15px;">
@@ -1252,11 +1257,16 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 
     <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">The enquiry</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,.35);border-radius:10px;"><tr><td style="padding:18px 20px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>${kvPill('Accommodation type', formatAptType(p.apartment_type))}${kv('Building', escHtml(building), true)}</tr>
-        <tr>${kv('Guide price', p.budget ? escHtml(formatBudget(p.budget, p) + ' /' + budgetPeriod(p.city)) : '')}${kv('Preferred areas', escHtml(formatArea(p.areas)))}</tr>
-        <tr>${kv('Check-in', formatDate(p.check_in))}${kv('Check-out', formatDate(p.check_out))}</tr>
-        <tr>${kv('Nights', nightCount ? nightCount + ' nights' : '')}${kv('City', escHtml(formatCity(p.city) || portal.city))}</tr>
+      <table width="100%" cellpadding="0" cellspacing="0">${pairUp([
+        kvPill('Accommodation type', formatAptType(p.apartment_type)),
+        kv('Building', escHtml(building), true),
+        kv('Guide price', p.budget ? escHtml(formatBudget(p.budget, p) + ' /' + budgetPeriod(p.city)) : ''),
+        kv('Preferred areas', escHtml(formatArea(p.areas))),
+        kv('Check-in', formatDate(p.check_in)),
+        kv('Check-out', formatDate(p.check_out)),
+        kv('Nights', nightCount ? nightCount + ' nights' : ''),
+        kv('City', escHtml(formatCity(p.city) || portal.city)),
+      ])}
       </table>
     </td></tr></table>
 
@@ -1270,14 +1280,18 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 
     <p style="margin:24px 0 12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">Contact</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,.35);border-radius:10px;"><tr><td style="padding:18px 20px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>${kv('Name', escHtml(p.full_name || ''))}${p.response_methods ? `
+      <table width="100%" cellpadding="0" cellspacing="0">${pairUp([
+        kv('Name', escHtml(p.full_name || '')),
+        p.response_methods ? `
             <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:12px;">
               <p style="margin:0 0 5px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b9b9b;">Respond via</p>
               <p style="margin:0;line-height:1;">${responseMethodPills(p.response_methods)}</p>
-            </td>` : '<td class="sl-half" width="50%"></td>'}</tr>
-        <tr>${kv('Email', p.email ? `<a href="mailto:${escHtml(p.email)}" style="color:#1a1a1a;text-decoration:none;">${escHtml(p.email)}</a>` : '')}${kv('Phone', phone ? `<a href="tel:${escHtml(phone.replace(/\s/g, ''))}" style="color:#1a1a1a;text-decoration:none;">${escHtml(phone)}</a>` : '')}</tr>
-        <tr>${kv('Timezone', escHtml(p.timezone || ''))}${kv('University', escHtml(portal.channel))}</tr>
+            </td>` : '',
+        kv('Email', p.email ? `<a href="mailto:${escHtml(p.email)}" style="color:#1a1a1a;text-decoration:none;">${escHtml(p.email)}</a>` : ''),
+        kv('Phone', phone ? `<a href="tel:${escHtml(phone.replace(/\s/g, ''))}" style="color:#1a1a1a;text-decoration:none;">${escHtml(phone)}</a>` : ''),
+        kv('Timezone', escHtml(p.timezone || '')),
+        kv('University', escHtml(portal.channel)),
+      ])}
       </table>
     </td></tr></table>
 
@@ -1366,14 +1380,17 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
   <tr><td class="sl-pad" style="background:#ffffff;padding:22px 32px 0;">
     <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;color:#8B6E4E;text-transform:uppercase;">Contact</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,0.35);border-radius:10px;"><tr><td class="sl-cardpad" style="padding:18px 20px;">
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>${field('Name', p.full_name)}${p.response_methods ? `
+    <table width="100%" cellpadding="0" cellspacing="0">${pairUp([
+      field('Name', p.full_name),
+      p.response_methods ? `
     <td class="sl-half" width="50%" style="vertical-align:top;padding:0 10px 12px 0;">
       <p style="margin:0 0 5px;font-size:9px;letter-spacing:0.16em;color:#9b9b9b;text-transform:uppercase;">Respond via</p>
       <p style="margin:0;line-height:1;">${responseMethodPills(p.response_methods)}</p>
-    </td>` : '<td class="sl-half" width="50%"></td>'}</tr>
-      <tr>${field('Email', p.email)}${field('Phone', p.phone)}</tr>
-      <tr>${field('Timezone', p.timezone || '')}<td class="sl-half" width="50%"></td></tr>
+    </td>` : '',
+      field('Email', p.email),
+      field('Phone', p.phone),
+      field('Timezone', p.timezone),
+    ])}
     </table>
     </td></tr></table>
   </td></tr>
@@ -1387,22 +1404,30 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     </table>
   </td></tr>` : ''}
   <tr><td class="sl-pad" style="background:#ffffff;padding:22px 32px 0;">
-    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;color:#8B6E4E;text-transform:uppercase;">Stay details</p>
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;color:#8B6E4E;text-transform:uppercase;">Enquiry details</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,0.35);border-radius:10px;"><tr><td class="sl-cardpad" style="padding:18px 20px;">
-    <table width="100%" cellpadding="0" cellspacing="0">
-      ${portal ? `
-      <tr>${field('City', formatCity(p.city))}${fieldPill('Accommodation type', formatAptType(p.apartment_type))}</tr>
-      <tr>${field('Course', p.course)}${field('Guide price', formatBudget(p.budget, p))}</tr>
-      <tr>${field('Check-in', formatDate(p.check_in))}${field('Check-out', formatDate(p.check_out))}</tr>
-      <tr>${field('Nights', nightCount)}${field('Areas', formatArea(p.areas))}</tr>
-      <tr>${field('University', portal.channel)}</tr>` : `
-      ${isTypeA
-        ? `<tr>${field('Apartment', p.apartment_ref)}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`
-        : `<tr>${field('City', formatCity(p.city))}${field('Apartment type', formatAptType(p.apartment_type))}</tr>`}
-      <tr>${field('Check-in', formatDate(p.check_in))}${field('Check-out', formatDate(p.check_out))}</tr>
-      <tr>${field('Nights', nightCount)}${field('Budget / ' + budgetPeriod(p.city), p.enquiry_type !== 'A' ? formatBudget(p.budget, p) : '')}</tr>
-      <tr>${field('Areas', formatArea(p.areas))}${field('Type of stay', formatStayType(p.stay_type, p.university))}</tr>
-      <tr>${field('Country of residence', p.nationality)}${field('Lived in city before', p.lived_before)}</tr>`}
+    <table width="100%" cellpadding="0" cellspacing="0">${pairUp(portal ? [
+      field('City', formatCity(p.city)),
+      fieldPill('Accommodation type', formatAptType(p.apartment_type)),
+      field('Guide price', formatBudget(p.budget, p)),
+      field('Check-in', formatDate(p.check_in)),
+      field('Check-out', formatDate(p.check_out)),
+      field('Nights', nightCount),
+      field('Areas', formatArea(p.areas)),
+      field('University', portal.channel),
+    ] : [
+      field('Enquiry type', isTypeA ? 'Check availability for guest' : 'Send guest options'),
+      isTypeA ? field('Apartment', p.apartment_ref) : field('City', formatCity(p.city)),
+      field('Apartment type', formatAptType(p.apartment_type)),
+      field('Check-in', formatDate(p.check_in)),
+      field('Check-out', formatDate(p.check_out)),
+      field('Nights', nightCount),
+      field('Budget / ' + budgetPeriod(p.city), p.enquiry_type !== 'A' ? formatBudget(p.budget, p) : ''),
+      field('Areas', formatArea(p.areas)),
+      field('Type of stay', formatStayType(p.stay_type, p.university)),
+      field('Country of residence', p.nationality),
+      field('Lived in city before', p.lived_before),
+    ])}
     </table>
     </td></tr></table>
   </td></tr>
