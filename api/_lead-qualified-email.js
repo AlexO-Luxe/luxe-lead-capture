@@ -328,9 +328,9 @@ function renderLeadQualified(lead) {
 
   <!-- NEXT ACTION + CTAs -->
   <tr><td style="background:#ffffff;padding:22px 32px 4px;" class="le-pad">
-    ${`<table width="100%" cellpadding="0" cellspacing="0" style="background:#fbf4e8;border:0.5px solid #ecd9b6;border-radius:10px;margin-bottom:18px;"><tr><td style="padding:12px 16px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fbf4e8;border:0.5px solid #ecd9b6;border-radius:10px;margin-bottom:18px;"><tr><td style="padding:12px 16px;">
       <p style="margin:0;font-size:12px;color:#8a6d2f;line-height:1.5;"><span style="font-weight:700;">Next action</span> &middot; Awaiting for guest initial payment to confirm booking</p>
-    </td></tr></table>`}
+    </td></tr></table>
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td align="center"><a href="${escHtml(lead.mondayUrl || '#')}" style="display:inline-block;background:${BRAND.gold};color:#ffffff;text-decoration:none;font-size:12.5px;font-weight:500;padding:12px 26px;border-radius:8px;text-align:center;">Open in Monday</a></td>
     </tr></table>
