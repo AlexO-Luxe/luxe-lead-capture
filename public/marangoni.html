@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Accommodation Dashboard</title>
+<link rel="preconnect" href="https://images.squarespace-cdn.com">
+<style>
+:root{
+  --navy:#0d1a2e; --gold:#B8966E; --gold-soft:rgba(184,150,110,.14); --cream:#FBF8F2;
+  --ink:#1a1a1a; --muted:#8a8a8a; --line:#e7e2d9; --panel:#fff; --bg:#F3F0EA;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:Baskerville,Georgia,serif;font-weight:400;letter-spacing:-.01em;margin:0}
+
+/* ── sign in ─────────────────────────────────────────── */
+#gate{min-height:100vh;display:grid;place-items:center;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:34px 32px;width:100%;max-width:380px;box-shadow:0 18px 50px rgba(13,26,46,.09)}
+.card .marks{display:flex;align-items:center;gap:16px;justify-content:center;margin-bottom:22px}
+.card .marks img.im{height:44px;width:auto;filter:invert(1)}
+.card .marks .sep{width:1px;height:34px;background:var(--line)}
+.card .marks img.sl{height:15px;width:auto;filter:invert(1)}
+.card h1{font-size:21px;text-align:center;margin-bottom:6px}
+.card p.sub{margin:0 0 22px;text-align:center;font-size:12.5px;color:var(--muted)}
+label{display:block;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px;background:var(--cream);margin-bottom:15px}
+input:focus{outline:none;border-color:var(--gold);background:#fff}
+button.primary{width:100%;padding:12px;border:0;border-radius:9px;background:var(--navy);color:#fff;font:inherit;font-size:13px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+button.primary:hover{background:#16294a}
+button.primary:disabled{opacity:.55;cursor:default}
+.err{margin:12px 0 0;font-size:12.5px;color:#c0392b;text-align:center;min-height:16px}
+
+/* ── shell ───────────────────────────────────────────── */
+#app{display:none}
+.top{background:#000;color:#fff;padding:13px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.top img.im{height:32px;width:auto}
+.top img.sl{height:14px;width:auto}
+.top .divx{width:1px;height:26px;background:#4A4A4A}
+.top .who{flex:1;min-width:150px}
+.top .who span{display:block;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.top .who b{display:block;font-family:Baskerville,Georgia,serif;font-size:16px;font-weight:400}
+.top .out{background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.8);border-radius:8px;padding:7px 13px;font:inherit;font-size:12px;cursor:pointer}
+.top .out:hover{border-color:var(--gold);color:#fff}
+
+.bar{background:var(--panel);border-bottom:1px solid var(--line);padding:11px 24px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+.seg{display:flex;background:var(--cream);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg button{border:0;background:none;font:inherit;font-size:12.5px;padding:6px 14px;border-radius:7px;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--navy);color:#fff}
+.search{position:relative;min-width:170px;flex:0 1 250px}
+.search input{margin:0;padding:8px 12px 8px 30px;font-size:12.5px;border-radius:9px}
+.search svg{position:absolute;left:9px;top:9px;width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:1.7}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 13px;font-size:12px;color:#555;cursor:pointer}
+.chip.on{background:var(--gold-soft);border-color:rgba(184,150,110,.5);color:#8a6540;font-weight:500}
+.spacer{flex:1}
+.ghost{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 13px;font-size:12.5px;cursor:pointer}
+.ghost:hover{border-color:var(--gold)}
+.sync{font-size:11.5px;color:var(--muted)}
+.toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:#555;cursor:pointer;user-select:none}
+.toggle .tr{width:34px;height:19px;border-radius:99px;background:#d9d4ca;position:relative;transition:background .15s;flex-shrink:0}
+.toggle .tr::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform .15s}
+.toggle input{display:none}
+.toggle input:checked + .tr{background:var(--gold)}
+.toggle input:checked + .tr::after{transform:translateX(15px)}
+
+.wrap{padding:20px 24px 60px;max-width:1420px;margin:0 auto}
+.group{margin-bottom:16px;background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.ghead{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.ghead .dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.ghead b{font-size:13.5px;font-weight:500}
+.ghead .n{font-size:11.5px;color:var(--muted);background:var(--cream);border:1px solid var(--line);border-radius:99px;padding:2px 9px}
+.ghead .caret{margin-left:auto;color:var(--muted);font-size:11px}
+.group.shut .gbody{display:none}
+table{width:100%;border-collapse:collapse}
+thead th{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:400;text-align:left;padding:9px 16px;background:var(--cream);border-bottom:1px solid var(--line);white-space:nowrap}
+tbody td{padding:11px 16px;border-bottom:1px solid #f1ede6;font-size:13px;vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#fdfbf7}
+.stu{display:flex;align-items:center;gap:10px}
+.stu .av{width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:10.5px;font-weight:500;flex-shrink:0}
+.stu b{font-weight:500;display:block;font-size:13px}
+.stu span{display:block;font-size:11.5px;color:var(--muted)}
+.pill{display:inline-block;padding:4px 11px;border-radius:99px;font-size:11.5px;font-weight:500;border:1px solid;background:var(--gold-soft);border-color:rgba(184,150,110,.45);color:#8a6540;white-space:nowrap}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
+.st i{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.owner{display:flex;align-items:center;gap:8px;font-size:12.5px;white-space:nowrap}
+.owner .av{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;font-size:9.5px;color:#fff;background:var(--gold);flex-shrink:0}
+.dim{color:var(--muted);font-size:12px}
+.empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:12.5px}
+
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px;min-height:220px}
+.col h4{margin:0 0 11px;font-size:11.5px;font-weight:500;display:flex;align-items:center;gap:7px;font-family:inherit}
+.col h4 .n{margin-left:auto;font-size:11px;color:var(--muted)}
+.pcard{border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-bottom:9px;background:#fff}
+.pcard:hover{border-color:rgba(184,150,110,.55)}
+.pcard b{display:block;font-size:13px;font-weight:500;margin-bottom:4px}
+.pcard .meta{font-size:11.5px;color:var(--muted);line-height:1.6}
+.pcard .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid #f1ede6}
+.hidden{display:none!important}
+.loading{padding:60px 0;text-align:center;color:var(--muted);font-size:13px}
+.foot-note{margin-top:20px;font-size:11.5px;color:var(--muted);line-height:1.7;text-align:center}
+@media(max-width:760px){
+  .wrap{padding:14px 12px 50px}
+  .bar{padding:10px 12px}
+  .top{padding:12px 14px}
+  .tblwrap{overflow-x:auto}
+  table{min-width:760px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── SIGN IN ─────────────────────────────────────────── -->
+<div id="gate">
+  <form class="card" id="loginForm" autocomplete="on">
+    <div class="marks">
+      <img class="im" src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/d2ee5c81-8e9f-4ebd-a142-4234962fde80/istituto-marangoni-london-logo-1.png?content-type=image%2Fpng" alt="">
+      <span class="sep"></span>
+      <img class="sl" src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/3b2d0218-5cf8-4041-8460-2ec2228c864b/Logo+White+website.png?content-type=image%2Fpng" alt="">
+    </div>
+    <h1>Accommodation Dashboard</h1>
+    <p class="sub">Sign in to see your students' enquiries</p>
+    <label for="u">Username</label>
+    <input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="p">Password</label>
+    <input id="p" name="password" type="password" autocomplete="current-password" required>
+    <button class="primary" type="submit" id="signin">Sign in</button>
+    <p class="err" id="err"></p>
+  </form>
+</div>
+
+<!-- ── DASHBOARD ───────────────────────────────────────── -->
+<div id="app">
+  <div class="top">
+    <img class="im" id="topLogo" src="" alt="">
+    <span class="divx"></span>
+    <img class="sl" src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/3b2d0218-5cf8-4041-8460-2ec2228c864b/Logo+White+website.png?content-type=image%2Fpng" alt="Student Luxe">
+    <div class="who">
+      <span>Accommodation dashboard</span>
+      <b id="topName">&nbsp;</b>
+    </div>
+    <button class="out" id="signout">Sign out</button>
+  </div>
+
+  <div class="bar">
+    <div class="seg">
+      <button class="on" data-view="board">Board</button>
+      <button data-view="pipe">Pipeline</button>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
+      <input id="q" placeholder="Search students, buildings">
+    </div>
+    <div id="chips"></div>
+    <div class="spacer"></div>
+    <label class="toggle"><input type="checkbox" id="anon"><span class="tr"></span>Anonymised</label>
+    <button class="ghost" id="csv">Export CSV</button>
+    <button class="ghost" id="refresh">Refresh</button>
+    <span class="sync" id="sync"></span>
+  </div>
+
+  <div class="wrap">
+    <div class="loading" id="loading">Loading your leads&hellip;</div>
+    <div id="board"></div>
+    <div id="pipe" class="hidden"></div>
+    <p class="foot-note">Enquiry status is updated live from the Student Luxe leads board. Student contact details stay with Student Luxe.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var TOKEN_KEY = 'sl_partner_token';
+  var state = { data: null, view: 'board', filter: 'all', q: '', anon: false, shut: {} };
+
+  function token ()      { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  function setToken (t)  { try { t ? sessionStorage.setItem(TOKEN_KEY, t) : sessionStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+  function esc (s)       { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function initials (name) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+  function shortName (name) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length < 2) return name || '';
+    return parts[0][0].toUpperCase() + '. ' + parts[parts.length - 1];
+  }
+  function displayName (name) { return state.anon ? shortName(name) : name; }
+
+  function fmtDate (d) {
+    if (!d) return '';
+    var t = new Date(d);
+    if (isNaN(t)) return d;
+    return t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function ago (d) {
+    if (!d) return '';
+    var mins = Math.round((Date.now() - new Date(d)) / 60000);
+    if (isNaN(mins)) return '';
+    if (mins < 60)   return mins + ' min ago';
+    if (mins < 1440) return Math.round(mins / 60) + ' hr ago';
+    var days = Math.round(mins / 1440);
+    if (days < 30)   return days + (days === 1 ? ' day ago' : ' days ago');
+    return fmtDate(d);
+  }
+  function weeks (nights) { return nights ? Math.round(nights / 7) + ' weeks' : ''; }
+
+  /* ── sign in ─────────────────────────────────────────── */
+  var form = document.getElementById('loginForm');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = document.getElementById('signin');
+    var err = document.getElementById('err');
+    err.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Signing in';
+    fetch('/api/partner-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: document.getElementById('u').value, password: document.getElementById('p').value })
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.j.error || 'Sign in failed.');
+      setToken(res.j.token);
+      document.getElementById('p').value = '';
+      start();
+    }).catch(function (e2) {
+      err.textContent = e2.message;
+    }).then(function () {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+    });
+  });
+
+  document.getElementById('signout').addEventListener('click', function () {
+    setToken('');
+    location.reload();
+  });
+
+  /* ── data ────────────────────────────────────────────── */
+  function load (refresh) {
+    document.getElementById('loading').classList.remove('hidden');
+    return fetch('/api/partner-leads' + (refresh ? '?refresh=1' : ''), {
+      headers: { Authorization: 'Bearer ' + token() }
+    }).then(function (r) {
+      if (r.status === 401) { setToken(''); location.reload(); return null; }
+      return r.json();
+    }).then(function (data) {
+      if (!data) return;
+      state.data = data;
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('topLogo').src = data.partner.logo;
+      document.getElementById('topName').textContent = data.partner.name;
+      document.getElementById('sync').textContent = 'Synced ' + ago(data.synced) + (data.cached ? '' : ', live');
+      buildChips();
+      render();
+    }).catch(function () {
+      document.getElementById('loading').textContent = 'Could not load leads. Try Refresh.';
+    });
+  }
+
+  function allLeads () {
+    if (!state.data) return [];
+    return state.data.groups.reduce(function (acc, g) { return acc.concat(g.leads); }, []);
+  }
+
+  // Filter chips are built from the accommodation types actually present, so
+  // a new type on the board needs no code change here.
+  function buildChips () {
+    var types = {};
+    allLeads().forEach(function (l) { if (l.type) types[l.type] = (types[l.type] || 0) + 1; });
+    var top = Object.keys(types).sort(function (a, b) { return types[b] - types[a]; }).slice(0, 4);
+    var html = '<button class="chip' + (state.filter === 'all' ? ' on' : '') + '" data-f="all">All types</button>';
+    top.forEach(function (t) {
+      html += '<button class="chip' + (state.filter === t ? ' on' : '') + '" data-f="' + esc(t) + '">' + esc(t.length > 22 ? t.slice(0, 22) + '…' : t) + '</button>';
+    });
+    var box = document.getElementById('chips');
+    box.innerHTML = html;
+    box.querySelectorAll('.chip').forEach(function (c) {
+      c.addEventListener('click', function () { state.filter = c.dataset.f; buildChips(); render(); });
+    });
+  }
+
+  function visible (leads) {
+    var q = state.q.toLowerCase();
+    return leads.filter(function (l) {
+      if (state.filter !== 'all' && l.type !== state.filter) return false;
+      if (!q) return true;
+      return [l.name, l.building, l.areas, l.owner, l.city].join(' ').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  /* ── render ──────────────────────────────────────────── */
+  function row (l, colour) {
+    return '<tr>' +
+      '<td><div class="stu"><div class="av">' + esc(initials(l.name)) + '</div><div>' +
+        '<b>' + esc(displayName(l.name)) + '</b>' +
+        '<span>Enquired ' + esc(fmtDate(l.created)) + '</span>' +
+      '</div></div></td>' +
+      '<td>' + (l.type ? '<span class="pill">' + esc(l.type) + '</span>' : '<span class="dim">Not specified</span>') + '</td>' +
+      '<td>' + (l.building ? esc(l.building) : '<span class="dim">' + esc(l.areas || l.city || '') + '</span>') + '</td>' +
+      '<td>' + esc(fmtDate(l.checkIn)) + '</td>' +
+      '<td class="dim">' + esc(weeks(l.nights)) + '</td>' +
+      '<td>' + (l.owner ? '<div class="owner"><div class="av">' + esc(initials(l.owner)) + '</div>' + esc(l.owner.split(' ')[0]) + '</div>' : '<span class="dim">Unassigned</span>') + '</td>' +
+      '<td><span class="st"><i style="background:' + esc(colour) + '"></i>' + esc(l.status) + '</span></td>' +
+      '<td class="dim">' + esc(ago(l.updated)) + '</td>' +
+    '</tr>';
+  }
+
+  function render () {
+    if (!state.data) return;
+    var board = '';
+    var pipe  = '<div class="pipe">';
+
+    state.data.groups.forEach(function (g, gi) {
+      var leads = visible(g.leads);
+      var shut  = state.shut[g.title] ? ' shut' : '';
+      board += '<div class="group' + shut + '" data-g="' + esc(g.title) + '">' +
+        '<div class="ghead"><span class="dot" style="background:' + esc(g.colour) + '"></span>' +
+        '<b>' + esc(g.title) + '</b><span class="n">' + leads.length + '</span><span class="caret">' + (shut ? '&#9656;' : '&#9662;') + '</span></div>' +
+        '<div class="gbody">';
+      if (!leads.length) {
+        board += '<div class="empty">Nothing here right now</div>';
+      } else {
+        board += '<div class="tblwrap"><table><thead><tr>' +
+          '<th style="width:24%">Student</th><th>Looking for</th><th>Building / area</th>' +
+          '<th>Move in</th><th>Stay</th><th>Advisor</th><th>Status</th><th>Updated</th>' +
+          '</tr></thead><tbody>' +
+          leads.map(function (l) { return row(l, g.colour); }).join('') +
+          '</tbody></table></div>';
+      }
+      board += '</div></div>';
+
+      pipe += '<div class="col"><h4><span class="dot" style="width:9px;height:9px;border-radius:3px;background:' + esc(g.colour) + ';display:inline-block"></span> ' +
+        esc(g.title) + ' <span class="n">' + leads.length + '</span></h4>' +
+        leads.slice(0, 40).map(function (l) {
+          return '<div class="pcard"><b>' + esc(displayName(l.name)) + '</b>' +
+            '<div class="meta">' + esc(l.building || l.areas || l.city || 'No preference') +
+            (l.checkIn ? '<br>' + esc(fmtDate(l.checkIn)) + (l.nights ? ', ' + esc(weeks(l.nights)) : '') : '') + '</div>' +
+            '<div class="foot">' + (l.type ? '<span class="pill">' + esc(l.type.length > 18 ? l.type.slice(0, 18) + '…' : l.type) + '</span>' : '<span class="dim">Not specified</span>') +
+            '<span class="dim">' + esc(l.owner ? l.owner.split(' ')[0] : 'Unassigned') + '</span></div></div>';
+        }).join('') +
+        (leads.length > 40 ? '<p class="dim">and ' + (leads.length - 40) + ' more</p>' : '') +
+      '</div>';
+    });
+    pipe += '</div>';
+
+    document.getElementById('board').innerHTML = board;
+    document.getElementById('pipe').innerHTML  = pipe;
+
+    document.querySelectorAll('.ghead').forEach(function (h) {
+      h.addEventListener('click', function () {
+        var title = h.parentElement.dataset.g;
+        state.shut[title] = !state.shut[title];
+        render();
+      });
+    });
+  }
+
+  /* ── controls ────────────────────────────────────────── */
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.seg button').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      state.view = b.dataset.view;
+      document.getElementById('board').classList.toggle('hidden', state.view !== 'board');
+      document.getElementById('pipe').classList.toggle('hidden', state.view !== 'pipe');
+    });
+  });
+  document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value; render(); });
+  document.getElementById('anon').addEventListener('change', function (e) { state.anon = e.target.checked; render(); });
+  document.getElementById('refresh').addEventListener('click', function () { load(true); });
+
+  document.getElementById('csv').addEventListener('click', function () {
+    var rows = [['Student', 'Status', 'Looking for', 'Building / area', 'Move in', 'Move out', 'Weeks', 'Advisor', 'Enquired']];
+    state.data.groups.forEach(function (g) {
+      visible(g.leads).forEach(function (l) {
+        rows.push([displayName(l.name), l.status, l.type, l.building || l.areas || l.city, l.checkIn, l.checkOut,
+                   l.nights ? Math.round(l.nights / 7) : '', l.owner, (l.created || '').slice(0, 10)]);
+      });
+    });
+    var csv = rows.map(function (r) {
+      return r.map(function (c) { return '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+    var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'accommodation-leads-' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  function start () {
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('app').style.display  = 'block';
+    load(false);
+  }
+
+  if (token()) start();
+})();
+</script>
+</body>
+</html>

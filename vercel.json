@@ -37,5 +37,28 @@
       "path": "/api/audience-sync?since=2019-01-01",
       "schedule": "45 5 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "marangoni.studentluxe.co.uk"
+        }
+      ],
+      "destination": "/marangoni.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    }
   ]
 }
