@@ -1271,7 +1271,11 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     <p style="margin:24px 0 12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8B6E4E;">Contact</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,.35);border-radius:10px;"><tr><td style="padding:18px 20px;">
       <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>${kv('Name', escHtml(p.full_name || ''))}${kv('Respond via', escHtml(formatResponseMethods(p.response_methods)), true)}</tr>
+        <tr>${kv('Name', escHtml(p.full_name || ''))}${p.response_methods ? `
+            <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:12px;">
+              <p style="margin:0 0 5px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b9b9b;">Respond via</p>
+              <p style="margin:0;line-height:1;">${responseMethodPills(p.response_methods)}</p>
+            </td>` : '<td class="sl-half" width="50%"></td>'}</tr>
         <tr>${kv('Email', p.email ? `<a href="mailto:${escHtml(p.email)}" style="color:#1a1a1a;text-decoration:none;">${escHtml(p.email)}</a>` : '')}${kv('Phone', phone ? `<a href="tel:${escHtml(phone.replace(/\s/g, ''))}" style="color:#1a1a1a;text-decoration:none;">${escHtml(phone)}</a>` : '')}</tr>
         <tr>${kv('Timezone', escHtml(p.timezone || ''))}${kv('University', escHtml(portal.channel))}</tr>
       </table>
@@ -1363,7 +1367,11 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;color:#8B6E4E;text-transform:uppercase;">Contact</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,0.35);border-radius:10px;"><tr><td class="sl-cardpad" style="padding:18px 20px;">
     <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>${field('Name', p.full_name)}${field('Respond via', formatResponseMethods(p.response_methods))}</tr>
+      <tr>${field('Name', p.full_name)}${p.response_methods ? `
+    <td class="sl-half" width="50%" style="vertical-align:top;padding:0 10px 12px 0;">
+      <p style="margin:0 0 5px;font-size:9px;letter-spacing:0.16em;color:#9b9b9b;text-transform:uppercase;">Respond via</p>
+      <p style="margin:0;line-height:1;">${responseMethodPills(p.response_methods)}</p>
+    </td>` : '<td class="sl-half" width="50%"></td>'}</tr>
       <tr>${field('Email', p.email)}${field('Phone', p.phone)}</tr>
       <tr>${field('Timezone', p.timezone || '')}<td class="sl-half" width="50%"></td></tr>
     </table>
@@ -1947,6 +1955,26 @@ function formatBudget(b, p) {
   if ((m = /^(\d+)(?:\+|-plus)$/.exec(b))) return `${sym}${n(m[1])}+`;
   return b;
 }
+// Channel colours for the team emails: the salesperson sorts by how to reply,
+// so the channel carries the colour rather than the label. Anything unmapped
+// falls back to a neutral pill instead of leaking a raw slug.
+const CHANNEL_PILL = {
+  whatsapp: { label: 'WhatsApp',     color: '#25923f' },
+  wechat:   { label: 'WeChat',       color: '#25923f' },
+  phone:    { label: 'Phone call',   color: '#1a5fb4' },
+  call:     { label: 'Phone call',   color: '#1a5fb4' },
+  sms:      { label: 'SMS',          color: '#1a5fb4' },
+  text:     { label: 'Text message', color: '#1a5fb4' },
+  email:    { label: 'Email',        color: '#B8966E' },
+};
+function responseMethodPills (v) {
+  if (!v) return '';
+  return String(v).split(',').map(x => x.trim()).filter(Boolean).map(x => {
+    const c = CHANNEL_PILL[x.toLowerCase()] || { label: x.charAt(0).toUpperCase() + x.slice(1), color: '#6b6b6b' };
+    return `<span style="display:inline-block;padding:5px 13px;margin:0 6px 6px 0;border-radius:100px;background:${c.color};font-size:12px;font-weight:500;color:#ffffff;line-height:1.3;">${escHtml(c.label)}</span>`;
+  }).join('');
+}
+
 // The forms post the preferred reply channels as a CSV of slugs
 // ('whatsapp,email'). Both emails show them to a human, so they get proper
 // labels and an Oxford-free comma list. Unknown slugs title-case rather than
