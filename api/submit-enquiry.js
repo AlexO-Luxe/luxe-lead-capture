@@ -1470,6 +1470,9 @@ const PARTNER_PORTALS = {
     // in Resend, so DKIM/DMARC alignment is unaffected by the display name.
     fromName:  'Marangoni Accommodation Office',
     fromEmail: 'marangoni@studentluxe.co.uk',
+    // "Istituto Marangoni (London)" on the Partnerships board (5441673917),
+    // linked from the lead via board_relation_mksyf45t.
+    partnershipItemId: 9281289665,
   },
 };
 
@@ -1704,7 +1707,9 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     }[p.stay_type] || p.stay_type } : {},
     // Partner portals only ever serve one institution, so the partner name is
     // authoritative here and the form's own university field is a fallback.
-    text_mknfnmsb: partnerPortal(p)?.channel || p.university || '',
+    // The full school name ("Istituto Marangoni London"), not the shorter
+    // channel label, so the University column matches how the team writes it.
+    text_mknfnmsb: partnerPortal(p)?.school || p.university || '',
     text_mm5asah0: p.course      || '',
     text9__1:      p.nationality || '',
     long_text7:    p.message     || '',
@@ -1745,6 +1750,7 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     // Partner portal leads are flagged on the Group / Partnership Label column
     // so the board can group and report on them without reading the source.
     ...(partnerPortal(p) && { status1__1: { label: 'Partnership / Agency Booking' } }),
+    ...(partnerPortal(p)?.partnershipItemId && { board_relation_mksyf45t: { item_ids: [partnerPortal(p).partnershipItemId] } }),
     ...(p.city && currencyForCity(p.city, p.other_city) && { status0__1: { label: currencyForCity(p.city, p.other_city) } }),
   };
 
