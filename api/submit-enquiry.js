@@ -805,11 +805,11 @@ async function sendGuestConfirmation(p) {
 // ──────────────────────────────────────────────────────────────
 //  EMAIL 1b — Guest confirmation, partner portals
 // ──────────────────────────────────────────────────────────────
-// Hosted artwork for the co-branded emails. Both logos are white on
+// Hosted artwork for the redesigned emails. Both logos are white on
 // transparency, so every band they sit on has to stay dark. The photos are
 // laid under a black gradient wash; Outlook drops the image and keeps the
 // bgcolor, which is why each band carries both.
-const PARTNER_IMG = {
+const EMAIL_IMG = {
   seal:     'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/83bf050f-4124-4da2-8fec-073287bd8495/seal-wordmark-ivory-on-transparent-2.png?content-type=image%2Fpng',
   wordmark: 'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/3b2d0218-5cf8-4041-8460-2ec2228c864b/Logo+White+website.png?content-type=image%2Fpng',
   school:   'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/60fe613f-b4ce-4e6e-bd0c-ef94e187ddf9/istituto-marangoni-png.png?content-type=image%2Fpng',
@@ -861,7 +861,7 @@ async function sendPartnerGuestConfirmation(p, portal) {
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 0;padding:22px 0 0;border-top:1px solid rgba(184,150,110,.3);"><tr><td>
       <table cellpadding="0" cellspacing="0"><tr>
         <td style="vertical-align:middle;padding-right:16px;width:62px;">
-          <img src="${PARTNER_IMG.paige}" alt="Paige Grinter" width="62" height="62" style="width:62px;height:62px;display:block;border-radius:50%;object-fit:cover;">
+          <img src="${EMAIL_IMG.paige}" alt="Paige Grinter" width="62" height="62" style="width:62px;height:62px;display:block;border-radius:50%;object-fit:cover;">
         </td>
         <td style="vertical-align:middle;">
           <p style="margin:0 0 3px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b8f7d;">Your point of contact</p>
@@ -907,10 +907,10 @@ async function sendPartnerGuestConfirmation(p, portal) {
        each mark hugging it from its own half, so the wider logo cannot pull it
        off centre. Both marks are white artwork, so this band must stay dark.
        Outlook drops the photo and falls back to the bgcolor. -->
-  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.hero}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.75),rgba(0,0,0,.75)),url('${PARTNER_IMG.hero}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px 26px;">
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${EMAIL_IMG.hero}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.75),rgba(0,0,0,.75)),url('${EMAIL_IMG.hero}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px 26px;">
     <table width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;"><tr>
       <td width="50%" align="right" style="vertical-align:middle;padding-right:24px;">
-        <img src="${PARTNER_IMG.school}" alt="${escHtml(portal.school)}" height="84" style="height:84px;width:auto;display:block;margin-left:auto;">
+        <img src="${EMAIL_IMG.school}" alt="${escHtml(portal.school)}" height="84" style="height:84px;width:auto;display:block;margin-left:auto;">
       </td>
       <td width="1" style="width:1px;vertical-align:middle;padding:0;font-size:0;line-height:0;">
         <table cellpadding="0" cellspacing="0" border="0"><tr>
@@ -918,7 +918,7 @@ async function sendPartnerGuestConfirmation(p, portal) {
         </tr></table>
       </td>
       <td width="50%" align="left" style="vertical-align:middle;padding-left:24px;">
-        <img src="${PARTNER_IMG.seal}" alt="Student Luxe" height="96" style="height:96px;width:auto;display:block;margin-right:auto;">
+        <img src="${EMAIL_IMG.seal}" alt="Student Luxe" height="96" style="height:96px;width:auto;display:block;margin-right:auto;">
       </td>
     </tr></table>
     <p class="sl-on-dark" style="margin:24px 0 0;text-align:center;font-family:Georgia,serif;font-size:23.5px;color:#ffffff;letter-spacing:-.035em;line-height:1.25;">We&rsquo;ve received your accommodation enquiry.</p>
@@ -958,11 +958,11 @@ ${steps}
 
   <!-- FOOTER: seal, one line of who we are, then contact, over the same style
        of photo wash as the header. -->
-  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${PARTNER_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;">
-    <img src="${PARTNER_IMG.wordmark}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 18px;">
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${EMAIL_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${EMAIL_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;">
+    <img src="${EMAIL_IMG.wordmark}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 18px;">
     <p class="sl-on-dark sl-foot-line" style="margin:0 0 8px;text-align:center;font-family:Georgia,serif;font-size:15px;color:#ffffff;letter-spacing:-.01em;">The accommodation office for ${escHtml(portal.school)}</p>
     <p style="margin:0 0 16px;text-align:center;font-size:12px;line-height:1.7;color:rgba(255,255,255,.6);">Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>+44 (0)203 007 0017 &middot; Mon to Fri, 10am to 6pm</p>
-    <p style="margin:0;text-align:center;font-size:11.5px;"><a href="${PARTNER_IMG.page}" style="color:#D4B896;text-decoration:none;border-bottom:1px solid rgba(184,150,110,.45);">Back to the Accommodation Hub</a></p>
+    <p style="margin:0;text-align:center;font-size:11.5px;"><a href="${EMAIL_IMG.page}" style="color:#D4B896;text-decoration:none;border-bottom:1px solid rgba(184,150,110,.45);">Back to the Accommodation Hub</a></p>
   </td></tr>
 
 </table>
@@ -1001,6 +1001,16 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
         hour:'numeric', minute:'2-digit', hour12:true,
         timeZone:'Europe/London'
       }).replace(', ', ' — ');
+
+  // Whoever owns the lead this one duplicates. The header names them so the
+  // team knows who to talk to before touching it.
+  const originalOwner = (duplicateOf && duplicateOf.assignees && duplicateOf.assignees.length)
+    ? duplicateOf.assignees.join(', ')
+    : 'nobody yet';
+
+  const quoteUrl = mondayId
+    ? `https://luxe-quote-builder.vercel.app/?lead=${mondayId}`
+    : `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/views/205648977`;
 
   const crmUrl = mondayId
     ? `https://studentluxe.monday.com/boards/${MONDAY_BOARD}/pulses/${mondayId}`
@@ -1069,12 +1079,13 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
         })
       : '—';
 
-    const assigneePills = duplicateOf.assignees && duplicateOf.assignees.length > 0
-      ? duplicateOf.assignees.map(name => {
-          const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
-          return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#1a1a1a;margin-right:8px;"><span style="width:24px;height:24px;border-radius:50%;background:#B8966E;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;">${initials}</span>${escHtml(name)}</span>`;
-        }).join('')
-      : '<span style="font-size:12px;color:#9b9b9b;">Unassigned</span>';
+    // Ownership card, same shape as the partner email's auto-assigned strip,
+    // so both emails show "who has this" the same way.
+    const owners   = (duplicateOf.assignees || []).filter(Boolean);
+    const ownerName = owners.length ? owners.join(', ') : 'Nobody yet';
+    const initials  = owners.length
+      ? owners[0].split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+      : '?';
 
     const matchTagHtml = `<span style="display:inline-block;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;background:#f7f2eb;color:#9b7540;border:0.5px solid rgba(184,150,110,0.35);border-radius:3px;padding:1px 6px;margin-left:5px;vertical-align:middle;">match</span>`;
 
@@ -1093,11 +1104,10 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     };
 
     return `
-  <tr><td style="background:#fffcf2;border-top:3px solid #e8c96b;padding:14px 32px;font-size:13px;color:#5a4310;line-height:1.65;">
-    ⚠️ &nbsp;Possible duplicate, ${duplicateOf.matchCount} of 4 signals match. It's been added to the Leads Board with 'Possible Duplicate' tagged, and the salesperson assigned to the original lead has been automatically assigned to it.
-  </td></tr>
-  <tr><td style="background:#ffffff;padding:20px 32px 0;">
-    <p style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8966E;">Original Lead vs. New Lead</p>
+  <tr><td class="sl-pad" style="background:#ffffff;padding:20px 32px 0;">
+
+    <p style="margin:0 0 4px;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:#8B6E4E;">Original Lead vs. New Lead</p>
+    <p style="margin:0 0 14px;font-size:12.5px;color:#6b6b6b;">${duplicateOf.matchCount} of 4 duplicate checking signals match.</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0;margin-bottom:14px;">
       <tr>
         <td width="50%" style="padding:8px 16px;background:#f7f2eb;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b7540;border-bottom:0.5px solid #e8e4de;">Original Lead</td>
@@ -1109,27 +1119,36 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       ${compareRow('IP address', duplicateOf.originalIp,    submitterIp || '', duplicateOf.ipMatch)}
       ${compareRow('Lead created', originalFormatted, submittedFormatted, false)}
     </table>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:0.5px solid #e8e4de;border-radius:10px;padding:12px 16px;margin-bottom:20px;">
-      <tr>
-        <td style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9b9b9b;vertical-align:middle;width:160px;">Original lead assigned to</td>
-        <td style="vertical-align:middle;">${assigneePills}</td>
-      </tr>
-    </table>
+    <div style="height:14px;"></div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;margin-bottom:20px;"><tr><td style="padding:14px 18px;">
+      <table cellpadding="0" cellspacing="0"><tr>
+        <td style="vertical-align:middle;padding-right:14px;width:42px;">
+          <table cellpadding="0" cellspacing="0" style="width:42px;height:42px;border-radius:50%;background:#0d1a2e;"><tr>
+            <td align="center" style="width:42px;height:42px;font-size:12px;letter-spacing:0.06em;color:#D4B896;font-weight:500;">${escHtml(initials)}</td>
+          </tr></table>
+        </td>
+        <td style="vertical-align:middle;">
+          <p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#9b8f7d;">Originally assigned to</p>
+          <p style="margin:0;font-size:15px;font-weight:500;color:#1a1a1a;">${escHtml(ownerName)}</p>
+        </td>
+      </tr></table>
+      <p style="margin:12px 0 0;font-size:12.5px;line-height:1.6;color:#6b6b6b;">This enquiry has been auto-reassigned to them. If they&rsquo;re out of office, keep it warm.</p>
+    </td></tr></table>
   </td></tr>`;
   })() : '';
 
   const field = (label, value) => value ? `
-    <td style="padding:0 20px 14px 0;vertical-align:top;width:50%;">
-      <p style="margin:0 0 2px;font-size:10px;letter-spacing:0.1em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
-      <p style="margin:0;font-size:13px;color:#1a1a1a;font-weight:500;">${escHtml(String(value))}</p>
-    </td>` : '';
+    <td class="sl-half" width="50%" style="vertical-align:top;padding:0 10px 15px 0;">
+      <p style="margin:0 0 3px;font-size:9px;letter-spacing:0.16em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
+      <p style="margin:0;font-size:12.5px;color:#1a1a1a;font-weight:500;word-break:break-word;">${escHtml(String(value))}</p>
+    </td>` : '<td class="sl-half" width="50%"></td>';
 
   // Same as field(), but the value renders as a pill. Used for the one fact the
   // team triages a partner lead on.
   const fieldPill = (label, value) => value ? `
-    <td style="padding:0 20px 14px 0;vertical-align:top;width:50%;">
-      <p style="margin:0 0 5px;font-size:10px;letter-spacing:0.1em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
-      <span style="display:inline-block;padding:7px 16px;border-radius:100px;background:rgba(184,150,110,0.14);border:0.5px solid rgba(184,150,110,0.45);font-size:13.5px;font-weight:500;color:#8a6540;line-height:1.3;">${escHtml(String(value))}</span>
+    <td class="sl-half" width="50%" style="vertical-align:top;padding-bottom:15px;">
+      <p style="margin:0 0 5px;font-size:9px;letter-spacing:0.16em;color:#9b9b9b;text-transform:uppercase;">${label}</p>
+      <span style="display:inline-block;padding:6px 14px;border-radius:100px;background:rgba(184,150,110,0.14);border:0.5px solid rgba(184,150,110,0.45);font-size:12.5px;font-weight:500;color:#8a6540;line-height:1.3;">${escHtml(String(value))}</span>
     </td>` : '';
 
   // Partner portals get their own layout, matched to the co-branded guest
@@ -1158,7 +1177,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;margin:0 0 22px;"><tr><td style="padding:14px 18px;">
       <table cellpadding="0" cellspacing="0"><tr>
         <td style="vertical-align:middle;padding-right:14px;width:46px;">
-          <img src="${PARTNER_IMG.paige}" alt="Paige Grinter" width="46" height="46" style="width:46px;height:46px;display:block;border-radius:50%;object-fit:cover;">
+          <img src="${EMAIL_IMG.paige}" alt="Paige Grinter" width="46" height="46" style="width:46px;height:46px;display:block;border-radius:50%;object-fit:cover;">
         </td>
         <td style="vertical-align:middle;">
           <p style="margin:0 0 2px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#9b8f7d;">Auto-assigned to</p>
@@ -1201,8 +1220,8 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
   <!-- Single centred band, no side-by-side cells: those break up on phones.
        Partner mark only, over the hero photo with a black wash. Outlook drops
        the photo and keeps the bgcolor. -->
-  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.hero}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.7),rgba(0,0,0,.7)),url('${PARTNER_IMG.hero}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:20px 32px 18px;text-align:center;">
-    <img class="sl-hd-logo" src="${PARTNER_IMG.schoolAlt}" alt="${escHtml(portal.school)}" height="44" style="height:44px;width:auto;max-width:100%;display:block;margin:0 auto 12px;">
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${EMAIL_IMG.hero}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.7),rgba(0,0,0,.7)),url('${EMAIL_IMG.hero}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:20px 32px 18px;text-align:center;">
+    <img class="sl-hd-logo" src="${EMAIL_IMG.schoolAlt}" alt="${escHtml(portal.school)}" height="44" style="height:44px;width:auto;max-width:100%;display:block;margin:0 auto 12px;">
     <p class="sl-on-dark-gold" style="margin:0 0 5px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#D4B896;">New Enquiry</p>
     <p class="sl-on-dark" style="margin:0 0 5px;font-family:Georgia,serif;font-size:24px;color:#ffffff;letter-spacing:-.035em;line-height:1.2;">${escHtml(guestName)}</p>
     <p class="sl-on-dark" style="margin:0;font-size:11.5px;color:rgba(255,255,255,.6);">${submittedFormatted}</p>
@@ -1259,11 +1278,11 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 
   <!-- Footer is the guest email's, unchanged, so both sides of the enquiry
        close the same way. -->
-  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${PARTNER_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${PARTNER_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;">
-    <img src="${PARTNER_IMG.wordmark}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 18px;">
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${EMAIL_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,.8)),url('${EMAIL_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:30px 32px;">
+    <img src="${EMAIL_IMG.wordmark}" alt="Student Luxe" height="21" style="height:21px;width:auto;display:block;margin:0 auto 18px;">
     <p class="sl-on-dark sl-foot-line" style="margin:0 0 8px;text-align:center;font-family:Georgia,serif;font-size:15px;color:#ffffff;letter-spacing:-.01em;">The accommodation office for ${escHtml(portal.school)}</p>
     <p style="margin:0 0 16px;text-align:center;font-size:12px;line-height:1.7;color:rgba(255,255,255,.6);">Dog &amp; Duck Yard, Princeton St, London WC1R 4BH<br>+44 (0)203 007 0017 &middot; Mon to Fri, 10am to 6pm</p>
-    <p style="margin:0;text-align:center;font-size:11.5px;"><a href="${PARTNER_IMG.page}" style="color:#D4B896;text-decoration:none;border-bottom:1px solid rgba(184,150,110,.45);">Back to the Accommodation Hub</a></p>
+    <p style="margin:0;text-align:center;font-size:11.5px;"><a href="${EMAIL_IMG.page}" style="color:#D4B896;text-decoration:none;border-bottom:1px solid rgba(184,150,110,.45);">Back to the Accommodation Hub</a></p>
   </td></tr>
 
 </table>
@@ -1274,12 +1293,29 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New enquiry — ${escHtml(guestName)}</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New enquiry, ${escHtml(guestName)}</title>
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <style>
+  :root{color-scheme:light dark;supported-color-schemes:light dark}
+  /* The wordmark is white artwork on transparency, so its band stays dark in
+     every scheme. */
+  .sl-dark{background-color:#000000!important}
+  .sl-on-dark{color:#ffffff!important}
+  .sl-on-dark-gold{color:#D4B896!important}
+  @media (prefers-color-scheme:dark){
+    .sl-dark{background-color:#000000!important}
+    .sl-on-dark{color:#ffffff!important}
+    .sl-on-dark-gold{color:#D4B896!important}
+  }
 @media only screen and (max-width:600px){
   .sl-t-outer { padding:0 !important; }
   .sl-t-card { border-radius:0 !important; border-left:none !important; border-right:none !important; }
-  .sl-t-body { padding:16px 20px 0 !important; }
+  .sl-t-body { padding:16px 14px 0 !important; }
+  .sl-pad { padding-left:14px !important; padding-right:14px !important; }
+  .sl-cardpad { padding:14px 14px !important; }
+  .sl-hd-logo { height:19px !important; }
+  .sl-half { padding-right:10px !important; }
 }
 </style>
 </head>
@@ -1287,16 +1323,14 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
 <table width="100%" cellpadding="0" cellspacing="0" class="sl-t-outer" style="background:#f4f1ec;padding:32px 16px;">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" class="sl-t-card" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:0.5px solid rgba(184,150,110,0.3);">
-  <tr><td style="background:#000000;padding:24px 32px;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="vertical-align:middle;">
-        <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:22px;font-weight:400;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">${escHtml(guestName)}</p>
-        <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.6);">${submittedFormatted}</p>
-      </td>
-      <td style="text-align:right;vertical-align:middle;">
-        <img src="https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/4d6b8086-53ed-4d17-b8f7-20f67be76f41/luxe-white.png?content-type=image%2Fpng" alt="Student Luxe" style="height:44px;width:auto;display:block;margin-left:auto;">
-      </td>
-    </tr></table>
+  <!-- Single centred band, no side-by-side cells: those break up on phones.
+       Wordmark over an apartment photo with a black wash. Outlook drops the
+       photo and keeps the bgcolor. -->
+  <tr><td class="sl-pad sl-dark" bgcolor="#000000" background="${EMAIL_IMG.footer}" style="background-color:#000000;background-image:linear-gradient(rgba(0,0,0,.72),rgba(0,0,0,.72)),url('${EMAIL_IMG.footer}');background-size:cover;background-position:center;background-repeat:no-repeat;padding:20px 32px 18px;text-align:center;">
+    <img class="sl-hd-logo" src="${EMAIL_IMG.wordmark}" alt="Student Luxe" height="22" style="height:22px;width:auto;max-width:100%;display:block;margin:0 auto 22px;">
+    <p class="sl-on-dark-gold" style="margin:0 0 5px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#D4B896;">New Enquiry</p>
+    <p class="sl-on-dark" style="margin:0 0 5px;font-family:Georgia,serif;font-size:24px;color:#ffffff;letter-spacing:-.035em;line-height:1.2;">${escHtml(guestName)}</p>
+    <p class="sl-on-dark" style="margin:0;font-size:11.5px;color:${duplicateOf ? '#e8c96b' : 'rgba(255,255,255,.6)'};">${duplicateOf ? '&#9888;&#65039; &nbsp;Possible duplicate' : submittedFormatted}</p>
   </td></tr>
   ${mondayErrorBanner}
   ${omittedBanner}
@@ -1308,17 +1342,28 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       : `${formatCity(p.city) || ''}${p.apartment_type ? ' — ' + formatAptType(p.apartment_type) : ''}${nightCount ? ' &nbsp;·&nbsp; ' + nightCount + ' nights' : ''}${p.check_in ? ' &nbsp;·&nbsp; ' + formatDate(p.check_in) + ' → ' + formatDate(p.check_out) : ''}${p.budget && p.enquiry_type !== 'A' ? ' &nbsp;·&nbsp; ' + formatBudget(p.budget, p) + '/' + (budgetPeriod(p.city) === 'week' ? 'wk' : 'mo') : ''}`
     }</p>
   </td></tr>
-  <tr><td style="background:#ffffff;padding:0 32px;"><hr style="border:none;border-top:0.5px solid #ede9e3;margin:18px 0;"></td></tr>
-  <tr><td style="background:#ffffff;padding:0 32px 18px;">
-    <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Contact</p>
+  <tr><td class="sl-pad" style="background:#ffffff;padding:22px 32px 0;">
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;color:#8B6E4E;text-transform:uppercase;">Contact</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,0.35);border-radius:10px;"><tr><td class="sl-cardpad" style="padding:18px 20px;">
     <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>${field('Name', p.full_name)}${field('Email', p.email)}</tr>
-      <tr>${field('Phone', p.phone)}${field('Respond via', p.response_methods)}</tr>
-      <tr>${field('Timezone', p.timezone || '—')}</tr>
+      <tr>${field('Name', p.full_name)}${field('Respond via', formatResponseMethods(p.response_methods))}</tr>
+      <tr>${field('Email', p.email)}${field('Phone', p.phone)}</tr>
+      <tr>${field('Timezone', p.timezone || '')}<td class="sl-half" width="50%"></td></tr>
     </table>
+    </td></tr></table>
   </td></tr>
-  <tr><td style="background:#ffffff;padding:0 32px 18px;">
-    <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Stay details</p>
+  ${p.message ? `
+  <tr><td class="sl-pad" style="background:#ffffff;padding:18px 32px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="background:#FBF8F2;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:14px 16px;">
+        <p style="margin:0 0 4px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#8B6E4E;">Message from guest</p>
+        <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.7;font-style:italic;">"${escHtml(p.message)}"</p>
+      </td></tr>
+    </table>
+  </td></tr>` : ''}
+  <tr><td class="sl-pad" style="background:#ffffff;padding:22px 32px 0;">
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;color:#8B6E4E;text-transform:uppercase;">Stay details</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(184,150,110,0.35);border-radius:10px;"><tr><td class="sl-cardpad" style="padding:18px 20px;">
     <table width="100%" cellpadding="0" cellspacing="0">
       ${portal ? `
       <tr>${field('City', formatCity(p.city))}${fieldPill('Accommodation type', formatAptType(p.apartment_type))}</tr>
@@ -1334,31 +1379,22 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       <tr>${field('Areas', formatArea(p.areas))}${field('Type of stay', formatStayType(p.stay_type, p.university))}</tr>
       <tr>${field('Country of residence', p.nationality)}${field('Lived in city before', p.lived_before)}</tr>`}
     </table>
+    </td></tr></table>
   </td></tr>
-  ${p.message ? `
-  <tr><td style="background:#ffffff;padding:0 32px 18px;">
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="background:#f7f2eb;border-left:3px solid #B8966E;border-radius:0 8px 8px 0;padding:12px 16px;">
-        <p style="margin:0 0 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#B8966E;">Message from guest</p>
-        <p style="margin:0;font-size:13px;color:#1a1a1a;line-height:1.7;font-style:italic;">"${escHtml(p.message)}"</p>
-      </td></tr>
-    </table>
-  </td></tr>` : ''}
-  <tr><td style="background:#ffffff;padding:0 32px 24px;">
-    <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;color:#B8966E;text-transform:uppercase;">Tracking</p>
-    <table cellpadding="0" cellspacing="0" style="background:#f7f2eb;border-radius:8px;padding:10px 16px;width:100%;">
-      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:160px;">Lead Source (Where)</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(leadSource||'—')}</td></tr>
+
+  <tr><td class="sl-pad" style="background:#ffffff;padding:22px 32px 24px;">
+    <p style="margin:0 0 12px;font-size:9.5px;letter-spacing:0.16em;color:#8B6E4E;text-transform:uppercase;">Tracking</p>
+    <table cellpadding="0" cellspacing="0" style="background:#FBF8F2;border-radius:10px;padding:10px 16px;width:100%;">
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:160px;">Submitted</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${submittedFormatted}</td></tr>
+      <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Lead Source (Where)</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(leadSource||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Lead Source (How)</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(leadChannel||'—')}</td></tr>
       ${(p.utm_term || '').trim() ? `<tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term.trim())}</td></tr>` : ''}
       ${leadSource === 'PPC' && bestCampaign(p) ? `<tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(bestCampaign(p))}</td></tr>` : ''}
     </table>
   </td></tr>
-  <tr><td style="background:#f7f2eb;padding:16px 32px;">
-    <table cellpadding="0" cellspacing="0"><tr>
-      <td style="padding-right:8px;"><a href="mailto:${p.email}" style="display:inline-block;padding:10px 20px;background:#B8966E;border-radius:8px;font-size:12px;font-weight:500;color:#ffffff;text-decoration:none;">Reply by email</a></td>
-      <td style="padding-right:8px;"><a href="${crmUrl}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Leads Board</a></td>
-      ${isTypeA && p.apartment_ref ? `<td><a href="https://studentluxe.monday.com/boards/2388987554/views/87174774?term=${encodeURIComponent(p.apartment_ref)}" style="display:inline-block;padding:10px 20px;background:#ffffff;border:0.5px solid rgba(184,150,110,0.4);border-radius:8px;font-size:12px;font-weight:500;color:#1a1a1a;text-decoration:none;">View on Property Board</a></td>` : ''}
-    </tr></table>
+  <tr><td class="sl-pad" style="background:#FBF8F2;padding:18px 32px;text-align:center;">
+    <a href="${quoteUrl}" style="display:inline-block;padding:12px 26px;background:#B8966E;border-radius:8px;font-size:12.5px;font-weight:500;color:#ffffff;text-decoration:none;">${mondayId ? 'Open in Quote Tool' : 'Open the Leads Board'}</a>
+    ${mondayId ? `<p style="margin:10px 0 0;font-size:11px;letter-spacing:0.06em;color:#9b9b9b;">Ref #${escHtml(String(mondayId))}</p>` : ''}
   </td></tr>
 </table>
 </td></tr>
