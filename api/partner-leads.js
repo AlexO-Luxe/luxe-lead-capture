@@ -145,6 +145,7 @@ function shape (item, partner) {
     owner:     val(item, 'people_1'),
     type:      val(item, 'apt_type_mkmn4bgg'),
     building:  val(item, 'dropdown6').replace(/^standard student living\s*[-\u2013]\s*/i, ''),
+    university: val(item, 'text_mknfnmsb'),
     areas:     val(item, 'dropdown19'),
     city:      val(item, 'text8'),
     budget:    val(item, 'budget_per_week'),

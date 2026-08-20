@@ -83,7 +83,7 @@ tbody tr:hover{background:#fdfbf7}
   .wrap{padding:14px 12px 50px}
   .bar{padding:10px 12px}
   .tblwrap{overflow-x:auto}
-  table{min-width:900px}
+  table{min-width:1000px}
 }
 </style>
 </head>
@@ -239,7 +239,7 @@ tbody tr:hover{background:#fdfbf7}
     return leads.filter(function (l) {
       if (state.filter !== 'all' && l.building !== state.filter) return false;
       if (!q) return true;
-      return [l.name, l.building, l.email, l.areas, l.city].join(' ').toLowerCase().indexOf(q) !== -1;
+      return [l.name, l.building, l.university, l.email, l.areas, l.city].join(' ').toLowerCase().indexOf(q) !== -1;
     });
   }
 
@@ -255,6 +255,7 @@ tbody tr:hover{background:#fdfbf7}
         (l.phone ? '<a href="tel:' + esc(tel) + '">' + esc(l.phone) + '</a>' : '') +
         (l.prefers ? '<span class="pref">' + esc(l.prefers) + '</span>' : '') +
       '</td>' +
+      '<td>' + (l.university ? esc(l.university) : '<span class="dim">Not given</span>') + '</td>' +
       '<td>' + (l.building ? '<span class="pill">' + esc(l.building) + '</span>' : '<span class="dim">Not specified</span>') + '</td>' +
       '<td>' + esc(fmtDate(l.checkIn)) + '</td>' +
       '<td class="dim">' + esc(weeks(l.nights)) + '</td>' +
@@ -278,7 +279,7 @@ tbody tr:hover{background:#fdfbf7}
         html += '<div class="empty">Nothing here right now</div>';
       } else {
         html += '<div class="tblwrap"><table><thead><tr>' +
-          '<th style="width:26%">Student</th><th>Contact</th><th>Building</th><th>Move in</th><th>Stay</th><th>Budget</th><th>Status</th><th>Updated</th>' +
+          '<th style="width:24%">Student</th><th>Contact</th><th>University</th><th>Building</th><th>Move in</th><th>Stay</th><th>Budget</th><th>Status</th><th>Updated</th>' +
           '</tr></thead><tbody>' + leads.map(function (l) { return row(l, g.colour); }).join('') + '</tbody></table></div>';
       }
       html += '</div></div>';
@@ -297,10 +298,10 @@ tbody tr:hover{background:#fdfbf7}
   document.getElementById('refresh').addEventListener('click', function () { load(true); });
 
   document.getElementById('csv').addEventListener('click', function () {
-    var rows = [['Student', 'Email', 'Phone', 'Prefers', 'Building', 'Move in', 'Move out', 'Weeks', 'Budget', 'Status', 'Enquired']];
+    var rows = [['Student', 'Email', 'Phone', 'Prefers', 'University', 'Building', 'Move in', 'Move out', 'Weeks', 'Budget', 'Status', 'Enquired']];
     state.data.groups.forEach(function (g) {
       visible(g.leads).forEach(function (l) {
-        rows.push([l.name, l.email, l.phone, l.prefers, l.building, l.checkIn, l.checkOut,
+        rows.push([l.name, l.email, l.phone, l.prefers, l.university, l.building, l.checkIn, l.checkOut,
                    l.nights ? Math.round(l.nights / 7) : '', l.budget, l.status, (l.created || '').slice(0, 10)]);
       });
     });
