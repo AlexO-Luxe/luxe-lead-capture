@@ -7,7 +7,7 @@ const RESEND_API   = 'https://api.resend.com/emails';
 const MONDAY_API   = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
-const { buildTouch, getSession, attachSubmission, classifyTouch } = require('./_attribution.js');
+const { buildTouch, getSession, attachSubmission, classifyTouch, countryName } = require('./_attribution.js');
 const { recordOptOut } = require('./_audience.js');
 const { logGadsEvent }  = require('./_log.js');
 
@@ -1736,7 +1736,11 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     // channel label, so the University column matches how the team writes it.
     text_mknfnmsb: partnerPortal(p)?.school || p.university || '',
     text_mm5asah0: p.course      || '',
-    text9__1:      p.nationality || '',
+    // Nationality is optional on the main form and always posts empty from
+    // the modal forms, so fall back to the geo-IP country. It is where they
+    // submitted from, not a stated nationality, but an educated guess beats
+    // an empty column for segmenting.
+    text9__1:      p.nationality || countryName(p.country) || '',
     long_text7:    p.message     || '',
     text_mm1c3b5w: bestCampaign(p),
     text43__1:     p.utm_adgroup   || '',

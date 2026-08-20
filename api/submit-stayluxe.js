@@ -16,7 +16,7 @@ const RESEND_API  = 'https://api.resend.com/emails';
 const MONDAY_API  = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
-const { buildTouch, getSession, attachSubmission, classifyTouch } = require('./_attribution.js');
+const { buildTouch, getSession, attachSubmission, classifyTouch, countryName } = require('./_attribution.js');
 
 // ──────────────────────────────────────────────────────────────
 //  STAY LUXE BRAND CONFIG  (edit here only)
@@ -1174,7 +1174,11 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
       'agent':               'Agent (on behalf of client)'
     }[p.stay_type] || p.stay_type } : {},
     text_mknfnmsb:       p.university  || '',
-    text9__1:            p.nationality || '',
+    // Nationality is optional on the main form and always posts empty from
+    // the modal forms, so fall back to the geo-IP country. It is where they
+    // submitted from, not a stated nationality, but an educated guess beats
+    // an empty column for segmenting.
+    text9__1:            p.nationality || countryName(p.country) || '',
 
     // ── Message ────────────────────────────────────────────────
     long_text7:          p.message || '',

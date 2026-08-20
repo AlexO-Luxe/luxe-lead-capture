@@ -159,7 +159,8 @@ To pull the live set locally: `vercel env pull .env.local`.
 | `dropdown19` | Areas |
 | **Attribution (added 2026-06)** | |
 | `text_mm4n6987` | Device (mobile / desktop / tablet) |
-| `text_mm4n61bc` | Country (GB / US / etc) |
+| `text_mm4n61bc` | Country (GB / US / etc), from the Vercel geo-IP header |
+| `text9__1` | Nationality, the form's dropdown value, falling back to the geo-IP country spelled out (FR becomes France) when the guest leaves it blank |
 | `text_mm4nkhk0` | First channel (classified from first touch) |
 | `text_mm4ntp4n` | First campaign |
 | `text_mm4ncd41` | gbraid |
@@ -340,6 +341,57 @@ session:<uuid>          90d   { first, last, touches[], submission }
 lookup:monday:<id>      90d   sessionId
 lookup:email:<email>    90d   sessionId
 ```
+
+---
+
+## Guest Services portal
+
+Guest-facing login on studentluxe.co.uk (booking reference + surname) that
+serves partner perks from a Monday board. Front end is a Squarespace Code
+Block living in [luxe-page-redesign-rebuild](https://github.com/AlexO-Luxe/luxe-page-redesign-rebuild)
+at `website-pages/partnerships-portal/guest-services-live.html`; the runbook
+(Monday board spec, env vars, Squarespace steps) is the README beside it.
+
+| Endpoint | Does |
+|----------|------|
+| `POST /api/guest-session` `{ref, surname}` | Resolves the Ref #, checks the surname, returns a 12h HMAC token + `{first, ref, city, checkIn}`. Generic 401 on any mismatch, 403 when no booking is live. |
+| `GET /api/guest-partners` (Bearer token) | Active rows from `PARTNERS_BOARD_ID`, columns matched by **title** not id, cached 5 min in Redis (`guest:partners:v1`). `?refresh=<CRON_SECRET>` busts it. |
+
+**The Ref # is the LEAD item id.** Leads column `item_id7` ("Ref # (AO in
+use)"), surfaced on Booking Flow as the mirror column `mirror8`. Two Monday
+constraints shape the lookup, both verified against the live API:
+
+- Mirror columns **cannot** be filtered via `items_page` `query_params`, so
+  searching Booking Flow by `mirror8` is not possible.
+- Mirrors return `display_value`, not `text` (the trap this README already warns
+  about, and why `colValue()` reads `label || display_value || text`).
+
+So sign in goes lead first: `digits(ref)` → Leads item → `connect_boards75` →
+Booking Flow rows → is any live? One call, no search. If the id is not a lead it
+is retried as a Booking Flow item id (covers `pulse_id_mm3t29qp`, "Alex Booking
+Ref"). Check in is `date69`; there is no `date6` on that board. One lead can
+carry several bookings, so access needs only one live row and the profile shows
+the latest check in.
+
+- `api/_guest-auth.js` — token sign/verify, CORS allowlist, rate limits, Monday client, `surnameMatches`
+- `scripts/guest-auth-check.js` — offline, no network. Asserts token forgery/expiry and surname matching. Run after touching either endpoint.
+- `scripts/guest-session-live-check.js <ref#> <surname>` — hits real Monday through the handler and asserts every profile field resolves. Run after any board surgery on Leads or Booking Flow: a renamed column breaks sign in silently and only this catches it.
+
+Env: `GUEST_PORTAL_SECRET` (required), `PARTNERS_BOARD_ID` (required),
+`GUEST_PORTAL_ORIGINS`, `GUEST_BLOCKED_STATUSES` (exact Booking Stage labels,
+default `Lost Booking,Cancelled Booking,Pending Booking` — exact so
+`Extensions - Pending` stays allowed), `GUEST_LEADS_BOARDS`
+(default `2171015719,3265428349`), `GUEST_BOOKING_BOARDS` (default `2171015589`),
+`GUEST_LEAD_BOOKING_RELATIONS` (default `connect_boards75`),
+`GUEST_ACCESS_GRACE_DAYS` (default 30 — days after check out that access
+survives; Booking Stage has no checked-out label, so this is what stops ex
+guests), `GUEST_SESSION_TTL_SECONDS`, `PARTNERS_CACHE_SECONDS`.
+
+No cookies: the token goes in `sessionStorage` and rides in an `Authorization`
+header, which keeps Safari's third-party cookie blocking out of it. Rate
+limits are 10 attempts per IP per 15 min and 20 per reference per hour, both
+failing open if Redis is down. Booking reference + surname is weak auth, so
+nothing heavier than discount codes belongs behind it without a second factor.
 
 ---
 

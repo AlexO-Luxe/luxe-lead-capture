@@ -210,10 +210,39 @@ async function findSessionByEmail(email) {
   }
 }
 
+// Two-letter geo-IP country code to the country name as the reservation
+// form's Nationality dropdown spells it. Used only as a FALLBACK when the
+// guest left Nationality blank (every modal form posts it empty), so a lead
+// still carries a country rather than nothing. Intl.DisplayNames does the
+// work; the overrides are the handful where its wording differs from the
+// form's own option list, so both sources write the same string.
+const COUNTRY_NAME_OVERRIDES = {
+  CZ: 'Czech Republic',
+  HK: 'Hong Kong',
+  TR: 'Turkey'
+};
+
+let _regionNames = null;
+function countryName (code) {
+  const cc = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return '';
+  if (COUNTRY_NAME_OVERRIDES[cc]) return COUNTRY_NAME_OVERRIDES[cc];
+  try {
+    if (!_regionNames) _regionNames = new Intl.DisplayNames(['en-GB'], { type: 'region' });
+    const name = _regionNames.of(cc);
+    // Intl echoes the code back when it has no name, and names the ISO
+    // placeholder codes (ZZ, QO) "Unknown Region" / similar. Neither is a
+    // country, so both read as no answer.
+    if (!name || name === cc || /unknown/i.test(name)) return '';
+    return name;
+  } catch { return ''; }
+}
+
 module.exports = {
   parseCookies,
   buildTouch,
   classifyTouch,
+  countryName,
   getSession,
   upsertTouch,
   attachSubmission,
