@@ -1425,7 +1425,10 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       field('Budget / ' + budgetPeriod(p.city), p.enquiry_type !== 'A' ? formatBudget(p.budget, p) : ''),
       field('Areas', formatArea(p.areas)),
       field('Type of stay', formatStayType(p.stay_type, p.university)),
-      field('Country of residence', p.nationality),
+      // Label tells the team how solid this is: Nationality when the guest
+      // picked it, Possible Nationality when it is the geo-IP country we
+      // inferred because they left the field blank.
+      field(p.nationality ? 'Nationality' : 'Possible Nationality', p.nationality || countryName(p.country)),
       field('Lived in city before', p.lived_before),
     ])}
     </table>

@@ -637,7 +637,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
         ${field('Areas', p.areas)}
         ${field('Type of stay', formatStayType(p.stay_type, p.university))}
       </tr><tr>
-        ${field('Country of residence', p.nationality)}
+        ${field(p.nationality ? 'Nationality' : 'Possible Nationality', p.nationality || countryName(p.country))}
         ${field('Lived in city before', p.lived_before)}
       </tr>
     </table>
