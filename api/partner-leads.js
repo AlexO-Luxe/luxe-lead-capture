@@ -44,6 +44,13 @@ const COLS = [
   'budget_per_week',     // Guide price
   'text8',               // City
   'dropdown_mm1v31yb',   // Source form
+  // Operator partners only. A referral is useless without a way to reach
+  // the student, so these are returned for kind === 'operator' and never
+  // for a school.
+  'email',
+  'phone_1',
+  'dropdown40',          // Prefer to be contacted
+  'long_text7',          // Message from the guest
 ];
 
 function val (item, id) {
@@ -95,7 +102,16 @@ async function fetchByRule (rule) {
   return items;
 }
 
+// PBSA referrals: every Standard student living enquiry, split by the
+// Building column. A lead with no building named is nobody's yet, so it
+// stays out of both operator views until someone picks a building.
+async function fetchOperatorLeads (partner) {
+  const items = await fetchByRule('{ column_id: "apt_type_mkmn4bgg", compare_value: ["Standard student living"], operator: contains_text }');
+  return items.filter(item => partner.buildings.test(val(item, 'dropdown6')));
+}
+
 async function fetchLeads (partner) {
+  if (partner.kind === 'operator') return fetchOperatorLeads(partner);
   const [bySource, byUniversity] = await Promise.all([
     fetchByRule(`{ column_id: "color_mkxk8y67", compare_value: ["${partner.source}"], operator: any_of }`),
     fetchByRule(`{ column_id: "text_mknfnmsb", compare_value: ["${partner.short}"], operator: contains_text }`),
@@ -113,15 +129,22 @@ async function fetchLeads (partner) {
   });
 }
 
-function shape (item) {
+function shape (item, partner) {
   const status = val(item, 'status') || 'No status';
+  const contact = partner.kind === 'operator' ? {
+    email:   val(item, 'email'),
+    phone:   val(item, 'phone_1'),
+    prefers: val(item, 'dropdown40'),
+    message: val(item, 'long_text7'),
+  } : {};
   return {
+    ...contact,
     id:        item.id,
     name:      item.name,
     status,
     owner:     val(item, 'people_1'),
     type:      val(item, 'apt_type_mkmn4bgg'),
-    building:  val(item, 'dropdown6'),
+    building:  val(item, 'dropdown6').replace(/^standard student living\s*[-\u2013]\s*/i, ''),
     areas:     val(item, 'dropdown19'),
     city:      val(item, 'text8'),
     budget:    val(item, 'budget_per_week'),
@@ -157,7 +180,7 @@ module.exports = async function handler (req, res) {
     }
 
     const [items, palette] = await Promise.all([fetchLeads(partner), statusPalette()]);
-    const leads = items.map(shape).map(l => ({ ...l, nights: nightsBetween(l.checkIn, l.checkOut) }));
+    const leads = items.map(i => shape(i, partner)).map(l => ({ ...l, nights: nightsBetween(l.checkIn, l.checkOut) }));
 
     // Newest first inside every group: a school opening this wants today's
     // enquiries, not the 2025 archive.
@@ -171,7 +194,7 @@ module.exports = async function handler (req, res) {
     })).filter(g => g.leads.length > 0 || GROUP_ORDER.includes(g.title));
 
     const payload = {
-      partner:  { key: partner.key, name: partner.name, logo: partner.logo },
+      partner:  { key: partner.key, name: partner.name, logo: partner.logo, kind: partner.kind || 'school' },
       groups,
       statuses: palette,
       total:    leads.length,

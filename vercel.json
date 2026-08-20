@@ -48,6 +48,14 @@
         }
       ],
       "destination": "/marangoni.html"
+    },
+    {
+      "source": "/yugo",
+      "destination": "/operator.html"
+    },
+    {
+      "source": "/urbanest",
+      "destination": "/operator.html"
     }
   ],
   "headers": [

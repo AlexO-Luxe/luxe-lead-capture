@@ -25,8 +25,17 @@ const TTL = Number(process.env.PARTNER_SESSION_TTL_SECONDS || 60 * 60 * 12);
 // (Source WHERE = Partnerships and Source HOW = the partner), OR the
 // University column names them. The second rule is what catches the
 // years of leads captured before the co-branded portal existed.
+//
+// Two kinds of partner:
+//   school   - an institution watching its own students' progress. Sees
+//              status only, never contact details.
+//   operator - a PBSA provider we refer students to. Sees the guest's
+//              contact details, because the whole point is that they pick
+//              the referral up. Their leads are matched on the Building
+//              column, which records "Standard student living - <Building>".
 const PARTNERS = {
   marangoni: {
+    kind:       'school',
     key:        'marangoni',
     name:       'Istituto Marangoni London',
     short:      'Istituto Marangoni',
@@ -35,6 +44,31 @@ const PARTNERS = {
     source:     'Partnerships',
     match:      /istituto\s*marangoni/i,
     logo:       'https://images.squarespace-cdn.com/content/5de66dfc5511bf790e4476bd/d2ee5c81-8e9f-4ebd-a142-4234962fde80/istituto-marangoni-london-logo-1.png?content-type=image%2Fpng',
+  },
+
+  yugo: {
+    kind:       'operator',
+    key:        'yugo',
+    name:       'Yugo',
+    short:      'Yugo',
+    userEnv:    'PARTNER_YUGO_USER',
+    passEnv:    'PARTNER_YUGO_PASSCODE',
+    // Matched against the Building column. Anything naming Yugo is theirs.
+    buildings:  /yugo/i,
+    logo:       '',
+  },
+
+  urbanest: {
+    kind:       'operator',
+    key:        'urbanest',
+    name:       'urbanest',
+    short:      'urbanest',
+    userEnv:    'PARTNER_URBANEST_USER',
+    passEnv:    'PARTNER_URBANEST_PASSCODE',
+    // The building names as they appear on the Marangoni page. "urbanest"
+    // itself is included so a fully-qualified name matches too.
+    buildings:  /urbanest|hoxton|victoria|\bcity\b|vauxhall|battersea|canary\s*wharf|st\s*pancras|king'?s\s*cross|westminster\s*bridge|tower\s*bridge/i,
+    logo:       '',
   },
 };
 
