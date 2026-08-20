@@ -51,6 +51,7 @@ const COLS = [
   'phone_1',
   'dropdown40',          // Prefer to be contacted
   'long_text7',          // Message from the guest
+  'color_mm6d7xqf',      // Operator Status: Enquiry / Booking, written by them
 ];
 
 function val (item, id) {
@@ -146,6 +147,8 @@ function shape (item, partner) {
     type:      val(item, 'apt_type_mkmn4bgg'),
     building:  val(item, 'dropdown6').replace(/^standard student living\s*[-\u2013]\s*/i, ''),
     university: val(item, 'text_mknfnmsb'),
+    // Blank means nobody has touched it yet, which reads as an enquiry.
+    operatorStatus: val(item, 'color_mm6d7xqf') || 'Enquiry',
     areas:     val(item, 'dropdown19'),
     city:      val(item, 'text8'),
     budget:    val(item, 'budget_per_week'),
@@ -187,12 +190,19 @@ module.exports = async function handler (req, res) {
     // enquiries, not the 2025 archive.
     leads.sort((a, b) => new Date(b.created) - new Date(a.created));
 
-    const order  = [...GROUP_ORDER, 'Other'];
-    const groups = order.map(title => ({
-      title,
-      colour: palette[title] || '#c4c4c4',
-      leads:  leads.filter(l => (GROUP_ORDER.includes(l.status) ? l.status : 'Other') === title),
-    })).filter(g => g.leads.length > 0 || GROUP_ORDER.includes(g.title));
+    // An operator does not care about our sales pipeline. They get two
+    // groups they own: everything they are still working, and the ones that
+    // turned into a booking. A school keeps the Monday status grouping.
+    const groups = partner.kind === 'operator'
+      ? [
+          { title: 'Enquiries', colour: '#fdab3d', leads: leads.filter(l => l.operatorStatus !== 'Booking') },
+          { title: 'Bookings',  colour: '#00c875', leads: leads.filter(l => l.operatorStatus === 'Booking') },
+        ]
+      : [...GROUP_ORDER, 'Other'].map(title => ({
+          title,
+          colour: palette[title] || '#c4c4c4',
+          leads:  leads.filter(l => (GROUP_ORDER.includes(l.status) ? l.status : 'Other') === title),
+        })).filter(g => g.leads.length > 0 || GROUP_ORDER.includes(g.title));
 
     const payload = {
       partner:  { key: partner.key, name: partner.name, logo: partner.logo, kind: partner.kind || 'school' },

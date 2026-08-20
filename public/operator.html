@@ -70,6 +70,18 @@ tbody tr:hover{background:#fdfbf7}
 .contact a{display:block;color:var(--ink);text-decoration:none;font-size:12.5px;white-space:nowrap}
 .contact a:hover{color:var(--gold);text-decoration:underline}
 .contact .pref{display:inline-block;margin-top:4px;font-size:10.5px;border:1px solid rgba(184,150,110,.45);background:var(--gold-soft);color:#8a6540;border-radius:99px;padding:2px 8px}
+.ostat{font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;min-width:104px}
+.ostat:focus{outline:none;border-color:var(--gold)}
+.ostat[data-v="Booking"]{background:rgba(0,200,117,.1);border-color:rgba(0,200,117,.45);color:#0a6b45;font-weight:500}
+.ostat[data-v="Enquiry"]{background:rgba(253,171,61,.1);border-color:rgba(253,171,61,.45);color:#8a5a10}
+tbody tr{cursor:grab}
+tbody tr.dragging{opacity:.4}
+.group.dropping{border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,150,110,.18)}
+.group.dropping .ghead{background:var(--gold-soft)}
+.drag-hint{font-size:11.5px;color:var(--muted);padding:8px 16px;border-bottom:1px solid var(--line);background:var(--cream)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:100;background:var(--navy);color:#fff;
+  border-radius:10px;padding:11px 18px;font-size:13px;box-shadow:0 12px 30px rgba(13,26,46,.35);opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
 .pill{display:inline-block;padding:4px 11px;border-radius:99px;font-size:11.5px;font-weight:500;border:1px solid rgba(184,150,110,.45);background:var(--gold-soft);color:#8a6540;white-space:nowrap}
 .st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
 .st i{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
@@ -83,7 +95,7 @@ tbody tr:hover{background:#fdfbf7}
   .wrap{padding:14px 12px 50px}
   .bar{padding:10px 12px}
   .tblwrap{overflow-x:auto}
-  table{min-width:1000px}
+  table{min-width:1100px}
 }
 </style>
 </head>
@@ -135,6 +147,8 @@ tbody tr:hover{background:#fdfbf7}
     <p class="foot-note">Enquiries come from Student Luxe students who asked about your buildings. Contact details are shared so you can follow up directly. Please use them only for this enquiry.</p>
   </div>
 </div>
+
+<div id="toast"></div>
 
 <script>
 (function () {
@@ -245,11 +259,16 @@ tbody tr:hover{background:#fdfbf7}
 
   function row (l, colour) {
     var tel = (l.phone || '').replace(/\s/g, '');
-    return '<tr>' +
+    var st = l.operatorStatus === 'Booking' ? 'Booking' : 'Enquiry';
+    return '<tr draggable="true" data-id="' + esc(l.id) + '" data-status="' + st + '">' +
       '<td><div class="stu"><div class="av">' + esc(initials(l.name)) + '</div><div>' +
         '<b>' + esc(l.name) + '</b><span>Enquired ' + esc(fmtDate(l.created)) + '</span>' +
         (l.message ? '<div class="msg">&ldquo;' + esc(l.message) + '&rdquo;</div>' : '') +
       '</div></div></td>' +
+      '<td><select class="ostat" data-id="' + esc(l.id) + '" data-v="' + st + '">' +
+          '<option value="Enquiry"' + (st === 'Enquiry' ? ' selected' : '') + '>Enquiry</option>' +
+          '<option value="Booking"' + (st === 'Booking' ? ' selected' : '') + '>Booking</option>' +
+        '</select></td>' +
       '<td class="contact">' +
         (l.email ? '<a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a>' : '') +
         (l.phone ? '<a href="tel:' + esc(tel) + '">' + esc(l.phone) + '</a>' : '') +
@@ -275,11 +294,14 @@ tbody tr:hover{background:#fdfbf7}
         '<div class="ghead"><span class="dot" style="background:' + esc(g.colour) + '"></span>' +
         '<b>' + esc(g.title) + '</b><span class="n">' + leads.length + '</span><span class="caret">' + (shut ? '&#9656;' : '&#9662;') + '</span></div>' +
         '<div class="gbody">';
+      if (g.title === 'Bookings') {
+        html += '<div class="drag-hint">Drag a student here when they book with you, or use the Status column.</div>';
+      }
       if (!leads.length) {
-        html += '<div class="empty">Nothing here right now</div>';
+        html += '<div class="empty">' + (g.title === 'Bookings' ? 'No bookings recorded yet' : 'Nothing here right now') + '</div>';
       } else {
         html += '<div class="tblwrap"><table><thead><tr>' +
-          '<th style="width:24%">Student</th><th>Contact</th><th>University</th><th>Building</th><th>Move in</th><th>Stay</th><th>Budget</th><th>Status</th><th>Updated</th>' +
+          '<th style="width:22%">Student</th><th>Status</th><th>Contact</th><th>University</th><th>Building</th><th>Move in</th><th>Stay</th><th>Budget</th><th>Status</th><th>Updated</th>' +
           '</tr></thead><tbody>' + leads.map(function (l) { return row(l, g.colour); }).join('') + '</tbody></table></div>';
       }
       html += '</div></div>';
@@ -292,17 +314,99 @@ tbody tr:hover{background:#fdfbf7}
         render();
       });
     });
+
+    bindStatusControls();
+  }
+
+  function toast (msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.classList.remove('show'); }, 2600);
+  }
+
+  /* Moves the lead between the two groups in memory, so the change shows
+     instantly, then saves. A failed save puts it back. */
+  function setStatus (id, status) {
+    var found = null, fromGroup = null;
+    state.data.groups.forEach(function (g) {
+      var i = g.leads.findIndex(function (l) { return String(l.id) === String(id); });
+      if (i !== -1) { found = g.leads[i]; fromGroup = g; }
+    });
+    if (!found || found.operatorStatus === status) return;
+
+    var previous = found.operatorStatus;
+    var target = state.data.groups.filter(function (g) {
+      return g.title === (status === 'Booking' ? 'Bookings' : 'Enquiries');
+    })[0];
+    if (!target) return;
+
+    fromGroup.leads = fromGroup.leads.filter(function (l) { return String(l.id) !== String(id); });
+    found.operatorStatus = status;
+    target.leads.unshift(found);
+    render();
+
+    fetch('/api/partner-lead-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token() },
+      body: JSON.stringify({ id: id, status: status })
+    }).then(function (r) {
+      if (r.status === 401) { setToken(''); location.reload(); return null; }
+      return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+    }).then(function (res) {
+      if (!res) return;
+      if (!res.ok) throw new Error(res.j.error || 'Could not save.');
+      toast(found.name + ' marked as ' + status.toLowerCase() + '.');
+    }).catch(function (e) {
+      found.operatorStatus = previous;
+      load(true);
+      toast(e.message);
+    });
+  }
+
+  function bindStatusControls () {
+    document.querySelectorAll('.ostat').forEach(function (sel) {
+      sel.addEventListener('change', function () { setStatus(sel.dataset.id, sel.value); });
+      sel.addEventListener('click', function (e) { e.stopPropagation(); });
+    });
+
+    document.querySelectorAll('tbody tr[draggable]').forEach(function (tr) {
+      tr.addEventListener('dragstart', function (e) {
+        e.dataTransfer.setData('text/plain', tr.dataset.id);
+        e.dataTransfer.effectAllowed = 'move';
+        tr.classList.add('dragging');
+      });
+      tr.addEventListener('dragend', function () { tr.classList.remove('dragging'); });
+    });
+
+    document.querySelectorAll('.group').forEach(function (grp) {
+      grp.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        grp.classList.add('dropping');
+      });
+      grp.addEventListener('dragleave', function (e) {
+        if (!grp.contains(e.relatedTarget)) grp.classList.remove('dropping');
+      });
+      grp.addEventListener('drop', function (e) {
+        e.preventDefault();
+        grp.classList.remove('dropping');
+        var id = e.dataTransfer.getData('text/plain');
+        if (id) setStatus(id, grp.dataset.g === 'Bookings' ? 'Booking' : 'Enquiry');
+      });
+    });
   }
 
   document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value; render(); });
   document.getElementById('refresh').addEventListener('click', function () { load(true); });
 
   document.getElementById('csv').addEventListener('click', function () {
-    var rows = [['Student', 'Email', 'Phone', 'Prefers', 'University', 'Building', 'Move in', 'Move out', 'Weeks', 'Budget', 'Status', 'Enquired']];
+    var rows = [['Student', 'Email', 'Phone', 'Prefers', 'University', 'Building', 'Move in', 'Move out', 'Weeks', 'Budget', 'Status', 'Our status', 'Enquired']];
     state.data.groups.forEach(function (g) {
       visible(g.leads).forEach(function (l) {
         rows.push([l.name, l.email, l.phone, l.prefers, l.university, l.building, l.checkIn, l.checkOut,
-                   l.nights ? Math.round(l.nights / 7) : '', l.budget, l.status, (l.created || '').slice(0, 10)]);
+                   l.nights ? Math.round(l.nights / 7) : '', l.budget, l.operatorStatus, l.status, (l.created || '').slice(0, 10)]);
       });
     });
     var csv = rows.map(function (r) {

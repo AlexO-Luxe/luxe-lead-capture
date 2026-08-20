@@ -170,6 +170,10 @@ async function kvSet (key, value, ttlSeconds) {
   try { const k = await kv(); await k.set(key, value, { ex: ttlSeconds }); }
   catch (err) { /* cache miss next time, nothing more */ }
 }
+async function kvDel (key) {
+  try { const k = await kv(); await k.del(key); }
+  catch (err) { /* the TTL clears it soon enough */ }
+}
 async function isRateLimited (key, limit) {
   try {
     const k = await kv();
@@ -234,5 +238,5 @@ function applyCors (req, res) {
 module.exports = {
   PARTNERS, partnerByKey, partnerByUsername,
   issueToken, readToken, requirePartner, passcodeMatches,
-  applyCors, monday, kvGet, kvSet, isRateLimited, bumpRateLimit, clientIp
+  applyCors, monday, kvGet, kvSet, kvDel, isRateLimited, bumpRateLimit, clientIp
 };
