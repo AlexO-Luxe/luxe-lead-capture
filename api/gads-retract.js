@@ -14,11 +14,21 @@
 //  are worked via email remarketing. Lost-good-lead reasons (booked
 //  elsewhere etc.) must never be retracted.
 //
+//  Timing: Google can only adjust a conversion it has already PROCESSED,
+//  which takes up to 24 hours. The team often marks budget-too-low the same
+//  day the enquiry lands, so retracting on the spot fails with "conversion
+//  not found". Leads whose Step 1 upload is younger than RIPEN_HOURS are
+//  therefore queued in the KV sorted set gads:retract:pending (score = the
+//  time they become adjustable) and retracted by the cron pass:
+//  GET /api/gads-retract?retryPending=1&secret=<CRON_SECRET>
+//
 //  Guards:
 //  - PPC leads only (Source column), others never had a Step 1 upload
 //  - lead must be under MAX_AGE_DAYS old (Google's adjustment window is
 //    55 days from the conversion, leads unqualified later are skipped)
 //  - KV set gads:retracted dedupes, one retraction per lead ever
+//  - the queued reason is re-checked at retraction time, so a lead
+//    re-labelled in the meantime is dropped instead of retracted
 //
 //  Order id lookup: Step 1 uploads use transaction id
 //  session_id || monday item id (api/submit-enquiry.js). Both candidates
@@ -29,6 +39,9 @@
 const MONDAY_API   = 'https://api.monday.com/v2';
 const LEADS_BOARD  = 2171015719;
 const MAX_AGE_DAYS = 50;
+// 24h is Google's stated processing ceiling; the extra 2h is margin, a
+// retraction one minute too early simply fails and wastes a cron pass.
+const RIPEN_HOURS  = 26;
 
 // Lowercased "Reason not Qualified" labels that mean true junk.
 // Extend deliberately: never add reasons that describe a real prospect
@@ -49,6 +62,7 @@ async function kv () {
   return _kv;
 }
 const RETRACTED_KEY = 'gads:retracted';
+const PENDING_KEY   = 'gads:retract:pending';
 
 async function getAccessToken () {
   const r = await fetch('https://oauth2.googleapis.com/token', {
@@ -130,14 +144,126 @@ async function uploadRetraction (orderIds) {
   return { landed, partialMsg };
 }
 
+// Reads the lead, applies every guard, and either retracts now or says why
+// not. Shared by the webhook and the cron pass so the rules live once.
+// Returns { done, queued, skipped, reason, name, readyAt }.
+async function retractLead (itemId, k, { expectReason = null } = {}) {
+  const data = await mondayQuery(`
+    query {
+      items(ids: [${itemId}]) {
+        id name created_at
+        column_values(ids: ["color_mkxk8y67", "text_mm4n9415", "status_11"]) { id text }
+      }
+    }`);
+  const item = data.items?.[0];
+  if (!item) return { skipped: true, reason: 'item not found' };
+
+  const cols = {};
+  (item.column_values || []).forEach(c => { cols[c.id] = (c.text || '').trim(); });
+  const source    = cols.color_mkxk8y67;
+  const sessionId = cols.text_mm4n9415;
+  const reason    = (cols.status_11 || '').toLowerCase();
+
+  // The label is re-read from the board rather than trusted from the queue:
+  // a lead re-labelled between queueing and retraction must not be retracted.
+  if (!RETRACT_REASONS.includes(reason)) {
+    return { skipped: true, name: item.name, reason: `reason is now "${cols.status_11 || 'blank'}"` };
+  }
+  if (expectReason && reason !== expectReason) {
+    return { skipped: true, name: item.name, reason: `reason changed to "${cols.status_11}"` };
+  }
+  if (source !== 'PPC') {
+    return { skipped: true, name: item.name, reason: `not a PPC lead (${source || 'blank'})` };
+  }
+
+  const createdMs = new Date(item.created_at).getTime();
+  const ageDays   = (Date.now() - createdMs) / 86400000;
+  if (ageDays > MAX_AGE_DAYS) {
+    return { skipped: true, name: item.name, expired: true,
+             reason: `lead ${Math.round(ageDays)}d old, outside adjustment window` };
+  }
+
+  // Google cannot adjust a conversion it has not finished processing, so a
+  // fresh lead waits in the queue until its Step 1 upload has ripened.
+  const readyAt = createdMs + RIPEN_HOURS * 3600000;
+  if (Date.now() < readyAt) {
+    return { queued: true, name: item.name, readyAt,
+             reason: `Step 1 conversion not processed yet, retracting after ${new Date(readyAt).toISOString().slice(0, 16).replace('T', ' ')} UTC` };
+  }
+
+  // Candidate order ids matching submit-enquiry's transaction id rule.
+  const orderIds = [...new Set([sessionId, String(itemId)].filter(Boolean))];
+  const { landed, partialMsg } = await uploadRetraction(orderIds);
+
+  if (landed.length > 0) {
+    await k.sadd(RETRACTED_KEY, String(itemId));
+    await k.zrem(PENDING_KEY, String(itemId));
+    return { done: true, name: item.name, orderId: landed[0],
+             reason: `retracted (${reason}), order_id ${landed[0]}` };
+  }
+
+  return { failed: true, name: item.name, tried: orderIds,
+           reason: `no matching conversion for ${orderIds.join(' / ')}`, detail: partialMsg };
+}
+
+// Cron pass: retract everything whose conversion has now ripened. Anything
+// still too fresh keeps its slot; anything past the adjustment window is
+// dropped with one loud log so it shows in the daily digest.
+async function runPending (k) {
+  const due = await k.zrange(PENDING_KEY, 0, Date.now(), { byScore: true });
+  const out = { due: due.length, retracted: 0, failed: 0, dropped: 0 };
+
+  for (const member of due) {
+    const itemId = String(member);
+    if (await k.sismember(RETRACTED_KEY, itemId) === 1) { await k.zrem(PENDING_KEY, itemId); continue; }
+
+    let r;
+    try { r = await retractLead(itemId, k); }
+    catch (err) { await logError('gads-retract', err); continue; }
+
+    if (r.done) {
+      out.retracted++;
+      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason });
+    } else if (r.queued) {
+      // Still green. Re-score to the real ready time instead of retrying blind.
+      await k.zadd(PENDING_KEY, { score: r.readyAt, member: itemId });
+    } else if (r.skipped) {
+      out.dropped++;
+      await k.zrem(PENDING_KEY, itemId);
+      if (r.expired) {
+        await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false, reason: r.reason });
+      }
+    } else {
+      out.failed++;
+      await k.zrem(PENDING_KEY, itemId);
+      await logGadsEvent({
+        source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false,
+        reason: r.reason + (r.detail ? ' | ' + r.detail.slice(0, 200) : '')
+      });
+    }
+  }
+  return out;
+}
+
 module.exports = async function handler (req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    // ── Cron pass ─────────────────────────────────────────────
+    if (req.query?.retryPending === '1') {
+      const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+      if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET) {
+        return res.status(401).json({ error: 'unauthorized' });
+      }
+      return res.status(200).json(await runPending(await kv()));
+    }
+
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    // ── Monday webhook ────────────────────────────────────────
     const body = req.body;
     if (body.challenge) return res.status(200).json({ challenge: body.challenge });
 
@@ -163,55 +289,30 @@ module.exports = async function handler (req, res) {
       return res.status(200).json({ skipped: true, reason: 'already retracted', itemId });
     }
 
-    const data = await mondayQuery(`
-      query {
-        items(ids: [${itemId}]) {
-          id name created_at
-          column_values(ids: ["color_mkxk8y67", "text_mm4n9415"]) { id text }
-        }
-      }`);
-    const item = data.items?.[0];
-    if (!item) return res.status(200).json({ skipped: true, reason: 'item not found', itemId });
+    const r = await retractLead(itemId, k, { expectReason: reason });
 
-    const cols = {};
-    (item.column_values || []).forEach(c => { cols[c.id] = (c.text || '').trim(); });
-    const source    = cols.color_mkxk8y67;
-    const sessionId = cols.text_mm4n9415;
-
-    if (source !== 'PPC') {
-      return res.status(200).json({ skipped: true, reason: 'not a PPC lead', source, itemId });
+    if (r.queued) {
+      await k.zadd(PENDING_KEY, { score: r.readyAt, member: String(itemId) });
+      return res.status(200).json({ queued: true, itemId, retractAfter: new Date(r.readyAt).toISOString(), reason: r.reason });
+    }
+    if (r.done) {
+      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason });
+      return res.status(200).json({ retracted: true, itemId, orderId: r.orderId });
+    }
+    if (r.skipped) {
+      if (r.expired) {
+        await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false, reason: r.reason });
+      }
+      return res.status(200).json({ skipped: true, itemId, reason: r.reason });
     }
 
-    const ageDays = (Date.now() - new Date(item.created_at).getTime()) / 86400000;
-    if (ageDays > MAX_AGE_DAYS) {
-      await logGadsEvent({
-        source: 'gads-retract', action: 'Step 1 retraction', name: item.name,
-        ok: false, reason: `lead ${Math.round(ageDays)}d old, outside adjustment window`
-      });
-      return res.status(200).json({ skipped: true, reason: 'outside 55-day adjustment window', ageDays: Math.round(ageDays) });
-    }
-
-    // Candidate order ids matching submit-enquiry's transaction id rule.
-    const orderIds = [...new Set([sessionId, String(itemId)].filter(Boolean))];
-    const { landed, partialMsg } = await uploadRetraction(orderIds);
-
-    if (landed.length > 0) {
-      await k.sadd(RETRACTED_KEY, String(itemId));
-      await logGadsEvent({
-        source: 'gads-retract', action: 'Step 1 retraction', name: item.name,
-        ok: true, reason: `retracted (${reason}), order_id ${landed[0]}`
-      });
-      return res.status(200).json({ retracted: true, itemId, orderId: landed[0] });
-    }
-
-    // No candidate matched: lead most likely never had a successful Step 1
-    // upload (pre-fix transaction id, or the upload failed). Expected for
-    // some leads, logged but not alerted.
+    // Ripe but unmatched: the lead most likely never had a successful Step 1
+    // upload (pre-fix transaction id, or the upload itself failed).
     await logGadsEvent({
-      source: 'gads-retract', action: 'Step 1 retraction', name: item.name,
-      ok: false, reason: 'no matching conversion for ' + orderIds.join(' / ')
+      source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false,
+      reason: r.reason + (r.detail ? ' | ' + r.detail.slice(0, 200) : '')
     });
-    return res.status(200).json({ retracted: false, itemId, tried: orderIds, detail: partialMsg });
+    return res.status(200).json({ retracted: false, itemId, tried: r.tried, detail: r.detail });
 
   } catch (err) {
     console.error('gads-retract error:', err.message);

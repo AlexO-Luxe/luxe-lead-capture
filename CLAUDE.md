@@ -13,7 +13,7 @@ Full architecture, env vars, Monday column IDs, and migration history live in [R
 - `api/_dataManager.js` — Google Data Manager API client (replaces the deprecated `uploadClickConversions` path)
 - `api/_attribution.js` — KV session journal, touch builder, channel classifier
 - `api/_alert.js` — Resend email on conversion-upload failure
-- `api/gads-retract.js` — Monday webhook (status_11 changes): retracts the Step 1 conversion when a PPC lead's Reason not Qualified is Budget too low or Spam enquiry. Never add lost-good-lead or ghost reasons to its whitelist.
+- `api/gads-retract.js` — Monday webhook (status_11 changes): retracts the Step 1 conversion when a PPC lead's Reason not Qualified is Budget too low or Spam enquiry. Never add lost-good-lead or ghost reasons to its whitelist. Google cannot adjust a conversion it has not processed (up to 24h), so leads younger than 26h queue in KV `gads:retract:pending` and the 6-hourly cron pass (`?retryPending=1`) retracts them once ripe.
 - `api/_log.js` — Redis sorted-set log feeding the daily digest
 - `api/track.js` — `/api/track` page-view ping from Squarespace
 - `api/weekly-summary.js` — Friday cron, PPC bookings digest
