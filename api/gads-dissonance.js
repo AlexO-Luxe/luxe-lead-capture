@@ -38,8 +38,17 @@ module.exports = async function handler (req, res) {
   // The email button authenticates with a scoped, expiring token instead of
   // CRON_SECRET. It grants the align run and nothing else.
   const tokenOk = await checkActionToken(req.query?.alignToken || '');
-  if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET && !tokenOk) {
+  // The combined weekly report calls this cross-project with DIGEST_TOKEN.
+  const digestTok = process.env.DIGEST_TOKEN && bearer === process.env.DIGEST_TOKEN;
+  if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET && !tokenOk && !digestTok) {
     return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  // Cached section for the weekly digest: returns the last stashed card
+  // without re-running the audit.
+  if (req.query?.cached === '1') {
+    const cached = await readSection();
+    return res.status(200).json(cached || { title: 'Monday vs Google', empty: true });
   }
   const days   = Math.max(1, Math.min(31, parseInt(req.query?.days || '7', 10)));
   const dryRun = req.query?.dryRun === '1';
@@ -131,6 +140,17 @@ module.exports = async function handler (req, res) {
           out.aligned.push({ leadId: r.leadId, name: r.name, error: err.message.slice(0, 140) });
         }
       }
+    }
+
+    // Section mode: the weekly digest asks for a card, so the work still
+    // runs (fixes and alignment included) but no separate email goes out.
+    // The full run takes minutes, far longer than a cross-project fetch
+    // should wait, so the cron stashes the card and the digest reads it
+    // back with ?cached=1.
+    if (req.query?.section === '1') {
+      const section = dissonanceSection(out, days);
+      await stashSection(section).catch(e => console.warn('dissonance stash failed:', e.message));
+      return res.status(200).json(section);
     }
 
     if (!dryRun) await sendReport(out, days).catch(e => console.warn('report send failed:', e.message));
@@ -319,6 +339,71 @@ async function gadsQuery (token, gaql) {
 }
 
 // ── email ──────────────────────────────────────────────────────
+
+
+// ── Digest handover ────────────────────────────────────────────
+// The Monday 07:00 run and the 08:00 digest are separate invocations in
+// different projects, so the rendered card travels through KV.
+let _digestKv = null;
+async function digestKv () {
+  if (_digestKv) return _digestKv;
+  const { Redis } = await import('@upstash/redis');
+  _digestKv = Redis.fromEnv();
+  return _digestKv;
+}
+const SECTION_KEY = 'digest:dissonance';
+
+async function stashSection (section) {
+  const k = await digestKv();
+  await k.set(SECTION_KEY, { at: Date.now(), section }, { ex: 9 * 24 * 3600 });
+}
+
+// Only serves a card from the last 8 days, so a stale audit is never
+// reported as this week's.
+async function readSection () {
+  try {
+    const stored = await (await digestKv()).get(SECTION_KEY);
+    if (!stored?.at || Date.now() - stored.at > 8 * 24 * 3600 * 1000) return null;
+    return stored.section;
+  } catch { return null; }
+}
+
+// ── Digest section ─────────────────────────────────────────────
+// Condensed dissonance result for the combined weekly report: what Google
+// and Monday disagreed on, what was auto-fixed, what was realigned.
+function dissonanceSection (out, days) {
+  const { esc, table, th, td, emptyRow, BRAND } = require('./_digest.js');
+  const flagged = (out.step4?.dissonant || 0) + (out.step3?.dissonant || 0);
+  const fixed   = (out.fixed || []).filter(f => !f.error).length;
+  const aligned = (out.aligned || []).filter(a => !a.error).length;
+  const failed  = (out.fixed || []).filter(f => f.error).length + (out.aligned || []).filter(a => a.error).length;
+
+  const rows = [];
+  (out.fixed || []).forEach(f => rows.push(`<tr>
+    ${td(esc(f.name))}
+    ${td(f.error ? 'Upload failed' : 'Conversion uploaded', 'left', 'color:' + (f.error ? BRAND.red : BRAND.green) + ';')}
+    ${td(f.error ? `<span style="font-size:11px;color:${BRAND.red};">${esc(f.error)}</span>` : '£' + Number(f.value || 0).toLocaleString('en-GB'), 'right')}
+  </tr>`));
+  (out.aligned || []).forEach(a => rows.push(`<tr>
+    ${td(esc(a.name))}
+    ${td(a.error ? 'Align failed' : 'Monday realigned', 'left', 'color:' + (a.error ? BRAND.red : BRAND.amber) + ';')}
+    ${td(a.error ? `<span style="font-size:11px;color:${BRAND.red};">${esc(a.error)}</span>`
+                 : `<span style="font-size:11px;color:${BRAND.muted};">${esc([a.campaign, a.term].filter(Boolean).join(' &middot; '))}</span>`, 'right')}
+  </tr>`));
+
+  if (!flagged && !rows.length) {
+    return { title: 'Monday vs Google', stat: 'in agreement', tone: 'good', empty: true };
+  }
+  return {
+    title: 'Monday vs Google',
+    stat: `${flagged} flagged, ${fixed} uploaded, ${aligned} realigned`,
+    tone: failed ? 'bad' : (flagged ? 'warn' : 'good'),
+    subtitle: `Last ${days} days`,
+    html: table(th('Lead') + th('Action') + th('Detail', 'right'),
+                rows.join('') || emptyRow(3, 'Flagged rows needed no action.'))
+  };
+}
+
 async function sendReport (out, days) {
   if (!process.env.RESEND_API_KEY) return;
   const token   = await mintActionToken('align');

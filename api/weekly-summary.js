@@ -20,7 +20,11 @@ module.exports = async function handler(req, res) {
     const now = new Date();
 
     // Manual / test trigger: ?days=N&secret=<CRON_SECRET>&dryRun=1
-    const isTest    = req.query?.secret === process.env.CRON_SECRET;
+    // The combined weekly report calls this cross-project with DIGEST_TOKEN,
+    // which is accepted for section mode only, never for a live send.
+    const bearer    = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+    const digestTok = process.env.DIGEST_TOKEN && bearer === process.env.DIGEST_TOKEN;
+    const isTest    = req.query?.secret === process.env.CRON_SECRET || digestTok;
     const customDays = isTest ? parseInt(req.query.days || '7', 10) : null;
     const dryRun     = isTest && req.query.dryRun === '1';
 
@@ -52,6 +56,12 @@ module.exports = async function handler(req, res) {
         week:      { from: weekFrom.toISOString(), to: now.toISOString(), count: weekData.items.length, total: weekData.total, items: weekData.items },
         month:     { from: monthStart.toISOString(), to: monthEnd.toISOString(), count: monthData.items.length, total: monthData.total, items: monthData.items }
       });
+    }
+
+    // Section mode: hand the weekly digest a card instead of sending a
+    // separate email. ?section=1&secret=<CRON_SECRET>
+    if (req.query?.section === '1' && isTest) {
+      return res.status(200).json(bookingSection(weekData, monthData, monthStart));
     }
 
     await sendSummaryEmail({
@@ -158,6 +168,31 @@ async function fetchBookingData(since, until) {
 
   const total = items.reduce((s, i) => s + i.value, 0);
   return { items, total };
+}
+
+
+// ── Digest section ─────────────────────────────────────────────
+// The same numbers as the standalone PPC Booking Summary, rendered as one
+// card for the combined weekly report.
+function bookingSection (weekData, monthData, monthStart) {
+  const { esc, table, th, td, emptyRow, BRAND } = require('./_digest.js');
+  const gbp = n => '£' + Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const monthLabel = monthStart.toLocaleDateString('en-GB', { month: 'long', timeZone: 'Europe/London' });
+
+  const rows = weekData.items.map(b => `<tr>
+      ${td(esc(b.name || 'Booking'))}
+      ${td(esc(b.campaign || '&mdash;'), 'left', 'font-size:11.5px;color:' + BRAND.muted + ';')}
+      ${td(gbp(b.value), 'right', 'font-weight:600;color:' + BRAND.green + ';')}
+    </tr>`).join('');
+
+  return {
+    title: 'PPC bookings',
+    stat: weekData.items.length ? `${weekData.items.length} this week, ${gbp(weekData.total)}` : 'none this week',
+    tone: weekData.items.length ? 'good' : 'plain',
+    subtitle: `${monthLabel} to date: ${gbp(monthData.total)} across ${monthData.items.length} booking${monthData.items.length === 1 ? '' : 's'}`,
+    html: table(th('Booking') + th('Campaign') + th('Value', 'right'),
+                rows || emptyRow(3, 'No confirmed PPC bookings with revenue this week.'))
+  };
 }
 
 function colMap(item) {
