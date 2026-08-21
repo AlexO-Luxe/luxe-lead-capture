@@ -1947,7 +1947,10 @@ function buildingRef (p) {
 
 function formatAptType(t) {
   if (!t) return '';
-  const map = {'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom','3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible',
+  const map = {'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom','3bed':'3 bedroom',
+    // 4bed was on the form but missing here, so it wrote the raw '4bed'
+    // into Monday and the emails until 2026-08-21.
+    '4bed':'4 bedroom','5bed':'5 bedroom','6bed':'6 bedroom','penthouse':'Penthouse','flexible':'Flexible',
     // Partner portals ask for a living category rather than a unit size.
     'shared':'Standard student living','private':'Private apartments','serviced':'Luxury serviced apartments',
     // Guest picked "Not sure yet" on the Marangoni modal, i.e. they want a

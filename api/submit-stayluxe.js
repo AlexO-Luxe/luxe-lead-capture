@@ -1400,7 +1400,8 @@ function formatAptType(t) {
   if (!t) return '';
   const map = {
     'studio':'Studio','1bed':'1 bedroom','2bed':'2 bedroom',
-    '3bed':'3 bedroom','penthouse':'Penthouse','flexible':'Flexible'
+    '3bed':'3 bedroom','4bed':'4 bedroom','5bed':'5 bedroom','6bed':'6 bedroom',
+    'penthouse':'Penthouse','flexible':'Flexible'
   };
   return map[t] || t;
 }
