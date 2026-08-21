@@ -8,6 +8,7 @@ const MONDAY_API   = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch, countryName } = require('./_attribution.js');
+const { primeCampaignNames, campaignName } = require('./_campaigns.js');
 const { recordOptOut } = require('./_audience.js');
 const { logGadsEvent }  = require('./_log.js');
 
@@ -26,6 +27,10 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const p = req.body;
+
+  // Refresh the campaign id to name map before any of it is read, so a
+  // campaign launched since the last deploy still lands as a readable name.
+  await primeCampaignNames();
 
   // ── Get submitter IP ──────────────────────────────────────
   const submitterIp =
@@ -1045,7 +1050,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
     return `
         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;border-top:1px dashed #f0ad4e;padding-top:8px;">
           <tr><td colspan="2" style="padding:8px 0 4px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#856404;font-weight:600;">Full tracking — copy into the Monday row</td></tr>
-          ${row('Campaign',        p.utm_campaign)}
+          ${row('Campaign',        bestCampaign(p))}
           ${row('Ad group',        p.utm_adgroup)}
           ${row('Search term',     p.utm_term)}
           ${row('Match type',      p.utm_matchtype)}
@@ -1655,7 +1660,10 @@ const CAMPAIGN_MAP = {
 function resolveCampaign(val) {
   if (!val) return '';
   const trimmed = val.trim();
-  return /^\d+$/.test(trimmed) ? (CAMPAIGN_MAP[trimmed] || trimmed) : trimmed;
+  if (!/^\d+$/.test(trimmed)) return trimmed;
+  // Google's own list first (it knows campaigns created since the last
+  // deploy), then the hardcoded fallback, then give up and keep the id.
+  return campaignName(trimmed) || CAMPAIGN_MAP[trimmed] || trimmed;
 }
 
 function extractCampaignFromPaths(visitedPaths) {
@@ -1675,7 +1683,7 @@ function bestCampaign(p) {
   const fromPaths  = extractCampaignFromPaths(p.visited_paths);
   if (fromCookie) {
     const resolved = resolveCampaign(fromCookie);
-    if (!/^\d+$/.test(fromCookie) || CAMPAIGN_MAP[fromCookie]) return resolved;
+    if (!/^\d+$/.test(fromCookie) || campaignName(fromCookie) || CAMPAIGN_MAP[fromCookie]) return resolved;
   }
   if (fromPaths) return resolveCampaign(fromPaths);
   return resolveCampaign(fromCookie);

@@ -17,6 +17,7 @@ const MONDAY_API  = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch, countryName } = require('./_attribution.js');
+const { primeCampaignNames, campaignName } = require('./_campaigns.js');
 
 // ──────────────────────────────────────────────────────────────
 //  STAY LUXE BRAND CONFIG  (edit here only)
@@ -41,6 +42,10 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const p = req.body;
+
+  // Parity with the Student Luxe handler: refresh the campaign id to name
+  // map before anything reads it.
+  await primeCampaignNames();
 
   // Capture submitter IP (parity with the Student Luxe form -> Monday column text_mm2y2ah2)
   const submitterIp =
@@ -818,8 +823,9 @@ const CAMPAIGN_MAP = {
 function resolveCampaign(val) {
   if (!val) return '';
   const trimmed = val.trim();
-  // If it looks like a numeric ID, resolve it — otherwise return as-is
-  return /^\d+$/.test(trimmed) ? (CAMPAIGN_MAP[trimmed] || trimmed) : trimmed;
+  if (!/^\d+$/.test(trimmed)) return trimmed;
+  // Google's own list first, then the hardcoded fallback, then the raw id.
+  return campaignName(trimmed) || CAMPAIGN_MAP[trimmed] || trimmed;
 }
 
 // ──────────────────────────────────────────────────────────────
