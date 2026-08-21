@@ -106,8 +106,14 @@ module.exports = async function handler (req, res) {
       }
     }
 
-    if (!dryRun && (out.filled.length || out.amended.length || out.skipped.length)) {
-      await sendDigest(out).catch(e => console.warn('digest send failed:', e.message));
+    // The daily digest reports this run, so the summary is parked in KV for
+    // it to pick up rather than sent as its own email. ?email=1 still sends
+    // the standalone version for a manual run.
+    if (!dryRun) {
+      await stashRun(out).catch(e => console.warn('digest stash failed:', e.message));
+      if (req.query?.email === '1' && (out.filled.length || out.amended.length || out.skipped.length)) {
+        await sendDigest(out).catch(e => console.warn('digest send failed:', e.message));
+      }
     }
 
     out.summary = { filled: out.filled.length, amended: out.amended.length, skipped: out.skipped.length, unchanged: out.unchanged, manualKept: out.manualKept };
@@ -118,6 +124,60 @@ module.exports = async function handler (req, res) {
     return res.status(500).json({ error: err.message });
   }
 };
+
+
+// ── Digest handover ────────────────────────────────────────────
+// The 06:30 worker run and the 08:30 digest are separate invocations, so
+// the result travels through KV. Two-day TTL, long enough that a missed
+// digest still finds the last run.
+let _kvClient = null;
+async function digestKv () {
+  if (_kvClient) return _kvClient;
+  const { Redis } = await import('@upstash/redis');
+  _kvClient = Redis.fromEnv();
+  return _kvClient;
+}
+const RUN_KEY = 'digest:booking-sync';
+
+async function stashRun (out) {
+  const k = await digestKv();
+  await k.set(RUN_KEY, {
+    at: Date.now(),
+    filled:  out.filled.map(r => ({ name: r.name, value: r.value })),
+    amended: out.amended.map(r => ({ name: r.name, from: r.from, to: r.to, diff: r.diff })),
+    skipped: out.skipped.map(r => ({ name: r.name, reason: r.reason })),
+    unchanged: out.unchanged
+  }, { ex: 2 * 24 * 3600 });
+}
+
+// Section for the daily digest. Returns null when the last run is missing
+// or older than the window, so a stale run is never reported as today's.
+async function buildBookingSyncSection (maxAgeHours = 26) {
+  const { esc, table, th, td, emptyRow, BRAND } = require('./_digest.js');
+  let run = null;
+  try { run = await (await digestKv()).get(RUN_KEY); } catch (e) { return null; }
+  if (!run || !run.at || Date.now() - run.at > maxAgeHours * 3600000) return null;
+
+  const rows = [];
+  run.filled.forEach(r => rows.push(
+    `<tr>${td(esc(r.name))}${td('Filled', 'left', 'color:' + BRAND.green + ';')}${td('£' + Number(r.value).toLocaleString('en-GB', { minimumFractionDigits: 2 }), 'right')}</tr>`));
+  run.amended.forEach(r => rows.push(
+    `<tr>${td(esc(r.name))}${td('Amended', 'left', 'color:' + BRAND.amber + ';')}${td('£' + Number(r.from).toLocaleString('en-GB') + ' → £' + Number(r.to).toLocaleString('en-GB'), 'right')}</tr>`));
+  run.skipped.forEach(r => rows.push(
+    `<tr>${td(esc(r.name))}${td('Enter manually', 'left', 'color:' + BRAND.red + ';')}${td(esc(r.reason), 'right', 'font-size:11px;color:' + BRAND.muted + ';')}</tr>`));
+
+  const changes = run.filled.length + run.amended.length;
+  if (!rows.length) {
+    return { title: 'Booking values', stat: 'all in sync', tone: 'good', empty: true };
+  }
+  return {
+    title: 'Booking values',
+    stat: `${changes} updated${run.skipped.length ? ', ' + run.skipped.length + ' need you' : ''}`,
+    tone: run.skipped.length ? 'warn' : 'good',
+    subtitle: `${run.unchanged} already correct`,
+    html: table(th('Booking') + th('Action') + th('Value', 'right'), rows.join(''))
+  };
+}
 
 // ── Monday ─────────────────────────────────────────────────────
 // Pulling every confirmed booking (~2.6k, each with heavy mirror
@@ -227,3 +287,5 @@ function londonNow () {
 }
 function monthKey (d) { return d.toISOString().slice(0, 7); }
 function isoToday () { return londonNow().toISOString().slice(0, 10); }
+
+module.exports.buildBookingSyncSection = buildBookingSyncSection;
