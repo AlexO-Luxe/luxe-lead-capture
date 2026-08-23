@@ -17,7 +17,7 @@ const { readGadsEvents } = require('./_log.js');
 const { readErrors }     = require('./_errlog.js');
 const { logError }       = require('./_errlog.js');
 const { buildBookingSyncSection } = require('./sync-booking-values.js');
-const { checkLanding } = require('./_landing-check.js');
+const { checkLandingWindow } = require('./_landing-check.js');
 const { shell, table, th, td, emptyRow, esc, sendDigest, BRAND } = require('./_digest.js');
 
 // The log keys events by source and action, which reads like plumbing.
@@ -90,28 +90,57 @@ async function buildGadsSection (sinceMs, untilMs) {
 }
 
 
-// ── Did the uploads actually land? ────────────────────────────
-// "Uploaded" only means Google accepted the request. This checks a settled
-// day against what Google actually recorded, so a silent ingest failure
-// shows up here instead of surfacing weeks later as an unretractable lead.
+// ── Follow up: did the uploads actually land? ─────────────────
+// "Uploaded" only means Google accepted the request. This follows every
+// Step 1 upload through to a recorded conversion and keeps a running total,
+// so a silent ingest failure shows up within days instead of surfacing
+// weeks later as a lead we cannot retract.
+//
+// Days too recent to judge are shown as waiting, never as missing. Uploads
+// carrying no click id are excluded from the count entirely: they hold a
+// hashed email only, so Google can record one just when it independently
+// matches the person to a click, and counting them as losses would make a
+// healthy week look broken.
 async function buildLandingSection () {
-  const r = await checkLanding();
-  if (!r) return { title: 'Conversion landing check', empty: true };
+  const r = await checkLandingWindow({ days: 7 });
+  if (!r.rows.length) return { title: 'Conversion follow up', empty: true };
+  const t = r.totals;
 
-  const tone = r.rate == null ? 'plain' : (r.rate >= 90 ? 'good' : r.rate >= 75 ? 'warn' : 'bad');
-  const rows = [
-    `<tr>${td('Uploads carrying a click id')}${td(String(r.withClickId), 'right', 'font-weight:600;')}</tr>`,
-    `<tr>${td('Conversions Google recorded')}${td(String(r.recorded), 'right', 'font-weight:600;')}</tr>`,
-    `<tr>${td('Not accounted for')}${td(String(r.shortfall), 'right', `font-weight:600;color:${r.shortfall ? BRAND.amber : BRAND.green};`)}</tr>`,
-    `<tr>${td(`Uploaded on a hashed email only <span style="color:${BRAND.muted};">(cannot be counted, no click to match)</span>`)}${td(String(r.noClickId), 'right', `color:${BRAND.muted};`)}</tr>`
-  ].join('');
+  const rows = r.rows.map(x => {
+    const label = new Date(x.day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    const status = !x.settled
+      ? `<span style="color:${BRAND.muted};">&#9203; ${x.waiting} settling</span>`
+      : x.missing
+        ? `<span style="color:${BRAND.red};font-weight:600;">&#9888;&#65039; ${x.missing} missing</span>`
+        : `<span style="color:${BRAND.green};font-weight:600;">&#9989; all landed</span>`;
+    return `<tr>
+      ${td(esc(label))}
+      ${td(`${x.verified} / ${x.withClickId}`, 'right', 'font-weight:600;')}
+      ${td(status, 'right')}
+    </tr>`;
+  }).join('');
+
+  const tone = t.settledRate == null ? 'plain'
+    : t.settledRate >= 95 ? 'good'
+    : t.settledRate >= 85 ? 'warn' : 'bad';
+
+  const summary = `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;background:${BRAND.cream};border-radius:8px;">
+      <tr>
+        <td style="padding:12px 14px;font-size:13px;color:${BRAND.ink};line-height:1.6;">
+          <span style="font-weight:700;">${t.verified} of ${t.withClickId}</span> uploads this week verified as landed &#9989;
+          ${t.waiting ? `<br><span style="color:${BRAND.muted};">waiting on ${t.waiting} still settling &#9203;</span>` : ''}
+          ${t.missing ? `<br><span style="color:${BRAND.red};font-weight:600;">${t.missing} never reached Google &#9888;&#65039;</span>` : ''}
+        </td>
+      </tr>
+    </table>`;
 
   return {
-    title: 'Conversion landing check',
-    stat: r.rate == null ? `${r.recorded} recorded` : `${r.rate}% landed`,
+    title: 'Conversion follow up',
+    stat: `${t.verified}/${t.withClickId} landed`,
     tone,
-    subtitle: `Step 1 uploads on ${new Date(r.day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}, judged after three days to settle`,
-    html: table(th('Measure') + th('Count', 'right'), rows)
+    subtitle: `Last 7 days, judged ${r.settleDays} days after upload. ${t.noClickId} more sent on a hashed email only, which cannot be traced to a click.`,
+    html: summary + table(th('Uploaded on') + th('Landed', 'right') + th('Status', 'right'), rows)
   };
 }
 
@@ -169,7 +198,7 @@ module.exports = async function handler (req, res) {
     const gads   = sections.find(s => s.title === 'Google Ads uploads');
     const errs   = sections.find(s => s.title === 'Errors');
     const live   = sections.filter(s => !s.empty);
-    const landing = sections.find(s => s.title === 'Conversion landing check');
+    const landing = sections.find(s => s.title === 'Conversion follow up');
     const trouble = (errs && !errs.empty) || (gads && gads.tone === 'bad') || (landing && landing.tone === 'bad');
 
     const dateLabel = new Date(untilMs).toLocaleDateString('en-GB', {

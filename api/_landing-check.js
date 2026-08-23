@@ -72,36 +72,69 @@ async function recordedByDay (since, until) {
   return out;
 }
 
-// Returns { day, uploaded, withClickId, noClickId, recorded, rate, shortfall }
-// for the most recent settled day, or null when there is nothing to judge.
-async function checkLanding ({ settleDays = SETTLE_DAYS } = {}) {
-  const dayMs  = 86400000;
-  const target = new Date(Date.now() - settleDays * dayMs).toISOString().slice(0, 10);
+// Per-day follow-up over a rolling window, so the digest can show a running
+// total rather than a single day's snapshot.
+//
+// A day is only judged once it has had SETTLE_DAYS to process. Anything
+// newer is still in flight and counted as waiting, never as missing: calling
+// a same-day upload "lost" would cry wolf every morning.
+//
+//   verified = settled and matched by a recorded conversion
+//   waiting  = uploaded too recently to judge yet
+//   missing  = settled, and Google has no conversion for it
+async function checkLandingWindow ({ days = 7, settleDays = SETTLE_DAYS } = {}) {
+  const dayMs = 86400000;
+  const today = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - (days - 1) * dayMs).toISOString().slice(0, 10);
 
-  const startMs = new Date(target + 'T00:00:00Z').getTime();
-  const events  = await readGadsEvents(startMs, startMs + dayMs);
-  const step1   = events.filter(e => e.ok && /Step 1 NEW/.test(e.action || ''));
-  if (!step1.length) return null;
+  const events = await readGadsEvents(new Date(start + 'T00:00:00Z').getTime(), Date.now());
+  const step1  = events.filter(e => e.ok && /Step 1 NEW/.test(e.action || ''));
 
-  const withClickId = step1.filter(e => e.hasGclid || e.hasGbraid || e.hasWbraid).length;
-  const noClickId   = step1.length - withClickId;
+  const uploads = {};
+  for (const e of step1) {
+    const day = new Date(e.ts).toISOString().slice(0, 10);
+    uploads[day] = uploads[day] || { withClickId: 0, noClickId: 0 };
+    if (e.hasGclid || e.hasGbraid || e.hasWbraid) uploads[day].withClickId++;
+    else uploads[day].noClickId++;
+  }
 
-  const recorded = Math.round((await recordedByDay(target, target))[target] || 0);
+  const recorded = await recordedByDay(start, today);
 
-  // The rate is judged against click-carrying uploads only. Enhanced-only
-  // uploads can also land, so the rate can exceed 100%, which is fine: it
-  // means more matched than the floor we measured against.
-  const rate = withClickId ? Math.round((recorded / withClickId) * 100) : null;
+  const rows = [];
+  const totals = { withClickId: 0, noClickId: 0, recorded: 0, verified: 0, waiting: 0, missing: 0 };
+  for (let i = days - 1; i >= 0; i--) {
+    const day = new Date(Date.now() - i * dayMs).toISOString().slice(0, 10);
+    const u = uploads[day] || { withClickId: 0, noClickId: 0 };
+    if (!u.withClickId && !u.noClickId) continue;
 
-  return {
-    day: target,
-    uploaded: step1.length,
-    withClickId,
-    noClickId,
-    recorded,
-    rate,
-    shortfall: Math.max(0, withClickId - recorded)
-  };
+    const rec = Math.round(recorded[day] || 0);
+    // Compared as dates, not elapsed milliseconds: an hours-based check flips
+    // a day between settled and waiting depending on when the digest runs.
+    const settled = day <= new Date(Date.now() - settleDays * dayMs).toISOString().slice(0, 10);
+
+    const verified = settled ? Math.min(rec, u.withClickId) : Math.min(rec, u.withClickId);
+    const waiting  = settled ? 0 : Math.max(0, u.withClickId - verified);
+    const missing  = settled ? Math.max(0, u.withClickId - rec) : 0;
+
+    totals.withClickId += u.withClickId;
+    totals.noClickId   += u.noClickId;
+    totals.recorded    += rec;
+    totals.verified    += verified;
+    totals.waiting     += waiting;
+    totals.missing     += missing;
+
+    rows.push({ day, ...u, recorded: rec, settled, verified, waiting, missing });
+  }
+
+  totals.rate = totals.withClickId ? Math.round((totals.verified / totals.withClickId) * 100) : null;
+  // Judged only on days old enough to have settled, so a run of fresh
+  // uploads cannot drag the health reading down.
+  const settledRows = rows.filter(r => r.settled);
+  const settledUp   = settledRows.reduce((a, r) => a + r.withClickId, 0);
+  const settledVer  = settledRows.reduce((a, r) => a + r.verified, 0);
+  totals.settledRate = settledUp ? Math.round((settledVer / settledUp) * 100) : null;
+
+  return { days, settleDays, rows, totals };
 }
 
-module.exports = { checkLanding, SETTLE_DAYS };
+module.exports = { checkLandingWindow, SETTLE_DAYS };
