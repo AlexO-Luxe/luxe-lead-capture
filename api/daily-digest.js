@@ -19,6 +19,23 @@ const { logError }       = require('./_errlog.js');
 const { buildBookingSyncSection } = require('./sync-booking-values.js');
 const { shell, table, th, td, emptyRow, esc, sendDigest, BRAND } = require('./_digest.js');
 
+// The log keys events by source and action, which reads like plumbing.
+// The digest is for Alex, so each pair maps to the name the business uses.
+// Replays fold into the same row as the original: a replayed booking is
+// still a booking, and the failure detail below already shows what broke.
+const ACTION_LABELS = {
+  'Step 1 NEW (server-side enquiry)': 'Step 1 Enquiries',
+  'Step 1 retraction':                'Step 1 Retractions',
+  'Confirmed Booking':                'Confirmed Bookings',
+  'High Potential':                   'High Potentials',
+  'Moderate Potential':               'Moderate Potentials',
+  'Customer Match':                   'Customer Match Syncs'
+};
+
+function actionLabel (e) {
+  return ACTION_LABELS[e.action] || `${e.source} / ${e.action}`;
+}
+
 // ── Google Ads uploads ────────────────────────────────────────
 async function buildGadsSection (sinceMs, untilMs) {
   const events = await readGadsEvents(sinceMs, untilMs);
@@ -26,7 +43,7 @@ async function buildGadsSection (sinceMs, untilMs) {
   const byAction = {};
   let totalOk = 0, totalFail = 0, totalValue = 0;
   for (const e of events) {
-    const key = `${e.source} / ${e.action}`;
+    const key = actionLabel(e);
     byAction[key] = byAction[key] || { ok: 0, fail: 0, value: 0, withClickId: 0 };
     if (e.ok) { byAction[key].ok++; totalOk++; } else { byAction[key].fail++; totalFail++; }
     if (e.value) { byAction[key].value += Number(e.value); totalValue += Number(e.value); }
@@ -53,7 +70,7 @@ async function buildGadsSection (sinceMs, untilMs) {
       <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND.red};">Latest failures</p>
       ${failures.map(f => `
         <div style="background:#fdf3f2;border-left:3px solid ${BRAND.red};border-radius:4px;padding:9px 11px;margin:0 0 7px;">
-          <div style="font-size:12px;font-weight:500;color:${BRAND.ink};">${esc(f.source)} / ${esc(f.action)}${f.name ? ' &middot; ' + esc(f.name) : ''}</div>
+          <div style="font-size:12px;font-weight:500;color:${BRAND.ink};">${esc(actionLabel(f))}${f.name ? ' &middot; ' + esc(f.name) : ''}</div>
           <div style="font-family:Menlo,Monaco,monospace;font-size:10.5px;color:#8b2a1d;line-height:1.5;margin-top:3px;">${esc(f.error || f.reason).slice(0, 300)}</div>
         </div>`).join('')}
     </div>` : '';

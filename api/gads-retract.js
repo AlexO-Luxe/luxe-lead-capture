@@ -156,7 +156,10 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
       }
     }`);
   const item = data.items?.[0];
-  if (!item) return { skipped: true, reason: 'item not found' };
+  // The row can vanish between queueing and retraction: duplicates get
+  // merged and the surviving row keeps its own id, so the queued one is gone.
+  if (!item) return { skipped: true, notify: true,
+                      reason: 'lead row is no longer on the Leads board, merged or deleted' };
 
   const cols = {};
   (item.column_values || []).forEach(c => { cols[c.id] = (c.text || '').trim(); });
@@ -167,20 +170,23 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
   // The label is re-read from the board rather than trusted from the queue:
   // a lead re-labelled between queueing and retraction must not be retracted.
   if (!RETRACT_REASONS.includes(reason)) {
-    return { skipped: true, name: item.name, reason: `reason is now "${cols.status_11 || 'blank'}"` };
+    return { skipped: true, name: item.name,
+             reason: `not retracted, Reason not Qualified is now "${cols.status_11 || 'blank'}"` };
   }
   if (expectReason && reason !== expectReason) {
-    return { skipped: true, name: item.name, reason: `reason changed to "${cols.status_11}"` };
+    return { skipped: true, name: item.name,
+             reason: `not retracted, Reason not Qualified changed to "${cols.status_11}"` };
   }
   if (source !== 'PPC') {
-    return { skipped: true, name: item.name, reason: `not a PPC lead (${source || 'blank'})` };
+    return { skipped: true, name: item.name,
+             reason: `not a PPC lead (source is ${source || 'blank'}), so no Step 1 conversion was ever uploaded` };
   }
 
   const createdMs = new Date(item.created_at).getTime();
   const ageDays   = (Date.now() - createdMs) / 86400000;
   if (ageDays > MAX_AGE_DAYS) {
     return { skipped: true, name: item.name, expired: true,
-             reason: `lead ${Math.round(ageDays)}d old, outside adjustment window` };
+             reason: `lead is ${Math.round(ageDays)} days old, past Google's 55 day adjustment window` };
   }
 
   // Google cannot adjust a conversion it has not finished processing, so a
@@ -202,8 +208,17 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
              reason: `retracted (${reason}), order_id ${landed[0]}` };
   }
 
-  return { failed: true, name: item.name, tried: orderIds,
-           reason: `no matching conversion for ${orderIds.join(' / ')}`, detail: partialMsg };
+  // Google accepted the original Step 1 ingest but never recorded a
+  // conversion for it, so neither the order id nor a gclid lookup can find
+  // one (verified against both on 2026-08-22). Retrying can only fail, so
+  // the lead is marked done and reported once rather than every day.
+  const notFound = /can't be found|CONVERSION_NOT_FOUND/i.test(partialMsg);
+  if (notFound) await k.sadd(RETRACTED_KEY, String(itemId));
+  return { failed: true, name: item.name, tried: orderIds, terminal: notFound,
+           reason: notFound
+             ? 'Google never recorded a Step 1 conversion for this lead, nothing to retract'
+             : `no matching conversion for ${orderIds.join(' / ')}`,
+           detail: partialMsg };
 }
 
 // Cron pass: retract everything whose conversion has now ripened. Anything
@@ -230,8 +245,10 @@ async function runPending (k) {
     } else if (r.skipped) {
       out.dropped++;
       await k.zrem(PENDING_KEY, itemId);
-      if (r.expired) {
-        await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false, reason: r.reason });
+      // A relabelled or non-PPC lead is a normal skip and stays quiet. An
+      // expired lead or a vanished row is worth seeing in the digest.
+      if (r.expired || r.notify) {
+        await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name || itemId, ok: false, reason: r.reason });
       }
     } else {
       out.failed++;
