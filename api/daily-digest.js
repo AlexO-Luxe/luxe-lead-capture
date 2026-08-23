@@ -17,7 +17,7 @@ const { readGadsEvents } = require('./_log.js');
 const { readErrors }     = require('./_errlog.js');
 const { logError }       = require('./_errlog.js');
 const { buildBookingSyncSection } = require('./sync-booking-values.js');
-const { checkLandingWindow } = require('./_landing-check.js');
+const { checkLandingWindow, missingLeads } = require('./_landing-check.js');
 const { shell, table, th, td, emptyRow, esc, sendDigest, BRAND } = require('./_digest.js');
 
 // The log keys events by source and action, which reads like plumbing.
@@ -92,55 +92,70 @@ async function buildGadsSection (sinceMs, untilMs) {
 
 // ── Follow up: did the uploads actually land? ─────────────────
 // "Uploaded" only means Google accepted the request. This follows every
-// Step 1 upload through to a recorded conversion and keeps a running total,
-// so a silent ingest failure shows up within days instead of surfacing
-// weeks later as a lead we cannot retract.
+// Step 1 upload through to a recorded conversion, keeps a running total, and
+// names the leads Google has been asked for by name and has no record of.
 //
-// Days too recent to judge are shown as waiting, never as missing. Uploads
-// carrying no click id are excluded from the count entirely: they hold a
-// hashed email only, so Google can record one just when it independently
-// matches the person to a click, and counting them as losses would make a
-// healthy week look broken.
+// Days too recent to judge are shown as settling, never as missing. Uploads
+// carrying no click id sit outside the count: they hold a hashed email only,
+// so Google records one just when it independently matches the person to a
+// click, and counting them as losses made a healthy week look broken.
 async function buildLandingSection () {
-  const r = await checkLandingWindow({ days: 7 });
+  const [r, missing] = await Promise.all([
+    checkLandingWindow({ days: 7 }),
+    missingLeads({ days: 30, limit: 8 }).catch(() => [])
+  ]);
   if (!r.rows.length) return { title: 'Conversion follow up', empty: true };
   const t = r.totals;
 
-  const rows = r.rows.map(x => {
-    const label = new Date(x.day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-    const status = !x.settled
-      ? `<span style="color:${BRAND.muted};">&#9203; ${x.waiting} settling</span>`
-      : x.missing
-        ? `<span style="color:${BRAND.red};font-weight:600;">&#9888;&#65039; ${x.missing} missing</span>`
-        : `<span style="color:${BRAND.green};font-weight:600;">&#9989; all landed</span>`;
-    return `<tr>
-      ${td(esc(label))}
-      ${td(`${x.verified} / ${x.withClickId}`, 'right', 'font-weight:600;')}
-      ${td(status, 'right')}
-    </tr>`;
-  }).join('');
+  const pctOk   = t.withClickId ? (t.verified / t.withClickId) * 100 : 0;
+  const pctWait = t.withClickId ? (t.waiting  / t.withClickId) * 100 : 0;
+  const pctMiss = Math.max(0, 100 - pctOk - pctWait);
+
+  const headline = `
+    <div style="background:${BRAND.navy};color:#fff;border-radius:10px;padding:16px 18px;">
+      <div style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND.gold};">Verified landed this week</div>
+      <div style="font-family:'Baskerville Display PT',Baskerville,Georgia,serif;font-size:26px;margin-top:5px;">
+        ${t.verified} <span style="font-size:14px;color:rgba(255,255,255,.5);">of ${t.withClickId}</span>
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;border-radius:3px;overflow:hidden;"><tr>
+        <td style="height:6px;background:${BRAND.green};width:${pctOk.toFixed(1)}%;font-size:0;line-height:0;">&nbsp;</td>
+        <td style="height:6px;background:#d9c48a;width:${pctWait.toFixed(1)}%;font-size:0;line-height:0;">&nbsp;</td>
+        <td style="height:6px;background:${BRAND.red};width:${pctMiss.toFixed(1)}%;font-size:0;line-height:0;">&nbsp;</td>
+      </tr></table>
+      <div style="margin-top:8px;font-size:11.5px;color:rgba(255,255,255,.6);">
+        ${t.waiting} still settling &middot; ${t.missing} never reached Google &middot; ${t.noClickId} more sent on a hashed email only
+      </div>
+    </div>`;
+
+  // Only leads Google has actually been asked for and denied appear here, so
+  // the list never accuses an upload that simply has not settled yet.
+  const investigate = missing.length ? `
+    <div style="background:#fdf8f7;border-left:3px solid ${BRAND.red};border-radius:6px;padding:11px 13px;margin-top:12px;">
+      <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#a8321f;font-weight:600;margin-bottom:7px;">Recommended for investigation</div>
+      ${missing.map(m => {
+        const when = m.createdAt ? new Date(m.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+        const age  = m.createdAt ? Math.max(1, Math.round((Date.now() - new Date(m.createdAt).getTime()) / 86400000)) : null;
+        return `<table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #f6e9e7;"><tr>
+          <td style="padding:5px 0;font-size:12.5px;color:${BRAND.ink};">
+            <a href="https://studentluxe.monday.com/boards/2171015719/pulses/${esc(m.itemId)}" style="color:${BRAND.ink};font-weight:600;text-decoration:none;">${esc(m.name || m.itemId)}</a>${m.campaign ? ` <span style="color:${BRAND.muted};">&middot; ${esc(m.campaign)}</span>` : ''}
+          </td>
+          <td align="right" style="padding:5px 0;font-size:12px;color:#a8321f;white-space:nowrap;">${esc(when)}${age ? ` &middot; ${age} day${age === 1 ? '' : 's'}` : ''}</td>
+        </tr></table>`;
+      }).join('')}
+      <div style="margin-top:8px;font-size:11.5px;color:${BRAND.muted};">
+        Each sent a click id and Google still holds no conversion for it. Names link to the Monday row.
+      </div>
+    </div>` : '';
 
   const tone = t.settledRate == null ? 'plain'
     : t.settledRate >= 95 ? 'good'
     : t.settledRate >= 85 ? 'warn' : 'bad';
 
-  const summary = `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;background:${BRAND.cream};border-radius:8px;">
-      <tr>
-        <td style="padding:12px 14px;font-size:13px;color:${BRAND.ink};line-height:1.6;">
-          <span style="font-weight:700;">${t.verified} of ${t.withClickId}</span> uploads this week verified as landed &#9989;
-          ${t.waiting ? `<br><span style="color:${BRAND.muted};">waiting on ${t.waiting} still settling &#9203;</span>` : ''}
-          ${t.missing ? `<br><span style="color:${BRAND.red};font-weight:600;">${t.missing} never reached Google &#9888;&#65039;</span>` : ''}
-        </td>
-      </tr>
-    </table>`;
-
   return {
     title: 'Conversion follow up',
-    stat: `${t.verified}/${t.withClickId} landed`,
+    stat: t.settledRate == null ? `${t.verified}/${t.withClickId} landed` : `${t.settledRate}% landed`,
     tone,
-    subtitle: `Last 7 days, judged ${r.settleDays} days after upload. ${t.noClickId} more sent on a hashed email only, which cannot be traced to a click.`,
-    html: summary + table(th('Uploaded on') + th('Landed', 'right') + th('Status', 'right'), rows)
+    html: headline + investigate
   };
 }
 

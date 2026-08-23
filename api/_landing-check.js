@@ -137,4 +137,24 @@ async function checkLandingWindow ({ days = 7, settleDays = SETTLE_DAYS } = {}) 
   return { days, settleDays, rows, totals };
 }
 
-module.exports = { checkLandingWindow, SETTLE_DAYS };
+
+// Leads proven to have no conversion in Google: each was asked for by name
+// through the adjustment API and came back not found. This is evidence, not
+// inference, which is why it is safe to put a guest's name next to it.
+async function missingLeads ({ days = 30, limit = 10 } = {}) {
+  try {
+    const { Redis } = await import('@upstash/redis');
+    const k = Redis.fromEnv();
+    const rows = await k.zrange('gads:missing', Date.now() - days * 86400000, Date.now(), { byScore: true });
+    return rows
+      .map(r => { try { return typeof r === 'string' ? JSON.parse(r) : r; } catch { return null; } })
+      .filter(Boolean)
+      .reverse()
+      .slice(0, limit);
+  } catch (err) {
+    console.warn('missingLeads lookup failed:', err.message);
+    return [];
+  }
+}
+
+module.exports = { checkLandingWindow, missingLeads, SETTLE_DAYS };

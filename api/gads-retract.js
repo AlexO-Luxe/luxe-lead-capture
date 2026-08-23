@@ -63,6 +63,7 @@ async function kv () {
 }
 const RETRACTED_KEY = 'gads:retracted';
 const PENDING_KEY   = 'gads:retract:pending';
+const MISSING_KEY   = 'gads:missing';
 
 async function getAccessToken () {
   const r = await fetch('https://oauth2.googleapis.com/token', {
@@ -173,7 +174,7 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
     query {
       items(ids: [${itemId}]) {
         id name created_at
-        column_values(ids: ["color_mkxk8y67", "text_mm4n9415", "status_11"]) { id text }
+        column_values(ids: ["color_mkxk8y67", "text_mm4n9415", "status_11", "text_mm1c3b5w"]) { id text }
       }
     }`);
   const item = data.items?.[0];
@@ -236,7 +237,16 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
   // one (verified against both on 2026-08-22). Retrying can only fail, so
   // the lead is marked done and reported once rather than every day.
   const notFound = /can't be found|CONVERSION_NOT_FOUND/i.test(partialMsg);
-  if (notFound) await k.sadd(RETRACTED_KEY, String(itemId));
+  if (notFound) {
+    await k.sadd(RETRACTED_KEY, String(itemId));
+    // Proof, not inference: Google was asked for this exact conversion and
+    // has none. Both the digest and the PPC board list these by name.
+    await k.zadd(MISSING_KEY, { score: Date.now(), member: JSON.stringify({
+      itemId: String(itemId), name: item.name, campaign: cols.text_mm1c3b5w || '',
+      uploadedAt: sent.at || null, createdAt: item.created_at,
+      reason: cols.status_11 || '', tried: orderIds
+    }) }).catch(() => {});
+  }
   return { failed: true, name: item.name, tried: orderIds, terminal: notFound,
            reason: notFound
              ? 'Google never recorded a Step 1 conversion for this lead, nothing to retract'
