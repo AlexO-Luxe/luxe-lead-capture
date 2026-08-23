@@ -129,6 +129,8 @@ module.exports = async function handler(req, res) {
     action:    'Step 1 NEW (server-side enquiry)',
     email:     p.email,
     mondayId,
+    txn:       String(p.session_id || p.monday_id || ''),
+    clickId:   p.gclid || p.gbraid || p.wbraid || '',
     hasGclid:  !!p.gclid,
     hasGbraid: !!p.gbraid,
     hasWbraid: !!p.wbraid

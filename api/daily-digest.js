@@ -17,6 +17,7 @@ const { readGadsEvents } = require('./_log.js');
 const { readErrors }     = require('./_errlog.js');
 const { logError }       = require('./_errlog.js');
 const { buildBookingSyncSection } = require('./sync-booking-values.js');
+const { checkLanding } = require('./_landing-check.js');
 const { shell, table, th, td, emptyRow, esc, sendDigest, BRAND } = require('./_digest.js');
 
 // The log keys events by source and action, which reads like plumbing.
@@ -88,6 +89,32 @@ async function buildGadsSection (sinceMs, untilMs) {
   };
 }
 
+
+// ── Did the uploads actually land? ────────────────────────────
+// "Uploaded" only means Google accepted the request. This checks a settled
+// day against what Google actually recorded, so a silent ingest failure
+// shows up here instead of surfacing weeks later as an unretractable lead.
+async function buildLandingSection () {
+  const r = await checkLanding();
+  if (!r) return { title: 'Conversion landing check', empty: true };
+
+  const tone = r.rate == null ? 'plain' : (r.rate >= 90 ? 'good' : r.rate >= 75 ? 'warn' : 'bad');
+  const rows = [
+    `<tr>${td('Uploads carrying a click id')}${td(String(r.withClickId), 'right', 'font-weight:600;')}</tr>`,
+    `<tr>${td('Conversions Google recorded')}${td(String(r.recorded), 'right', 'font-weight:600;')}</tr>`,
+    `<tr>${td('Not accounted for')}${td(String(r.shortfall), 'right', `font-weight:600;color:${r.shortfall ? BRAND.amber : BRAND.green};`)}</tr>`,
+    `<tr>${td(`Uploaded on a hashed email only <span style="color:${BRAND.muted};">(cannot be counted, no click to match)</span>`)}${td(String(r.noClickId), 'right', `color:${BRAND.muted};`)}</tr>`
+  ].join('');
+
+  return {
+    title: 'Conversion landing check',
+    stat: r.rate == null ? `${r.recorded} recorded` : `${r.rate}% landed`,
+    tone,
+    subtitle: `Step 1 uploads on ${new Date(r.day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}, judged after three days to settle`,
+    html: table(th('Measure') + th('Count', 'right'), rows)
+  };
+}
+
 // ── Application errors ────────────────────────────────────────
 async function buildErrorSection (sinceMs, untilMs) {
   const errors = await readErrors(sinceMs, untilMs);
@@ -130,6 +157,7 @@ module.exports = async function handler (req, res) {
     // independently and a thrown section is simply left out.
     const settled = await Promise.allSettled([
       buildGadsSection(sinceMs, untilMs),
+      buildLandingSection(),
       buildBookingSyncSection(hours + 2),
       buildErrorSection(sinceMs, untilMs)
     ]);
@@ -141,7 +169,8 @@ module.exports = async function handler (req, res) {
     const gads   = sections.find(s => s.title === 'Google Ads uploads');
     const errs   = sections.find(s => s.title === 'Errors');
     const live   = sections.filter(s => !s.empty);
-    const trouble = (errs && !errs.empty) || (gads && gads.tone === 'bad');
+    const landing = sections.find(s => s.title === 'Conversion landing check');
+    const trouble = (errs && !errs.empty) || (gads && gads.tone === 'bad') || (landing && landing.tone === 'bad');
 
     const dateLabel = new Date(untilMs).toLocaleDateString('en-GB', {
       weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/London'

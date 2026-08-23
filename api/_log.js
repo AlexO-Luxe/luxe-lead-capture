@@ -31,6 +31,12 @@ async function logGadsEvent (event) {
       hasGbraid: !!event.hasGbraid,
       hasWbraid: !!event.hasWbraid,
       mondayId:  event.mondayId  || '',
+      // The identifiers actually sent. Without these a later retraction has
+      // to guess the transaction id from the Monday row, and a conversion
+      // that never landed is impossible to tell apart from one we cannot
+      // address. Both are Google's own ids, not personal data.
+      txn:       event.txn       || '',
+      clickId:   event.clickId   ? String(event.clickId).slice(0, 120) : '',
       // 2000, not 300: Google's Data Manager 400s carry the actual culprit in
       // details[].metadata (e.g. the exact events.events[0].field name) well
       // past 300 chars. Truncating here made INVALID_ARGUMENT undiagnosable.

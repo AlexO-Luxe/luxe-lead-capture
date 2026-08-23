@@ -144,6 +144,27 @@ async function uploadRetraction (orderIds) {
   return { landed, partialMsg };
 }
 
+
+// The Step 1 upload records the transaction id and click id it sent. Reading
+// them back beats guessing: the Monday gclid column holds the first-touch
+// click id, which is not necessarily the one the conversion was uploaded
+// against. Returns {} for leads uploaded before this was logged (pre
+// 2026-08-23), where the old guesswork is still the only option.
+async function uploadedIdentifiers (itemId, k) {
+  try {
+    const rows = await k.zrange('gads:events', Date.now() - 60 * 86400000, Date.now(), { byScore: true });
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const e = typeof rows[i] === 'string' ? JSON.parse(rows[i]) : rows[i];
+      if (!e.ok || !/Step 1 NEW/.test(e.action || '')) continue;
+      if (String(e.mondayId || '') !== String(itemId)) continue;
+      return { txn: e.txn || '', clickId: e.clickId || '', at: e.ts };
+    }
+  } catch (err) {
+    console.warn('uploadedIdentifiers lookup failed:', err.message);
+  }
+  return {};
+}
+
 // Reads the lead, applies every guard, and either retracts now or says why
 // not. Shared by the webhook and the cron pass so the rules live once.
 // Returns { done, queued, skipped, reason, name, readyAt }.
@@ -197,8 +218,10 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
              reason: `Step 1 conversion not processed yet, retracting after ${new Date(readyAt).toISOString().slice(0, 16).replace('T', ' ')} UTC` };
   }
 
-  // Candidate order ids matching submit-enquiry's transaction id rule.
-  const orderIds = [...new Set([sessionId, String(itemId)].filter(Boolean))];
+  // Prefer the transaction id the upload actually used, then fall back to
+  // the two candidates submit-enquiry's rule would have produced.
+  const sent = await uploadedIdentifiers(itemId, k);
+  const orderIds = [...new Set([sent.txn, sessionId, String(itemId)].filter(Boolean))];
   const { landed, partialMsg } = await uploadRetraction(orderIds);
 
   if (landed.length > 0) {
