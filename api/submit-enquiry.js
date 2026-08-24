@@ -1578,7 +1578,13 @@ function computeLeadSource(p) {
   const isBingOrg      = utmSource.includes('bing') && !utmMedium.includes('cpc');
   const visitedHasBing = (p.visited_paths || '').toLowerCase().includes('bing');
 
-  const hasPpcSignal = (hasGclid || hasCampaign || hasKeyword) && !isUtmSocial;
+  // A gclid is a live Google Ads click and always wins. The social check
+  // only vetoes the weaker signals (campaign or keyword alone), because
+  // sl_utm_source is a 90-day cookie with no first-touch protection: one
+  // Instagram bio visit left utm_source=ig behind, and a later ad click
+  // overwrote the campaign cookie but not that one, so a PPC lead with a
+  // fresh gclid classified as Socials (Alaina Stewart, 2026-08-22).
+  const hasPpcSignal = hasGclid || ((hasCampaign || hasKeyword) && !isUtmSocial);
 
   // Map UTM source to a specific channel label
   function utmSourceToChannel(src) {
