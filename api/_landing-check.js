@@ -138,9 +138,16 @@ async function checkLandingWindow ({ days = 7, settleDays = SETTLE_DAYS } = {}) 
 }
 
 
-// Leads proven to have no conversion in Google: each was asked for by name
-// through the adjustment API and came back not found. This is evidence, not
-// inference, which is why it is safe to put a guest's name next to it.
+// Leads whose conversion Google could not find when asked for it by name
+// through the adjustment API.
+//
+// This is NOT proof the conversion was never recorded. Checked on
+// 2026-08-24: all three leads listed had a real click in Google on the
+// enquiry day, and two of them had Step 1 conversions recorded on that very
+// campaign and day. Every failure so far is Performance Max, while six of
+// seven successful retractions were Search, so the likeliest reading is that
+// the adjustment lookup cannot address PMax conversions. Word anything built
+// on this list as "could not be matched", never as "missing".
 async function missingLeads ({ days = 30, limit = 10 } = {}) {
   try {
     const { Redis } = await import('@upstash/redis');

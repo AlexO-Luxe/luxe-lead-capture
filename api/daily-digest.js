@@ -123,7 +123,7 @@ async function buildLandingSection () {
         <td style="height:6px;background:${BRAND.red};width:${pctMiss.toFixed(1)}%;font-size:0;line-height:0;">&nbsp;</td>
       </tr></table>
       <div style="margin-top:8px;font-size:11.5px;color:rgba(255,255,255,.6);">
-        ${t.waiting} still settling &middot; ${t.missing} never reached Google &middot; ${t.noClickId} more sent on a hashed email only
+        ${t.waiting} still settling &middot; ${t.missing} not accounted for &middot; ${t.noClickId} more sent on a hashed email only
       </div>
     </div>`;
 
@@ -131,7 +131,7 @@ async function buildLandingSection () {
   // the list never accuses an upload that simply has not settled yet.
   const investigate = missing.length ? `
     <div style="background:#fdf8f7;border-left:3px solid ${BRAND.red};border-radius:6px;padding:11px 13px;margin-top:12px;">
-      <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#a8321f;font-weight:600;margin-bottom:7px;">Recommended for investigation</div>
+      <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#a8321f;font-weight:600;margin-bottom:7px;">Could not be matched in Google</div>
       ${missing.map(m => {
         const when = m.createdAt ? new Date(m.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
         const age  = m.createdAt ? Math.max(1, Math.round((Date.now() - new Date(m.createdAt).getTime()) / 86400000)) : null;
@@ -143,7 +143,9 @@ async function buildLandingSection () {
         </tr></table>`;
       }).join('')}
       <div style="margin-top:8px;font-size:11.5px;color:${BRAND.muted};">
-        Each sent a click id and Google still holds no conversion for it. Names link to the Monday row.
+        Google could not find these conversions to adjust. That is not proof they were never
+        recorded: most are Performance Max, where the lookup fails even when the click and the
+        conversion both exist. Names link to the Monday row.
       </div>
     </div>` : '';
 
