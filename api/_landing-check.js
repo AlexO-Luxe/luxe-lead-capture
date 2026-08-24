@@ -165,6 +165,86 @@ async function missingLeads ({ days = 30, limit = 10 } = {}) {
 }
 
 
+
+// Landing per conversion step, over the last 7 settled days.
+//
+// Step 1 is click-based, so its rate is a health figure: shortfall is a real
+// problem. Steps 2 to 4 are Enhanced Conversions carrying a hashed email
+// only, Google records one just when it independently matches the person to
+// a click, so partial is normal there and the rate is information, not an
+// alarm. The basis field carries that distinction to the UI.
+//
+// Uploads are deduped by Monday item id per step: replays re-send the same
+// conversion (47 upload events for 38 bookings), and counting them twice
+// would understate the landing rate.
+const STEPS = [
+  { key: 'step1', label: 'Step 1 · Enquiries',          basis: 'click', up: /Step 1 NEW/,          rec: /^Step 1 / },
+  { key: 'step2', label: 'Step 2 · Moderate Potentials', basis: 'email', up: /Moderate Potential/,  rec: /^Step 2 / },
+  { key: 'step3', label: 'Step 3 · High Potentials',     basis: 'email', up: /High Potential/,      rec: /^Step 3 / },
+  { key: 'step4', label: 'Step 4 · Confirmed Bookings',  basis: 'email', up: /Confirmed Booking/,   rec: /^Step 4 / },
+];
+
+async function recordedByAction (since, until) {
+  const tok   = await getAccessToken();
+  const cid   = (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '');
+  const login = ((process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || '6046238343').replace(/-/g, '')) || '6046238343';
+  const r = await fetch(`https://googleads.googleapis.com/v24/customers/${cid}/googleAds:search`, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + tok,
+      'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+      'login-customer-id': login,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      query: `SELECT segments.conversion_action_name, metrics.all_conversions_by_conversion_date
+              FROM customer WHERE segments.date BETWEEN "${since}" AND "${until}"`
+    })
+  });
+  const d = await r.json();
+  if (d.error) throw new Error(JSON.stringify(d.error).slice(0, 200));
+  const out = {};
+  for (const row of (d.results || [])) {
+    const name = row.segments?.conversionActionName || '';
+    out[name] = (out[name] || 0) + Number(row.metrics?.allConversionsByConversionDate || 0);
+  }
+  return out;
+}
+
+async function stepLanding ({ days = 7, settleDays = SETTLE_DAYS } = {}) {
+  const dayMs = 86400000;
+  const until = new Date(Date.now() - settleDays * dayMs).toISOString().slice(0, 10);
+  const since = new Date(Date.now() - (settleDays + days - 1) * dayMs).toISOString().slice(0, 10);
+
+  const events = await readGadsEvents(new Date(since + 'T00:00:00Z').getTime(),
+                                      new Date(until + 'T23:59:59Z').getTime());
+  const recorded = await recordedByAction(since, until);
+
+  return STEPS.map(st => {
+    const seen = new Set();
+    let uploaded = 0, noClickId = 0;
+    for (const e of events) {
+      if (!e.ok || !st.up.test(e.action || '') || /retraction/i.test(e.action || '')) continue;
+      const key = e.mondayId ? String(e.mondayId) : 'ts:' + e.ts;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      // For the click-based step, uploads with no click id can never match a
+      // click, exactly as in checkLandingWindow. Counting them in the
+      // denominator turned a 90 percent day into a 65 percent one.
+      if (st.basis === 'click' && !(e.hasGclid || e.hasGbraid || e.hasWbraid)) { noClickId++; continue; }
+      uploaded++;
+    }
+    const rec = Math.round(Object.entries(recorded)
+      .filter(([name]) => st.rec.test(name))
+      .reduce((a, [, n]) => a + n, 0));
+    return {
+      key: st.key, label: st.label, basis: st.basis,
+      uploaded, noClickId, recorded: rec,
+      rate: uploaded ? Math.round((Math.min(rec, uploaded) / uploaded) * 100) : null
+    };
+  }).filter(st => st.uploaded > 0 || st.recorded > 0);
+}
+
 // Does the adjustment lookup work on Performance Max conversions?
 //
 // Opened 2026-08-24: every retraction that failed was Performance Max, six
@@ -179,8 +259,16 @@ async function missingLeads ({ days = 30, limit = 10 } = {}) {
 // the evidence is still too thin to say anything honest.
 async function retractionByChannel ({ days = 60, minPerChannel = 5 } = {}) {
   const events = await readGadsEvents(Date.now() - days * 86400000, Date.now());
-  const attempts = events.filter(e => /Step 1 retraction/.test(e.action || '') && e.channel);
-  if (!attempts.length) return null;
+  const all = events.filter(e => /Step 1 retraction/.test(e.action || ''));
+  const attempts = all.filter(e => e.channel);
+  // Attempts logged before channel tagging existed (pre 2026-08-24) still
+  // count toward the plain tallies, they just cannot feed the verdict.
+  const untagged = { ok: all.filter(e => e.ok && !e.channel).length,
+                     failed: all.filter(e => !e.ok && !e.channel).length };
+  if (!attempts.length) {
+    if (!all.length) return null;
+    return { rows: [], untagged, ready: false, verdict: null, minPerChannel, needed: minPerChannel };
+  }
 
   const tally = {};
   for (const e of attempts) {
@@ -211,8 +299,8 @@ async function retractionByChannel ({ days = 60, minPerChannel = 5 } = {}) {
     }
   }
 
-  return { rows, ready, verdict, minPerChannel,
+  return { rows, untagged, ready, verdict, minPerChannel,
            needed: ready ? 0 : Math.max(minPerChannel - (pmax?.total || 0), minPerChannel - (search?.total || 0)) };
 }
 
-module.exports = { checkLandingWindow, missingLeads, retractionByChannel, SETTLE_DAYS };
+module.exports = { checkLandingWindow, missingLeads, retractionByChannel, stepLanding, SETTLE_DAYS };

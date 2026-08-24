@@ -7,7 +7,7 @@
 //  the daily digest, so the board and the email can never disagree.
 // ============================================================
 
-const { checkLandingWindow, missingLeads, SETTLE_DAYS } = require('./_landing-check.js');
+const { checkLandingWindow, missingLeads, retractionByChannel, stepLanding, SETTLE_DAYS } = require('./_landing-check.js');
 const { logError } = require('./_errlog.js');
 
 module.exports = async function handler (req, res) {
@@ -24,16 +24,34 @@ module.exports = async function handler (req, res) {
 
   try {
     const days = Math.max(1, Math.min(30, parseInt(req.query?.days || '7', 10)));
-    const [window, missing] = await Promise.all([
+    const [window, missing, steps, channels, queued] = await Promise.all([
       checkLandingWindow({ days }),
-      missingLeads({ days: 30, limit: 10 }).catch(() => [])
+      missingLeads({ days: 30, limit: 10 }).catch(() => []),
+      stepLanding({ days }).catch(() => []),
+      retractionByChannel().catch(() => null),
+      (async () => {
+        const { Redis } = await import('@upstash/redis');
+        return Redis.fromEnv().zcard('gads:retract:pending');
+      })().catch(() => 0)
     ]);
+
+    // Retraction tallies from the same channel data the verdict uses, so the
+    // board's numbers and the verdict can never be built from different sets.
+    const retracted = (channels?.rows || []).reduce((a, r) => a + r.ok, 0) + (channels?.untagged?.ok || 0);
+    const noMatch   = (channels?.rows || []).reduce((a, r) => a + r.failed, 0) + (channels?.untagged?.failed || 0);
 
     return res.status(200).json({
       checkedAt:  new Date().toISOString(),
       settleDays: SETTLE_DAYS,
       totals:     window.totals,
       days:       window.rows,
+      steps,
+      retraction: {
+        retracted, noMatch, queued,
+        ready:   channels?.ready || false,
+        verdict: channels?.ready ? channels.verdict : null,
+        needed:  channels?.ready ? 0 : (channels?.needed ?? null)
+      },
       missing
     });
   } catch (err) {
