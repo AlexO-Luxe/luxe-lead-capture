@@ -85,10 +85,30 @@ function buildTouch(req, bodyOverrides = {}) {
 // ──────────────────────────────────────────────────────────────
 //  CLASSIFY SESSION SOURCE — for the "Channel" column in dashboard
 // ──────────────────────────────────────────────────────────────
+// Paid Google traffic carries utm_source=google and a google.com referrer,
+// exactly like an organic search does. The only things that separate them are
+// the click id, the medium, and the tracking template's own parameters, which
+// organic search never has. Checking the source alone labelled a Performance
+// Max click as "Google Organic" whenever the click id was dropped in transit.
+function isTaggedAdTouch(t) {
+  const medium = (t.utm_medium || '').toLowerCase();
+  if (/^(cpc|ppc|paid|paidsearch|paid_search|cpm|display)$/.test(medium)) return true;
+  // The account-level template appends these, and only ever to ad clicks.
+  return !!(t.campaign || t.adgroup || t.term || t.matchtype);
+}
+
 function classifyTouch(t) {
   if (t.gclid || t.gbraid || t.wbraid) return 'Google Ads';
   if (t.fbclid)                        return 'Meta Ads';
   const src = (t.utm_source || '').toLowerCase();
+  const ref = (t.referrer   || '').toLowerCase();
+  const paid = isTaggedAdTouch(t);
+
+  // A tagged click on a Google surface is an ad, whether or not the click id
+  // survived the hop.
+  if (paid && (/google/.test(src) || /google\./.test(ref) || (!src && !ref))) return 'Google Ads';
+  if (paid && /facebook|fb|instagram|ig|meta/.test(src)) return 'Meta Ads';
+
   if (src) {
     if (/google/.test(src))   return 'Google Organic';
     if (/bing/.test(src))     return 'Bing';
@@ -99,7 +119,6 @@ function classifyTouch(t) {
     if (/chatgpt|openai/.test(src)) return 'ChatGPT';
     return src.charAt(0).toUpperCase() + src.slice(1);
   }
-  const ref = (t.referrer || '').toLowerCase();
   if (!ref) return 'Direct';
   if (/google\./.test(ref))    return 'Google Organic';
   if (/bing\./.test(ref))      return 'Bing';
@@ -110,6 +129,7 @@ function classifyTouch(t) {
   if (/chatgpt|openai/.test(ref)) return 'ChatGPT';
   return 'Referral';
 }
+
 
 // ──────────────────────────────────────────────────────────────
 //  KV — get / upsert session
@@ -242,6 +262,7 @@ module.exports = {
   parseCookies,
   buildTouch,
   classifyTouch,
+  isTaggedAdTouch,
   countryName,
   getSession,
   upsertTouch,
@@ -251,3 +272,23 @@ module.exports = {
   SESSION_TTL,
   TOUCH_CAP
 };
+
+// Smallest thing that fails if the paid/organic split breaks again.
+if (require.main === module) {
+  const cases = [
+    [{ gclid: 'x' },                                                       'Google Ads'],
+    [{ utm_source: 'google', utm_medium: 'cpc', campaign: '22561087901' }, 'Google Ads'],
+    [{ campaign: '22561087901', referrer: 'https://www.google.com/' },     'Google Ads'],
+    [{ term: 'student flats london', referrer: 'https://www.google.com/' },'Google Ads'],
+    [{ referrer: 'https://www.google.com/' },                              'Google Organic'],
+    [{ utm_source: 'google' },                                             'Google Organic'],
+    [{ referrer: 'https://www.bing.com/' },                                'Bing'],
+    [{},                                                                   'Direct'],
+    [{ referrer: 'https://www.tiktok.com/' },                              'TikTok'],
+  ];
+  for (const [touch, want] of cases) {
+    const got = classifyTouch(touch);
+    if (got !== want) throw new Error(`classifyTouch(${JSON.stringify(touch)}) = ${got}, expected ${want}`);
+  }
+  console.log(`classifyTouch: ${cases.length} cases pass`);
+}

@@ -104,6 +104,40 @@ async function primeCampaignNames () {
   return cache.map;
 }
 
+// Resolves a numeric campaign id to its name, forcing one live refresh when
+// the id is missing from the cache. A first touch can be months old, so its
+// id predates whatever the cache was last seeded with, which is how raw ids
+// like 22561087901 ended up written onto leads.
+let _refreshedAt = 0;
+async function resolveCampaignId (val) {
+  const trimmed = String(val || '').trim();
+  if (!trimmed || !/^\d+$/.test(trimmed)) return trimmed;
+
+  await primeCampaignNames();
+  const hit = campaignName(trimmed);
+  if (hit) return hit;
+
+  // Miss on a cached map: refresh from Google once every ten minutes per
+  // instance, never more, so a bad id cannot hammer the API on every enquiry.
+  if (Date.now() - _refreshedAt < MEM_TTL_MS) return trimmed;
+  _refreshedAt = Date.now();
+  try {
+    const fresh = await Promise.race([
+      fetchFromGoogle(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), FETCH_TIMEOUT_MS))
+    ]);
+    if (Object.keys(fresh).length) {
+      cache = { at: Date.now(), map: fresh };
+      const k = await kv();
+      await k.set(KEY, fresh, { ex: KV_TTL_SEC });
+      return fresh[trimmed] || trimmed;
+    }
+  } catch (err) {
+    console.warn('campaign id refresh failed:', err.message);
+  }
+  return trimmed;
+}
+
 // Synchronous read, so the existing resolveCampaign() stays sync.
 function campaignName (id) {
   return cache.map[String(id || '').trim()] || '';
@@ -115,4 +149,4 @@ function campaignChannel (nameOrId) {
   return CHANNELS[String(nameOrId || '').trim().toLowerCase()] || '';
 }
 
-module.exports = { primeCampaignNames, campaignName, campaignChannel };
+module.exports = { primeCampaignNames, campaignName, campaignChannel, resolveCampaignId };

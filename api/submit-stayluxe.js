@@ -17,7 +17,7 @@ const MONDAY_API  = 'https://api.monday.com/v2';
 const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch, countryName } = require('./_attribution.js');
-const { primeCampaignNames, campaignName } = require('./_campaigns.js');
+const { primeCampaignNames, campaignName, resolveCampaignId } = require('./_campaigns.js');
 
 // ──────────────────────────────────────────────────────────────
 //  STAY LUXE BRAND CONFIG  (edit here only)
@@ -1087,6 +1087,12 @@ async function findDuplicateLead(p, ip) {
 }
 
 async function pushToMonday(p, submitterIp, duplicateOf) {
+  // The first touch can be months older than the cached campaign list, so this
+  // one is resolved against a live lookup rather than the warm cache.
+  const firstCampaignName = await resolveCampaignId(
+    (p.first_touch && p.first_touch.campaign) || p.first_campaign || ''
+  );
+
   const nameParts  = (p.full_name || '').trim().split(' ');
   const firstname  = nameParts[0] || '';
   const lastname   = nameParts.slice(1).join(' ') || '';
@@ -1201,7 +1207,7 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text_mm4n6987:       p.device     || '',                                                       // device
     text_mm4n61bc:       p.country    || '',                                                       // country
     text_mm4nkhk0:       p.first_touch ? classifyTouch(p.first_touch) : '',                        // first_channel
-    text_mm4ntp4n:       (p.first_touch && p.first_touch.campaign) || p.first_campaign || '',      // first_campaign
+    text_mm4ntp4n:       firstCampaignName,                                                          // first_campaign (resolved live, ids outlive the cache)
     text_mm4ncd41:       p.gbraid     || '',                                                       // gbraid
     text_mm4n9t2x:       p.wbraid     || '',                                                       // wbraid
     text_mm4n9415:       p.session_id || '',                                                       // session_id
