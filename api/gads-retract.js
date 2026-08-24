@@ -52,6 +52,7 @@ const RETRACT_REASONS = [
 ];
 
 const { logGadsEvent } = require('./_log.js');
+const { primeCampaignNames, campaignChannel } = require('./_campaigns.js');
 const { logError }     = require('./_errlog.js');
 
 let _kv = null;
@@ -225,10 +226,17 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
   const orderIds = [...new Set([sent.txn, sessionId, String(itemId)].filter(Boolean))];
   const { landed, partialMsg } = await uploadRetraction(orderIds);
 
+  // Channel is carried on every outcome: the split between Search and
+  // Performance Max is what settles whether PMax conversions can be
+  // adjusted at all, and it can only be answered by accumulating results.
+  await primeCampaignNames().catch(() => {});
+  const campaign = cols.text_mm1c3b5w || '';
+  const channel  = campaignChannel(campaign);
+
   if (landed.length > 0) {
     await k.sadd(RETRACTED_KEY, String(itemId));
     await k.zrem(PENDING_KEY, String(itemId));
-    return { done: true, name: item.name, orderId: landed[0],
+    return { done: true, name: item.name, orderId: landed[0], campaign, channel,
              reason: `retracted (${reason}), order_id ${landed[0]}` };
   }
 
@@ -242,12 +250,12 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
     // Proof, not inference: Google was asked for this exact conversion and
     // has none. Both the digest and the PPC board list these by name.
     await k.zadd(MISSING_KEY, { score: Date.now(), member: JSON.stringify({
-      itemId: String(itemId), name: item.name, campaign: cols.text_mm1c3b5w || '',
+      itemId: String(itemId), name: item.name, campaign, channel,
       uploadedAt: sent.at || null, createdAt: item.created_at,
       reason: cols.status_11 || '', tried: orderIds
     }) }).catch(() => {});
   }
-  return { failed: true, name: item.name, tried: orderIds, terminal: notFound,
+  return { failed: true, name: item.name, tried: orderIds, terminal: notFound, campaign, channel,
            reason: notFound
              ? 'Google never recorded a Step 1 conversion for this lead, nothing to retract'
              : `no matching conversion for ${orderIds.join(' / ')}`,
@@ -271,7 +279,7 @@ async function runPending (k) {
 
     if (r.done) {
       out.retracted++;
-      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason });
+      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason, campaign: r.campaign, channel: r.channel });
     } else if (r.queued) {
       // Still green. Re-score to the real ready time instead of retrying blind.
       await k.zadd(PENDING_KEY, { score: r.readyAt, member: itemId });
@@ -288,7 +296,8 @@ async function runPending (k) {
       await k.zrem(PENDING_KEY, itemId);
       await logGadsEvent({
         source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false,
-        reason: r.reason + (r.detail ? ' | ' + r.detail.slice(0, 200) : '')
+        reason: r.reason + (r.detail ? ' | ' + r.detail.slice(0, 200) : ''),
+        campaign: r.campaign, channel: r.channel
       });
     }
   }
@@ -346,7 +355,7 @@ module.exports = async function handler (req, res) {
       return res.status(200).json({ queued: true, itemId, retractAfter: new Date(r.readyAt).toISOString(), reason: r.reason });
     }
     if (r.done) {
-      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason });
+      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason, campaign: r.campaign, channel: r.channel });
       return res.status(200).json({ retracted: true, itemId, orderId: r.orderId });
     }
     if (r.skipped) {
@@ -360,7 +369,8 @@ module.exports = async function handler (req, res) {
     // upload (pre-fix transaction id, or the upload itself failed).
     await logGadsEvent({
       source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false,
-      reason: r.reason + (r.detail ? ' | ' + r.detail.slice(0, 200) : '')
+      reason: r.reason + (r.detail ? ' | ' + r.detail.slice(0, 200) : ''),
+      campaign: r.campaign, channel: r.channel
     });
     return res.status(200).json({ retracted: false, itemId, tried: r.tried, detail: r.detail });
 

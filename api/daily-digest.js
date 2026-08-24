@@ -17,7 +17,7 @@ const { readGadsEvents } = require('./_log.js');
 const { readErrors }     = require('./_errlog.js');
 const { logError }       = require('./_errlog.js');
 const { buildBookingSyncSection } = require('./sync-booking-values.js');
-const { checkLandingWindow, missingLeads } = require('./_landing-check.js');
+const { checkLandingWindow, missingLeads, retractionByChannel } = require('./_landing-check.js');
 const { shell, table, th, td, emptyRow, esc, sendDigest, BRAND } = require('./_digest.js');
 
 // The log keys events by source and action, which reads like plumbing.
@@ -100,9 +100,10 @@ async function buildGadsSection (sinceMs, untilMs) {
 // so Google records one just when it independently matches the person to a
 // click, and counting them as losses made a healthy week look broken.
 async function buildLandingSection () {
-  const [r, missing] = await Promise.all([
+  const [r, missing, channels] = await Promise.all([
     checkLandingWindow({ days: 7 }),
-    missingLeads({ days: 30, limit: 8 }).catch(() => [])
+    missingLeads({ days: 30, limit: 8 }).catch(() => []),
+    retractionByChannel().catch(() => null)
   ]);
   if (!r.rows.length) return { title: 'Conversion follow up', empty: true };
   const t = r.totals;
@@ -149,6 +150,21 @@ async function buildLandingSection () {
       </div>
     </div>` : '';
 
+  // The open question about Performance Max answers itself here as attempts
+  // accumulate, rather than waiting to be asked again.
+  const channelBlock = !channels ? '' : `
+    <div style="margin-top:12px;padding:11px 13px;background:${BRAND.cream};border-radius:6px;">
+      <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.gold};font-weight:600;margin-bottom:6px;">Retraction by channel</div>
+      ${channels.rows.map(row => `<div style="font-size:12.5px;color:${BRAND.ink};padding:2px 0;">
+        ${esc(row.channel)}: <b>${row.ok} of ${row.total}</b> succeeded
+        <span style="color:${row.rate >= 60 ? BRAND.green : BRAND.red};">${row.rate}%</span>
+      </div>`).join('')}
+      <div style="font-size:11.5px;color:${channels.ready ? BRAND.ink : BRAND.muted};margin-top:6px;line-height:1.5;">
+        ${channels.ready ? esc(channels.verdict)
+          : `Not enough attempts yet to judge whether Performance Max conversions can be retracted at all. Needs about ${channels.needed} more.`}
+      </div>
+    </div>`;
+
   const tone = t.settledRate == null ? 'plain'
     : t.settledRate >= 95 ? 'good'
     : t.settledRate >= 85 ? 'warn' : 'bad';
@@ -157,7 +173,7 @@ async function buildLandingSection () {
     title: 'Conversion follow up',
     stat: t.settledRate == null ? `${t.verified}/${t.withClickId} landed` : `${t.settledRate}% landed`,
     tone,
-    html: headline + investigate
+    html: headline + investigate + channelBlock
   };
 }
 

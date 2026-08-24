@@ -27,6 +27,8 @@ async function kv () {
 }
 
 let cache = { at: 0, map: {} };
+// name or id, lowercased, to SEARCH / PERFORMANCE_MAX / etc.
+const CHANNELS = {};
 
 async function fetchFromGoogle () {
   const r0 = await fetch('https://oauth2.googleapis.com/token', {
@@ -54,14 +56,20 @@ async function fetchFromGoogle () {
     },
     // Every campaign, not just enabled ones: a lead can arrive days after
     // its campaign was paused, and the name still has to resolve.
-    body: JSON.stringify({ query: 'SELECT campaign.id, campaign.name FROM campaign' })
+    body: JSON.stringify({ query: 'SELECT campaign.id, campaign.name, campaign.advertising_channel_type FROM campaign' })
   });
   const d = await r.json();
   if (d.error) throw new Error(JSON.stringify(d.error).slice(0, 200));
 
   const map = {};
   for (const row of (d.results || [])) {
-    if (row.campaign?.id && row.campaign?.name) map[String(row.campaign.id)] = row.campaign.name;
+    const c = row.campaign;
+    if (!c?.id || !c?.name) continue;
+    map[String(c.id)] = c.name;
+    // Channel keyed by name as well as id, because everything downstream
+    // (Monday columns, the retraction log) carries the name, not the id.
+    CHANNELS[c.name.trim().toLowerCase()] = c.advertisingChannelType || '';
+    CHANNELS[String(c.id)] = c.advertisingChannelType || '';
   }
   return map;
 }
@@ -101,4 +109,10 @@ function campaignName (id) {
   return cache.map[String(id || '').trim()] || '';
 }
 
-module.exports = { primeCampaignNames, campaignName };
+// Channel type for a campaign name or id, '' when unknown. Call
+// primeCampaignNames() first, the lookup is populated by the same fetch.
+function campaignChannel (nameOrId) {
+  return CHANNELS[String(nameOrId || '').trim().toLowerCase()] || '';
+}
+
+module.exports = { primeCampaignNames, campaignName, campaignChannel };

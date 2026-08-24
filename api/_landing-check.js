@@ -164,4 +164,55 @@ async function missingLeads ({ days = 30, limit = 10 } = {}) {
   }
 }
 
-module.exports = { checkLandingWindow, missingLeads, SETTLE_DAYS };
+
+// Does the adjustment lookup work on Performance Max conversions?
+//
+// Opened 2026-08-24: every retraction that failed was Performance Max, six
+// of the seven that worked were Search, and the failing leads all had real
+// clicks with conversions recorded on their own campaign and day. That points
+// at PMax conversions being unaddressable rather than missing, but seven
+// attempts is not a finding.
+//
+// Rather than remember to look again, the answer accumulates here. Retraction
+// outcomes carry their channel, so this tallies them and reports a verdict
+// once each channel has enough attempts to mean something. Returns null while
+// the evidence is still too thin to say anything honest.
+async function retractionByChannel ({ days = 60, minPerChannel = 5 } = {}) {
+  const events = await readGadsEvents(Date.now() - days * 86400000, Date.now());
+  const attempts = events.filter(e => /Step 1 retraction/.test(e.action || '') && e.channel);
+  if (!attempts.length) return null;
+
+  const tally = {};
+  for (const e of attempts) {
+    const ch = e.channel === 'PERFORMANCE_MAX' ? 'Performance Max'
+             : e.channel === 'SEARCH' ? 'Search'
+             : 'Other';
+    tally[ch] = tally[ch] || { ok: 0, failed: 0 };
+    e.ok ? tally[ch].ok++ : tally[ch].failed++;
+  }
+
+  const rows = Object.entries(tally)
+    .map(([channel, v]) => ({ channel, ...v, total: v.ok + v.failed,
+                              rate: Math.round((v.ok / (v.ok + v.failed)) * 100) }))
+    .sort((a, b) => b.total - a.total);
+
+  const pmax   = rows.find(r => r.channel === 'Performance Max');
+  const search = rows.find(r => r.channel === 'Search');
+  const ready  = pmax && search && pmax.total >= minPerChannel && search.total >= minPerChannel;
+
+  let verdict = null;
+  if (ready) {
+    if (pmax.rate === 0 && search.rate >= 60) {
+      verdict = `Confirmed: no Performance Max retraction has ever worked (0 of ${pmax.total}), while Search succeeds ${search.rate}% of the time (${search.ok} of ${search.total}). Junk-lead retraction only works on Search traffic.`;
+    } else if (pmax.rate + 25 < search.rate) {
+      verdict = `Performance Max retractions succeed ${pmax.rate}% of the time against ${search.rate}% on Search, so the lookup is much weaker on PMax but not impossible.`;
+    } else {
+      verdict = `Not a Performance Max problem: PMax succeeds ${pmax.rate}% against ${search.rate}% on Search. The failures have another cause.`;
+    }
+  }
+
+  return { rows, ready, verdict, minPerChannel,
+           needed: ready ? 0 : Math.max(minPerChannel - (pmax?.total || 0), minPerChannel - (search?.total || 0)) };
+}
+
+module.exports = { checkLandingWindow, missingLeads, retractionByChannel, SETTLE_DAYS };

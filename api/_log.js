@@ -36,6 +36,10 @@ async function logGadsEvent (event) {
       // that never landed is impossible to tell apart from one we cannot
       // address. Both are Google's own ids, not personal data.
       txn:       event.txn       || '',
+      // Which campaign and channel this concerned. Retraction outcomes split
+      // by channel are how the Performance Max question gets answered.
+      campaign:  event.campaign  || '',
+      channel:   event.channel   || '',
       clickId:   event.clickId   ? String(event.clickId).slice(0, 120) : '',
       // 2000, not 300: Google's Data Manager 400s carry the actual culprit in
       // details[].metadata (e.g. the exact events.events[0].field name) well
