@@ -1,7 +1,7 @@
 // ============================================================
 //  Shared event logger for Google Ads conversion attempts.
 //  Writes each attempt to a Redis sorted set keyed by timestamp,
-//  read by /api/gads-daily-summary for the daily digest email.
+//  read by /api/daily-digest for the Google Ads section of the daily email.
 // ============================================================
 
 const KEY = 'gads:events';

@@ -1,7 +1,7 @@
 // ============================================================
 //  General application error log.
 //  Any handler catch can call logError(endpoint, err, extra) to
-//  persist an error to a Redis sorted set. /api/error-digest reads
+//  persist an error to a Redis sorted set. /api/daily-digest reads
 //  it once a day and emails a summary. Separate from gads:events
 //  (which is conversion-upload specific); this is for ANY error:
 //  Monday failures, email failures, unexpected throws, etc.
