@@ -433,7 +433,8 @@ const {
   conversionDestination,
   buildUserIdentifiers,
   ingestEvents,
-  consentForLead
+  consentForLead,
+  CONSENT_GRANTED
 } = require('./_dataManager.js');
 
 async function uploadGoogleAdsConversion (p) {
@@ -484,7 +485,14 @@ async function uploadGoogleAdsConversion (p) {
       })
     ],
     events:  [event],
-    consent: consentForLead(p.marketing_opt_in)
+    // The newsletter checkbox is email-marketing consent, not ad-measurement
+    // consent. Cookiebot governs measurement, and a click id can only exist
+    // when the guest accepted marketing cookies there, so click-carrying
+    // uploads are granted regardless of the newsletter box. Sending denied
+    // here made Google silently drop the conversion: ~9% of click-carrying
+    // Step 1s never landed, and none of them were retractable (decided with
+    // Alex, 2026-09-07). Leads with no click id keep the conservative rule.
+    consent: Object.keys(adIdentifiers).length ? CONSENT_GRANTED : consentForLead(p.marketing_opt_in)
   };
 
   console.log('Data Manager events:ingest payload:', JSON.stringify({

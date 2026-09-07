@@ -42,6 +42,7 @@ Full architecture, env vars, Monday column IDs, and migration history live in [R
 - Step 2/3/4 use Enhanced Conversions for Leads (omit `adIdentifiers`, rely on hashed email + phone).
 - All 4 conversion actions must be set to Count = Every (gbraid/wbraid require it).
 - Address identifier requires firstName + lastName + regionCode + postalCode ALL present, or the whole request 400s. We don't collect postcode, so `buildUserIdentifiers` skips the address block.
+- Consent: click-carrying Step 1 uploads always send CONSENT_GRANTED. The form's checkbox is newsletter consent, Cookiebot governs measurement, and a click id can only exist when marketing cookies were accepted. CONSENT_DENIED makes Google accept the ingest and silently drop the conversion (this hid ~9% of Step 1s until 2026-09-07). Leads with no click id still follow the newsletter box.
 
 ## UTM and cookie capture
 - Cookies prefixed `sl_`: `sl_gclid, sl_gbraid, sl_wbraid, sl_campaign, sl_adgroup, sl_term, sl_matchtype, sl_session_id, sl_first_*`
