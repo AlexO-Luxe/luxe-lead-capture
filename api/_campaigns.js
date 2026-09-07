@@ -61,17 +61,17 @@ async function fetchFromGoogle () {
   const d = await r.json();
   if (d.error) throw new Error(JSON.stringify(d.error).slice(0, 200));
 
-  const map = {};
+  const map = {}, channels = {};
   for (const row of (d.results || [])) {
     const c = row.campaign;
     if (!c?.id || !c?.name) continue;
     map[String(c.id)] = c.name;
     // Channel keyed by name as well as id, because everything downstream
     // (Monday columns, the retraction log) carries the name, not the id.
-    CHANNELS[c.name.trim().toLowerCase()] = c.advertisingChannelType || '';
-    CHANNELS[String(c.id)] = c.advertisingChannelType || '';
+    channels[c.name.trim().toLowerCase()] = c.advertisingChannelType || '';
+    channels[String(c.id)] = c.advertisingChannelType || '';
   }
-  return map;
+  return { map, channels };
 }
 
 // Populates the in-process cache. Safe to call on every request: warm
@@ -84,17 +84,23 @@ async function primeCampaignNames () {
     const k = await kv();
     const stored = await k.get(KEY);
     if (stored && typeof stored === 'object' && Object.keys(stored).length) {
-      cache = { at: Date.now(), map: stored };
-      return cache.map;
+      // New shape is { map, channels }; entries cached before 2026-09-07 are
+      // the bare map. Channels missing just means the lookup returns '' until
+      // the next refresh, exactly the old behaviour.
+      const isNew = stored.map && typeof stored.map === 'object';
+      cache = { at: Date.now(), map: isNew ? stored.map : stored };
+      Object.assign(CHANNELS, isNew ? (stored.channels || {}) : {});
+      if (isNew && Object.keys(CHANNELS).length) return cache.map;
+      // Old-shape entry: fall through so channels get fetched and cached.
     }
 
-    // KV entry has expired, so refresh from Google and re-seed it.
     const fresh = await Promise.race([
       fetchFromGoogle(),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), FETCH_TIMEOUT_MS))
     ]);
-    if (Object.keys(fresh).length) {
-      cache = { at: Date.now(), map: fresh };
+    if (Object.keys(fresh.map).length) {
+      cache = { at: Date.now(), map: fresh.map };
+      Object.assign(CHANNELS, fresh.channels);
       await k.set(KEY, fresh, { ex: KV_TTL_SEC });
       return cache.map;
     }

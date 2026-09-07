@@ -26,6 +26,7 @@ async function logGadsEvent (event) {
       action:    event.action    || '',
       reason:    event.reason    || (event.ok ? 'uploaded' : 'failed'),
       email:     event.email     || '',
+      name:      event.name      || '',
       value:     event.value     || 0,
       hasGclid:  !!event.hasGclid,
       hasGbraid: !!event.hasGbraid,

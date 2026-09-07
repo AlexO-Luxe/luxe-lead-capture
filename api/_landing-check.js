@@ -260,6 +260,18 @@ async function stepLanding ({ days = 7, settleDays = SETTLE_DAYS } = {}) {
 async function retractionByChannel ({ days = 60, minPerChannel = 5 } = {}) {
   const events = await readGadsEvents(Date.now() - days * 86400000, Date.now());
   const all = events.filter(e => /Step 1 retraction/.test(e.action || ''));
+  // Channel tagging was broken until 2026-09-07 (the channel cache never
+  // survived the KV round trip), but most events carry the campaign name,
+  // so the channel can be derived after the fact.
+  try {
+    const { primeCampaignNames, campaignChannel } = require('./_campaigns.js');
+    await primeCampaignNames();
+    for (const e of all) {
+      if (!e.channel && e.campaign) e.channel = campaignChannel(e.campaign) || '';
+    }
+  } catch (err) {
+    console.warn('channel derivation failed:', err.message);
+  }
   const attempts = all.filter(e => e.channel);
   // Attempts logged before channel tagging existed (pre 2026-08-24) still
   // count toward the plain tallies, they just cannot feed the verdict.
