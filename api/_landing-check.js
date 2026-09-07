@@ -91,7 +91,14 @@ async function checkLandingWindow ({ days = 7, settleDays = SETTLE_DAYS } = {}) 
   const step1  = events.filter(e => e.ok && /Step 1 NEW/.test(e.action || ''));
 
   const uploads = {};
+  const seenTxn = new Set();
   for (const e of step1) {
+    // Same transaction id = same conversion in Google (double enquiries in
+    // one session, and replays). Count it once or it reads as missing.
+    if (e.txn) {
+      if (seenTxn.has(e.txn)) continue;
+      seenTxn.add(e.txn);
+    }
     const day = new Date(e.ts).toISOString().slice(0, 10);
     uploads[day] = uploads[day] || { withClickId: 0, noClickId: 0 };
     if (e.hasGclid || e.hasGbraid || e.hasWbraid) uploads[day].withClickId++;
@@ -225,7 +232,7 @@ async function stepLanding ({ days = 7, settleDays = SETTLE_DAYS } = {}) {
     let uploaded = 0, noClickId = 0;
     for (const e of events) {
       if (!e.ok || !st.up.test(e.action || '') || /retraction/i.test(e.action || '')) continue;
-      const key = e.mondayId ? String(e.mondayId) : 'ts:' + e.ts;
+      const key = e.txn ? 'txn:' + e.txn : (e.mondayId ? String(e.mondayId) : 'ts:' + e.ts);
       if (seen.has(key)) continue;
       seen.add(key);
       // For the click-based step, uploads with no click id can never match a
