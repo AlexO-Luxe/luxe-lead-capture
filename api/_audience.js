@@ -22,10 +22,21 @@ const {
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 
-// The list id is visible in the Audience Manager URL and is not a secret.
-// Env var wins so the list can be swapped without a deploy.
+// List ids are visible in the Audience Manager URL and are not secrets.
+// Env vars win so a list can be swapped without a deploy.
 function customerListId () {
   return process.env.GOOGLE_ADS_CUSTOMER_LIST_ID || '9451577693';
+}
+
+// "High Value Bookers £5k+ (auto, Data Manager)", created via the API on
+// 2026-09-08. Members are bookers whose single booking value (the commission
+// figure the whole stack calls booking value) reached HIGH_VALUE_THRESHOLD.
+// A sharper seed than All Bookings for wealth-targeted audience signals:
+// All Bookings teaches Google "people who book anything", this list teaches
+// it "people who spend a lot".
+const HIGH_VALUE_THRESHOLD = 5000;
+function highValueListId () {
+  return process.env.GOOGLE_ADS_HV_LIST_ID || '9467837898';
 }
 
 let _kv = null;
@@ -54,7 +65,8 @@ async function isOptedOut (email) {
 
 // members: [{ email, phone }] — raw values in, hashed on the way out.
 // Skips opt-outs and rows with no usable identifier. Returns counts.
-async function ingestBookers (members) {
+// listId defaults to All Bookings; pass highValueListId() for the £5k+ list.
+async function ingestBookers (members, { listId } = {}) {
   const audienceMembers = [];
   let skippedOptOut = 0, skippedNoId = 0;
 
@@ -70,7 +82,7 @@ async function ingestBookers (members) {
   for (let i = 0; i < audienceMembers.length; i += 500) {
     const batch = audienceMembers.slice(i, i + 500);
     await ingestAudienceMembers({
-      destinations: [ userListDestination({ userListId: customerListId(), reference: 'sl-cm' }) ],
+      destinations: [ userListDestination({ userListId: listId || customerListId(), reference: 'sl-cm' }) ],
       audienceMembers: batch.map(b => ({ ...b, destinationReferences: ['sl-cm'] })),
       consent: CONSENT_GRANTED
     });
@@ -80,4 +92,6 @@ async function ingestBookers (members) {
   return { ingested, skippedOptOut, skippedNoId };
 }
 
-module.exports = { customerListId, recordOptOut, isOptedOut, ingestBookers, OPTOUT_KEY };
+module.exports = {
+  highValueListId,
+  HIGH_VALUE_THRESHOLD, customerListId, recordOptOut, isOptedOut, ingestBookers, OPTOUT_KEY };

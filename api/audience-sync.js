@@ -13,7 +13,8 @@
 const MONDAY_API     = 'https://api.monday.com/v2';
 const BOOKINGS_BOARD = 2171015589;
 
-const { ingestBookers } = require('./_audience.js');
+const { ingestBookers, highValueListId, HIGH_VALUE_THRESHOLD } = require('./_audience.js');
+const { bookingValue } = require('./_booking-value.js');
 const { logGadsEvent }  = require('./_log.js');
 const { logError }      = require('./_errlog.js');
 
@@ -26,7 +27,7 @@ module.exports = async function handler (req, res) {
   const since  = /^\d{4}-\d{2}-\d{2}$/.test(req.query?.since || '') ? req.query.since : '2025-01-01';
 
   const FRAG = `id name
-    column_values(ids: ["date9"]) { id text ... on MirrorValue { display_value } }
+    column_values(ids: ["date9","formula2","numeric_mm1ge9h4"]) { id text ... on MirrorValue { display_value } ... on FormulaValue { display_value } }
     relation: column_values(ids: ["link_to_leads26"]) { ... on BoardRelationValue { linked_items { id
       column_values(ids: ["email","phone_1"]) { id text } } } }`;
 
@@ -52,32 +53,46 @@ module.exports = async function handler (req, res) {
       page++;
     } while (cursor && page < 40);
 
-    // Dedupe by email before ingesting so the batches stay small.
-    const seen = new Set();
-    const members = [];
+    // Dedupe by email before ingesting so the batches stay small. A guest
+    // qualifies for the high-value list when any single booking of theirs
+    // reached the threshold (the commission figure the stack calls booking
+    // value), so the flag is ORed across their bookings.
+    const seen = new Map();
     for (const it of items) {
       const lead = it.relation?.[0]?.linked_items?.[0];
       const lc = {};
       (lead?.column_values || []).forEach(c => { lc[c.id] = (c.text || '').trim(); });
       const key = (lc.email || '').toLowerCase() || lc.phone_1 || '';
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      members.push({ email: lc.email, phone: lc.phone_1 });
+      if (!key) continue;
+      const flat = {};
+      // bookingValue wants strings; formula2 arrives as display_value.
+      (it.column_values || []).forEach(c => { flat[c.id] = (c.display_value ?? c.text ?? '').toString(); });
+      const val = bookingValue(flat)?.value || 0;
+      const cur = seen.get(key);
+      if (cur) { cur.highValue = cur.highValue || val >= HIGH_VALUE_THRESHOLD; continue; }
+      seen.set(key, { email: lc.email, phone: lc.phone_1, highValue: val >= HIGH_VALUE_THRESHOLD });
     }
+    const members = [...seen.values()];
+    const hvMembers = members.filter(m => m.highValue);
 
     if (dryRun) {
-      return res.status(200).json({ dryRun, since, bookings: items.length, uniqueMembers: members.length });
+      return res.status(200).json({ dryRun, since, bookings: items.length,
+        uniqueMembers: members.length, highValueMembers: hvMembers.length });
     }
 
     const result = await ingestBookers(members);
+    const hv = hvMembers.length
+      ? await ingestBookers(hvMembers, { listId: highValueListId() })
+      : { ingested: 0 };
 
-    // One summary event so the daily digest shows the list breathing.
+    // One summary event so the daily digest shows the lists breathing.
     await logGadsEvent({
       source: 'audience-sync', action: 'Customer Match', ok: true,
-      reason: 'nightly sweep', value: result.ingested
+      reason: `nightly sweep, ${hv.ingested} high value`, value: result.ingested
     });
 
-    return res.status(200).json({ since, bookings: items.length, uniqueMembers: members.length, ...result });
+    return res.status(200).json({ since, bookings: items.length, uniqueMembers: members.length,
+      highValue: hv.ingested, ...result });
   } catch (err) {
     console.error('audience-sync error:', err.message);
     await logError('audience-sync', err);

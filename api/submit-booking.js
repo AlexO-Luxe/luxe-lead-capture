@@ -6,7 +6,7 @@
 const MONDAY_API = 'https://api.monday.com/v2';
 const { logGadsEvent }  = require('./_log.js');
 const { bookingValue }  = require('./_booking-value.js');
-const { ingestBookers }  = require('./_audience.js');
+const { ingestBookers, highValueListId, HIGH_VALUE_THRESHOLD } = require('./_audience.js');
 
 // The only booking status that must NOT upload to Google. Every other status
 // (Confirmed, Paying/Approved, Payment Complete, Extensions, Awaiting
@@ -171,7 +171,14 @@ module.exports = async function handler(req, res) {
           // Customer Match: add the booker to the Google Ads customer list.
           // Non-fatal, the nightly audience-sync sweep heals any miss.
           if (!result?.skipped && (leadEmail || leadPhone)) {
-            try { await ingestBookers([{ email: leadEmail, phone: leadPhone }]); }
+            try {
+              await ingestBookers([{ email: leadEmail, phone: leadPhone }]);
+              // A £5k+ booking also joins the high-value list, the sharper
+              // seed for wealth-targeted audience signals.
+              if (cleanValue >= HIGH_VALUE_THRESHOLD) {
+                await ingestBookers([{ email: leadEmail, phone: leadPhone }], { listId: highValueListId() });
+              }
+            }
             catch (e) { console.warn('customer list add failed (non-fatal):', e.message); }
           }
           return res.status(200).json({ success: true, itemId, value: cleanValue });
@@ -213,7 +220,14 @@ module.exports = async function handler(req, res) {
           // Customer Match: add the booker to the Google Ads customer list.
           // Non-fatal, the nightly audience-sync sweep heals any miss.
           if (!result?.skipped && (leadEmail || leadPhone)) {
-            try { await ingestBookers([{ email: leadEmail, phone: leadPhone }]); }
+            try {
+              await ingestBookers([{ email: leadEmail, phone: leadPhone }]);
+              // A £5k+ booking also joins the high-value list, the sharper
+              // seed for wealth-targeted audience signals.
+              if (cleanValue >= HIGH_VALUE_THRESHOLD) {
+                await ingestBookers([{ email: leadEmail, phone: leadPhone }], { listId: highValueListId() });
+              }
+            }
             catch (e) { console.warn('customer list add failed (non-fatal):', e.message); }
           }
         return res.status(200).json({ success: true, itemId, value: cleanValue });
