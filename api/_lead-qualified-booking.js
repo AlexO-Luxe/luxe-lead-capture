@@ -435,6 +435,7 @@ function mapBooking (item, titles = {}) {
     itemId:     String(item.id),
     name:       item.name || '',
     salesperson: valueOf(cv.people98),
+    bookingType: valueOf(cv.status6),
     apartment:  apartment || '',
     checkIn,
     checkOut,
@@ -496,7 +497,7 @@ async function fetchBookingForLead (leadId) {
         booking = booking
           ? { ...booking, apartment }
           : {
-              itemId: '', name: '', salesperson: '', apartment,
+              itemId: '', name: '', salesperson: '', bookingType: '', apartment,
               checkIn: '', checkOut: '', nights: '',
               nightlyRate: null, commission: null, commissionEstimated: false,
               status: '', confirmed: false, url: ''
