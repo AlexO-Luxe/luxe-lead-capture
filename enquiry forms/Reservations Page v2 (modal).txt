@@ -3724,7 +3724,7 @@ html.sl-modal-open #sl-ap{display:none !important;}
       return false;
     }
 
-    if(!/^[^\s@,]+@[^\s@,]+\.[^\s@,]{2,}$/.test(val)){
+    if(!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(val)){
       if(doShow){ showErr('slErr-email', true); emailErr.textContent = 'Please enter a valid email address'; setFs(emailEl,'err'); }
       return false;
     }

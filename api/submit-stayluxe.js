@@ -18,6 +18,7 @@ const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch, countryName } = require('./_attribution.js');
 const { primeCampaignNames, campaignName, resolveCampaignId } = require('./_campaigns.js');
+const { logError } = require('./_errlog.js');
 
 // ──────────────────────────────────────────────────────────────
 //  STAY LUXE BRAND CONFIG  (edit here only)
@@ -111,7 +112,13 @@ module.exports = async function handler(req, res) {
 
   results.forEach((r, i) => {
     const label = ['Guest email', 'Team email'][i];
-    if(r.status === 'rejected') console.error(`${label} failed:`, r.reason?.message || r.reason);
+    if (r.status === 'rejected') {
+      console.error(`${label} failed:`, r.reason?.message || r.reason);
+      // Parity with submit-enquiry: a dead notification must reach the
+      // daily digest, not just the function logs.
+      logError(`submit-stayluxe (${label.toLowerCase()})`,
+        new Error(`${r.reason?.message || r.reason} [lead: ${p.full_name || ''} ${p.email || ''}]`)).catch(() => {});
+    }
     else console.log(`${label} OK`);
   });
 

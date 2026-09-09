@@ -9,6 +9,7 @@ const MONDAY_BOARD = 2171015719;
 
 const { buildTouch, getSession, attachSubmission, classifyTouch, countryName } = require('./_attribution.js');
 const { primeCampaignNames, campaignName, resolveCampaignId } = require('./_campaigns.js');
+const { logError } = require('./_errlog.js');
 const { recordOptOut } = require('./_audience.js');
 const { logGadsEvent }  = require('./_log.js');
 
@@ -119,7 +120,14 @@ module.exports = async function handler(req, res) {
 
   results.forEach((r, i) => {
     const label = ['Guest email', 'Team email'][i];
-    if(r.status === 'rejected') console.error(`${label} failed:`, r.reason?.message || r.reason);
+    if (r.status === 'rejected') {
+      console.error(`${label} failed:`, r.reason?.message || r.reason);
+      // Into the error log, so a dead notification shows in the daily digest
+      // instead of vanishing into function logs (the 2026-09-09 team email
+      // failure was completely silent).
+      logError(`submit-enquiry (${label.toLowerCase()})`,
+        new Error(`${r.reason?.message || r.reason} [lead: ${p.full_name || ''} ${p.email || ''}]`)).catch(() => {});
+    }
     else console.log(`${label} OK`);
   });
 
@@ -1484,8 +1492,10 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       : [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
     // Reply goes to the guest, not back to the partner alias (which is itself an
     // alias of the team inbox, so Reply would otherwise be self-addressed).
-    // Resend expects snake_case here; replyTo is silently dropped.
-    reply_to: p.email,
+    // Resend expects snake_case here; replyTo is silently dropped. Omitted
+    // entirely when the guest's address is malformed, or Resend 422s the
+    // whole send and the team never sees the enquiry.
+    ...(safeEmail(p.email) ? { reply_to: safeEmail(p.email) } : {}),
     subject: portal
       ? `Marangoni Enquiry - ${formatAptType(p.apartment_type) || 'Accommodation'}${nightCount ? ', ' + nightCount + ' nights' : ''}`
       : isTypeA
@@ -1926,6 +1936,15 @@ function stripGuiltyColumns (cv, msg, p) {
 // ──────────────────────────────────────────────────────────────
 //  RESEND
 // ──────────────────────────────────────────────────────────────
+
+// Resend rejects the entire send when reply_to is malformed, so a guest who
+// typos their address (cofexhakim@gmail.cô, 2026-09-09) must not take the
+// team notification down with them. Plain ASCII shape or nothing.
+function safeEmail (v) {
+  v = String(v || '').trim();
+  return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(v) ? v : '';
+}
+
 async function resendSend(payload) {
   const res = await fetch(RESEND_API, {
     method:  'POST',
