@@ -120,7 +120,10 @@ function buildUserIdentifiers ({ email, phone, firstName, lastName, regionCode, 
 //  Destination builders
 //  MCC → child via destinations[].loginAccount / operatingAccount.
 // ──────────────────────────────────────────────────────────────
-function conversionDestination ({ conversionActionId, reference = 'sl-conv' }) {
+// operatingCustomerId: optional override for the child account the event
+// lands in (Stay Luxe uploads route to their own account under the same
+// MCC). Defaults to the Student Luxe child account env.
+function conversionDestination ({ conversionActionId, reference = 'sl-conv', operatingCustomerId }) {
   return {
     reference,
     loginAccount: {
@@ -132,7 +135,7 @@ function conversionDestination ({ conversionActionId, reference = 'sl-conv' }) {
     },
     operatingAccount: {
       accountType: 'GOOGLE_ADS',
-      accountId:   (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '')
+      accountId:   (operatingCustomerId || process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, '')
     },
     productDestinationId: String(conversionActionId)
   };

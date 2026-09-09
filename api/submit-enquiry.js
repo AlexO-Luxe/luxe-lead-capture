@@ -509,8 +509,22 @@ async function uploadGoogleAdsConversion (p) {
     return { skipped: true, reason: 'no_identifiers' };
   }
 
+  // ── Brand routing ─────────────────────────────────────────
+  // Stay Luxe site leads upload to the Stay Luxe child account under the
+  // same MCC. Until its env vars exist, skip rather than counting Stay Luxe
+  // leads against the Student Luxe conversion action.
+  const isStayLuxe = (p.enquiry_source || '').trim() === 'stayluxe';
+  const stayluxeCustomerId = (process.env.STAYLUXE_ADS_CUSTOMER_ID || '').trim();
+  const stayluxeActionId   = (process.env.STAYLUXE_CONVERSION_ACTION_ID || '').trim();
+  if (isStayLuxe && (!stayluxeCustomerId || !stayluxeActionId)) {
+    console.log('Skipping upload — Stay Luxe lead but STAYLUXE_ADS_CUSTOMER_ID / STAYLUXE_CONVERSION_ACTION_ID not configured');
+    return { skipped: true, reason: 'stayluxe_not_configured' };
+  }
+  const destRef   = isStayLuxe ? 'slx-step1-new' : 'sl-step1-new';
+  const actionId  = isStayLuxe ? stayluxeActionId : process.env.GOOGLE_ADS_CONVERSION_ACTION_ID;
+
   const event = {
-    destinationReferences: ['sl-step1-new'],
+    destinationReferences: [destRef],
     transactionId:         String(p.session_id || p.monday_id || Date.now()),
     eventTimestamp,
     eventSource:           'WEB',
@@ -523,8 +537,9 @@ async function uploadGoogleAdsConversion (p) {
   const body = {
     destinations: [
       conversionDestination({
-        conversionActionId: process.env.GOOGLE_ADS_CONVERSION_ACTION_ID,
-        reference:          'sl-step1-new'
+        conversionActionId: actionId,
+        reference:          destRef,
+        ...(isStayLuxe && { operatingCustomerId: stayluxeCustomerId })
       })
     ],
     events:  [event],
@@ -539,8 +554,9 @@ async function uploadGoogleAdsConversion (p) {
   };
 
   console.log('Data Manager events:ingest payload:', JSON.stringify({
-    customerId:         (process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, ''),
-    conversionActionId: process.env.GOOGLE_ADS_CONVERSION_ACTION_ID,
+    customerId:         (isStayLuxe ? stayluxeCustomerId : process.env.GOOGLE_ADS_CUSTOMER_ID || '').replace(/-/g, ''),
+    brand:              isStayLuxe ? 'stayluxe' : 'studentluxe',
+    conversionActionId: actionId,
     hasGclid:           !!p.gclid,
     hasGbraid:          !!p.gbraid,
     hasWbraid:          !!p.wbraid,
