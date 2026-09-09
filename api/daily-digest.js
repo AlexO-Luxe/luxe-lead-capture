@@ -17,6 +17,7 @@ const { readGadsEvents } = require('./_log.js');
 const { readErrors }     = require('./_errlog.js');
 const { logError }       = require('./_errlog.js');
 const { buildBookingSyncSection } = require('./sync-booking-values.js');
+const { uploadDiagnostics } = require('./_gads-diagnostics.js');
 const { checkLandingWindow, missingLeads, retractionByChannel,
         retractionLedger, classifyRetraction, RETRACTION_OUTCOMES } = require('./_landing-check.js');
 const { shell, table, th, td, emptyRow, esc, sendDigest, BRAND } = require('./_digest.js');
@@ -50,8 +51,9 @@ function isExplainedRetraction (e) {
   return RETRACTION_OUTCOMES[classifyRetraction(e)]?.expected === true;
 }
 
-async function buildGadsSection (sinceMs, untilMs) {
-  const events = await readGadsEvents(sinceMs, untilMs);
+async function buildGadsSection (sinceMs, untilMs, brandFilter) {
+  let events = await readGadsEvents(sinceMs, untilMs);
+  if (brandFilter) events = events.filter(brandFilter);
 
   const byAction = {};
   const explainedBy = {};
@@ -118,6 +120,65 @@ async function buildGadsSection (sinceMs, untilMs) {
     subtitle: totalValue > 0 ? `£${totalValue.toLocaleString('en-GB')} of conversion value` : '',
     html: table(th('Action') + th('OK', 'right') + th('Fail', 'right') + th('Value', 'right') + th('Click ID%', 'right'),
                 rows || emptyRow(5, 'No conversion uploads in this window.')) + setAside + failHtml
+  };
+}
+
+
+
+// ── Google's own upload diagnostics ───────────────────────────
+// The API face of the "Offline conversion data issues" banner. Nothing
+// polled it before, which is why the July 2026 transaction-id breakage was
+// only spotted when Alex saw the banner himself.
+//
+// Tone rule, learned from live data on day one: the GOOGLE_ADS_API client
+// covers our retraction calls, and a CONVERSION_NOT_FOUND blip there is an
+// unretractable junk lead the retraction ledger already explains. Red is
+// reserved for the ingest pipeline (Data Manager) being unhealthy or for
+// any alert that is not that known pattern.
+const CLIENT_LABELS = {
+  'UNKNOWN':        'Conversion ingest (Data Manager)',
+  'GOOGLE_ADS_API': 'Adjustments (retractions)'
+};
+
+async function buildDiagnosticsSection (accountId, accountLabel) {
+  if (!(accountId || '').trim()) {
+    return { title: 'Google diagnostics', stat: 'not configured', tone: 'plain',
+             subtitle: accountLabel,
+             html: `<p style="margin:0;font-size:12px;color:${BRAND.muted};">The ${accountLabel} Ads account id is not set in this environment, so Google's upload diagnostics cannot be read.</p>` };
+  }
+  const d = await uploadDiagnostics(accountId);
+  if (!d || !d.clients.length) {
+    return { title: 'Google diagnostics', stat: 'no upload activity', tone: 'plain', empty: true };
+  }
+
+  let worstReal = 'ok';
+  const rows = d.clients.map(c => {
+    const isAdjust = c.client === 'GOOGLE_ADS_API';
+    const onlyKnownBlip = isAdjust && c.alerts.every(a => a.error === 'CONVERSION_NOT_FOUND');
+    const unhealthy = c.status === 'NEEDS_ATTENTION' || c.status === 'NEEDS_REVIEW';
+    if (unhealthy && !onlyKnownBlip) worstReal = 'bad';
+    else if (unhealthy && worstReal !== 'bad') worstReal = 'warn';
+
+    const alertTxt = c.alerts.length
+      ? c.alerts.map(a => `${esc(a.error)}${a.pct != null ? ' (' + a.pct + '%)' : ''}`).join(', ')
+      : '';
+    return `<tr>
+      ${td(esc(CLIENT_LABELS[c.client] || c.client))}
+      ${td(String(c.total), 'right')}
+      ${td(c.successRate != null ? c.successRate + '%' : '&mdash;', 'right')}
+      ${td(unhealthy
+          ? `<span style="color:${onlyKnownBlip ? BRAND.amber : BRAND.red};font-weight:600;">${esc(c.status.replace(/_/g, ' ').toLowerCase())}</span>${alertTxt ? `<div style="font-size:11px;color:${BRAND.muted};">${alertTxt}${onlyKnownBlip ? ', covered by the retraction ledger' : ''}</div>` : ''}`
+          : `<span style="color:${BRAND.green};font-weight:600;">${esc(c.status.toLowerCase())}</span>`, 'right')}
+    </tr>`;
+  }).join('');
+
+  return {
+    title: 'Google diagnostics',
+    stat: worstReal === 'bad' ? 'Google flags upload issues'
+        : worstReal === 'warn' ? 'known blips only' : 'healthy',
+    tone: worstReal === 'ok' ? 'good' : worstReal,
+    subtitle: `${accountLabel}, Google's own verdict on our conversion uploads`,
+    html: table(th('Upload client') + th('Events', 'right') + th('Success', 'right') + th('Status', 'right'), rows)
   };
 }
 
@@ -325,24 +386,41 @@ module.exports = async function handler (req, res) {
   try {
     // One slow section must not cost the whole digest, so each is settled
     // independently and a thrown section is simply left out.
-    const settled = await Promise.allSettled([
-      buildGadsSection(sinceMs, untilMs),
-      buildLandingSection(),
-      buildRetractionSection(),
-      buildBookingSyncSection(hours + 2),
-      buildErrorSection(sinceMs, untilMs)
-    ]);
+    // Two digests, one per brand. Stay Luxe conversions route to their own
+    // Ads account, so it gets its own email: its uploads (Stay Luxe source
+    // prefix) and Google's diagnostics for that account. Everything else,
+    // landing, retraction, booking values, errors, is Student Luxe
+    // machinery and stays in the Student Luxe digest.
+    const isStayLuxe = req.query?.brand === 'stayluxe';
+    const stayFilter    = (e) => /^Stay Luxe/.test(e.source || '');
+    const studentFilter = (e) => !/^Stay Luxe/.test(e.source || '');
+
+    const settled = await Promise.allSettled(isStayLuxe
+      ? [
+          buildGadsSection(sinceMs, untilMs, stayFilter),
+          buildDiagnosticsSection(process.env.STAYLUXE_ADS_CUSTOMER_ID, 'Stay Luxe Ads account')
+        ]
+      : [
+          buildGadsSection(sinceMs, untilMs, studentFilter),
+          buildDiagnosticsSection(process.env.GOOGLE_ADS_CUSTOMER_ID, 'Student Luxe Ads account'),
+          buildLandingSection(),
+          buildRetractionSection(),
+          buildBookingSyncSection(hours + 2),
+          buildErrorSection(sinceMs, untilMs)
+        ]);
     settled.forEach((s, i) => {
       if (s.status === 'rejected') console.warn(`daily-digest section ${i} failed:`, s.reason?.message);
     });
     const sections = settled.map(s => s.status === 'fulfilled' ? s.value : null).filter(Boolean);
 
     const gads    = sections.find(s => s.title === 'Google Ads uploads');
+    const diag    = sections.find(s => s.title === 'Google diagnostics');
     const errs    = sections.find(s => s.title === 'Errors');
     const live    = sections.filter(s => !s.empty);
     const landing = sections.find(s => s.title === 'Conversion follow up');
     const retract = sections.find(s => s.title === 'Junk lead retraction');
     const trouble = (errs && !errs.empty) || (gads && gads.tone === 'bad')
+                 || (diag && diag.tone === 'bad')
                  || (landing && landing.tone === 'bad') || (retract && retract.tone === 'bad');
 
     const dateLabel = new Date(untilMs).toLocaleDateString('en-GB', {
@@ -354,20 +432,24 @@ module.exports = async function handler (req, res) {
     // retraction or landing arrived with an empty subject line.
     const parts = [];
     if (gads    && gads.tone    === 'bad') parts.push(gads.stat);
+    if (diag    && diag.tone    === 'bad') parts.push(diag.stat);
     if (landing && landing.tone === 'bad') parts.push(landing.stat);
     if (retract && retract.tone === 'bad') parts.push(retract.stat);
     if (errs    && !errs.empty)            parts.push(errs.stat + ' errors');
 
+    const opsName = isStayLuxe ? 'Stay Luxe ops' : 'Daily ops';
     const subject = trouble
-      ? `Daily ops: ${parts.join(', ') || 'needs a look'}`
-      : `Daily ops: all green${gads && !gads.empty ? ', ' + gads.stat : ''}`;
+      ? `${opsName}: ${parts.join(', ') || 'needs a look'}`
+      : `${opsName}: all green${gads && !gads.empty ? ', ' + gads.stat : ''}`;
 
     const html = shell({
-      eyebrow: 'Student Luxe',
-      title: trouble ? 'Daily ops, needs a look' : 'Daily ops, all green',
+      eyebrow: isStayLuxe ? 'Stay Luxe' : 'Student Luxe',
+      title: trouble ? `${opsName}, needs a look` : `${opsName}, all green`,
       subtitle: dateLabel + ' · last ' + hours + 'h',
       sections,
-      footer: 'Combined daily digest (/api/daily-digest). Replaces the separate Google Ads summary, booking value sync and error digest emails. Upload failures still alert immediately.'
+      footer: isStayLuxe
+        ? 'Stay Luxe daily digest (/api/daily-digest?brand=stayluxe): conversion uploads to the Stay Luxe Ads account and Google&#39;s own diagnostics for it. Upload failures still alert immediately.'
+        : 'Combined daily digest (/api/daily-digest). Replaces the separate Google Ads summary, booking value sync and error digest emails. Upload failures still alert immediately.'
     });
 
     if (req.query?.dryRun === '1') {

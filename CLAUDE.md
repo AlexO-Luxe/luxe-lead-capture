@@ -62,7 +62,7 @@ Full architecture, env vars, Monday column IDs, and migration history live in [R
 
 ## Monitoring
 - Failure alerts to alex@studentluxe.co.uk on any Google Ads upload fail (`sendGadsAlert`)
-- Daily digest at 09:30 London (Claude routine -> `/api/gads-daily-summary`)
+- Two daily digests (Vercel crons): Student Luxe ops 08:30 UTC (`/api/daily-digest`) and Stay Luxe ops 08:35 UTC (`?brand=stayluxe`). Each carries a Google diagnostics section polling `offline_conversion_upload_client_summary` for its own Ads account, the API face of the "Offline conversion data issues" banner. A CONVERSION_NOT_FOUND blip on the adjustments client is amber, not red, the retraction ledger already explains those; red is reserved for the ingest pipeline or unknown alerts.
 - Weekly PPC summary Friday 09:00 UTC (Vercel cron -> `/api/weekly-summary`)
 - KV `gads:events` sorted set retains 35 days of upload attempts
 
