@@ -1542,6 +1542,11 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       ? (routedAssigneeId(p)
           ? [portal.fromEmail]
           : [...new Set([portal.fromEmail, process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean))])
+      // Stay Luxe is in test: notifications go to Alex only, not the
+      // reservations team. Set STAYLUXE_TEAM_EMAIL (or remove this branch)
+      // when Stay Luxe goes live.
+      : p.enquiry_source === 'stayluxe'
+      ? [process.env.STAYLUXE_TEAM_EMAIL || 'alex@studentluxe.co.uk']
       : [process.env.TEAM_EMAIL, process.env.TEAM_EMAIL_2].filter(Boolean),
     // Reply goes to the guest, not back to the partner alias (which is itself an
     // alias of the team inbox, so Reply would otherwise be self-addressed).
