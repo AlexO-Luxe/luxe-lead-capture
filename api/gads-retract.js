@@ -181,7 +181,7 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
   const item = data.items?.[0];
   // The row can vanish between queueing and retraction: duplicates get
   // merged and the surviving row keeps its own id, so the queued one is gone.
-  if (!item) return { skipped: true, notify: true,
+  if (!item) return { skipped: true, notify: true, outcome: 'row_gone',
                       reason: 'lead row is no longer on the Leads board, merged or deleted' };
 
   const cols = {};
@@ -193,22 +193,22 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
   // The label is re-read from the board rather than trusted from the queue:
   // a lead re-labelled between queueing and retraction must not be retracted.
   if (!RETRACT_REASONS.includes(reason)) {
-    return { skipped: true, name: item.name,
+    return { skipped: true, name: item.name, outcome: 'relabelled',
              reason: `not retracted, Reason not Qualified is now "${cols.status_11 || 'blank'}"` };
   }
   if (expectReason && reason !== expectReason) {
-    return { skipped: true, name: item.name,
+    return { skipped: true, name: item.name, outcome: 'relabelled',
              reason: `not retracted, Reason not Qualified changed to "${cols.status_11}"` };
   }
   if (source !== 'PPC') {
-    return { skipped: true, name: item.name,
+    return { skipped: true, name: item.name, outcome: 'not_ppc',
              reason: `not a PPC lead (source is ${source || 'blank'}), so no Step 1 conversion was ever uploaded` };
   }
 
   const createdMs = new Date(item.created_at).getTime();
   const ageDays   = (Date.now() - createdMs) / 86400000;
   if (ageDays > MAX_AGE_DAYS) {
-    return { skipped: true, name: item.name, expired: true,
+    return { skipped: true, name: item.name, expired: true, outcome: 'expired',
              reason: `lead is ${Math.round(ageDays)} days old, past Google's 55 day adjustment window` };
   }
 
@@ -216,7 +216,7 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
   // fresh lead waits in the queue until its Step 1 upload has ripened.
   const readyAt = createdMs + RIPEN_HOURS * 3600000;
   if (Date.now() < readyAt) {
-    return { queued: true, name: item.name, readyAt,
+    return { queued: true, name: item.name, readyAt, outcome: 'queued',
              reason: `Step 1 conversion not processed yet, retracting after ${new Date(readyAt).toISOString().slice(0, 16).replace('T', ' ')} UTC` };
   }
 
@@ -237,6 +237,7 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
     await k.sadd(RETRACTED_KEY, String(itemId));
     await k.zrem(PENDING_KEY, String(itemId));
     return { done: true, name: item.name, orderId: landed[0], campaign, channel,
+             outcome: 'retracted',
              reason: `retracted (${reason}), order_id ${landed[0]}` };
   }
 
@@ -255,7 +256,11 @@ async function retractLead (itemId, k, { expectReason = null } = {}) {
       reason: cols.status_11 || '', tried: orderIds
     }) }).catch(() => {});
   }
+  // Only 'unmatched' is a genuine open question: the conversion was ripe and
+  // addressable and Google still would not match it. Everything else has an
+  // answer already, and the digest tallies those rather than alarming on them.
   return { failed: true, name: item.name, tried: orderIds, terminal: notFound, campaign, channel,
+           outcome: notFound ? 'not_recorded' : 'unmatched',
            reason: notFound
              ? 'Google never recorded a Step 1 conversion for this lead, nothing to retract'
              : `no matching conversion for ${orderIds.join(' / ')}`,
@@ -279,7 +284,7 @@ async function runPending (k) {
 
     if (r.done) {
       out.retracted++;
-      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason, campaign: r.campaign, channel: r.channel });
+      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason, campaign: r.campaign, channel: r.channel, outcome: r.outcome, mondayId: itemId });
     } else if (r.queued) {
       // Still green. Re-score to the real ready time instead of retrying blind.
       await k.zadd(PENDING_KEY, { score: r.readyAt, member: itemId });
@@ -289,7 +294,7 @@ async function runPending (k) {
       // A relabelled or non-PPC lead is a normal skip and stays quiet. An
       // expired lead or a vanished row is worth seeing in the digest.
       if (r.expired || r.notify) {
-        await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name || itemId, ok: false, reason: r.reason });
+        await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name || itemId, ok: false, reason: r.reason, outcome: r.outcome, mondayId: itemId });
       }
     } else {
       out.failed++;
@@ -297,7 +302,7 @@ async function runPending (k) {
       await logGadsEvent({
         source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false,
         reason: r.reason + (r.detail ? ' | ' + r.detail.slice(0, 200) : ''),
-        campaign: r.campaign, channel: r.channel
+        campaign: r.campaign, channel: r.channel, outcome: r.outcome, mondayId: itemId
       });
     }
   }
@@ -355,12 +360,12 @@ module.exports = async function handler (req, res) {
       return res.status(200).json({ queued: true, itemId, retractAfter: new Date(r.readyAt).toISOString(), reason: r.reason });
     }
     if (r.done) {
-      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason, campaign: r.campaign, channel: r.channel });
+      await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: true, reason: r.reason, campaign: r.campaign, channel: r.channel, outcome: r.outcome, mondayId: String(itemId) });
       return res.status(200).json({ retracted: true, itemId, orderId: r.orderId });
     }
     if (r.skipped) {
       if (r.expired) {
-        await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false, reason: r.reason });
+        await logGadsEvent({ source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false, reason: r.reason, outcome: r.outcome, mondayId: String(itemId) });
       }
       return res.status(200).json({ skipped: true, itemId, reason: r.reason });
     }
@@ -370,7 +375,7 @@ module.exports = async function handler (req, res) {
     await logGadsEvent({
       source: 'gads-retract', action: 'Step 1 retraction', name: r.name, ok: false,
       reason: r.reason + (r.detail ? ' | ' + r.detail.slice(0, 200) : ''),
-      campaign: r.campaign, channel: r.channel
+      campaign: r.campaign, channel: r.channel, outcome: r.outcome, mondayId: String(itemId)
     });
     return res.status(200).json({ retracted: false, itemId, tried: r.tried, detail: r.detail });
 

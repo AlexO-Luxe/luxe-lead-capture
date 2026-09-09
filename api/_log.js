@@ -41,6 +41,12 @@ async function logGadsEvent (event) {
       // by channel are how the Performance Max question gets answered.
       campaign:  event.campaign  || '',
       channel:   event.channel   || '',
+      // Why this attempt ended the way it did, as a code rather than prose.
+      // Retraction non-successes are mostly explainable (lead unqualified
+      // months late, Google holding no conversion to remove), and reading
+      // that back out of a sentence is guesswork. See RETRACTION_OUTCOMES
+      // in _landing-check.js for the codes.
+      outcome:   event.outcome   || '',
       clickId:   event.clickId   ? String(event.clickId).slice(0, 120) : '',
       // 2000, not 300: Google's Data Manager 400s carry the actual culprit in
       // details[].metadata (e.g. the exact events.events[0].field name) well

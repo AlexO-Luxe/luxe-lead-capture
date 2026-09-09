@@ -7,7 +7,8 @@
 //  the daily digest, so the board and the email can never disagree.
 // ============================================================
 
-const { checkLandingWindow, missingLeads, retractionByChannel, stepLanding, SETTLE_DAYS } = require('./_landing-check.js');
+const { checkLandingWindow, missingLeads, retractionByChannel, retractionLedger,
+        stepLanding, SETTLE_DAYS } = require('./_landing-check.js');
 const { logError } = require('./_errlog.js');
 
 module.exports = async function handler (req, res) {
@@ -24,21 +25,24 @@ module.exports = async function handler (req, res) {
 
   try {
     const days = Math.max(1, Math.min(30, parseInt(req.query?.days || '7', 10)));
-    const [window, missing, steps, channels, queued] = await Promise.all([
+    const [window, missing, steps, channels, ledger] = await Promise.all([
       checkLandingWindow({ days }),
       missingLeads({ days: 30, limit: 10 }).catch(() => []),
       stepLanding({ days }).catch(() => []),
       retractionByChannel().catch(() => null),
-      (async () => {
-        const { Redis } = await import('@upstash/redis');
-        return Redis.fromEnv().zcard('gads:retract:pending');
-      })().catch(() => 0)
+      retractionLedger({ days: 30, limit: 10 }).catch(() => null)
     ]);
 
-    // Retraction tallies from the same channel data the verdict uses, so the
-    // board's numbers and the verdict can never be built from different sets.
-    const retracted = (channels?.rows || []).reduce((a, r) => a + r.ok, 0) + (channels?.untagged?.ok || 0);
-    const noMatch   = (channels?.rows || []).reduce((a, r) => a + r.failed, 0) + (channels?.untagged?.failed || 0);
+    // Retraction tallies come from the ledger the digest uses, so the board and
+    // the email cannot disagree. They used to be summed off the channel split,
+    // which counted a lead skipped for being months past Google's adjustment
+    // window as a retraction failure. Now expired and merged rows sit in their
+    // own outcomes and noMatch means only what actually reached Google and
+    // did not match.
+    const notRecorded = ledger?.rows?.find(r => r.code === 'not_recorded')?.count || 0;
+    const retracted   = ledger?.retracted  || 0;
+    const unresolved  = ledger?.unresolved || 0;
+    const noMatch     = notRecorded + unresolved;
 
     return res.status(200).json({
       checkedAt:  new Date().toISOString(),
@@ -47,7 +51,11 @@ module.exports = async function handler (req, res) {
       days:       window.rows,
       steps,
       retraction: {
-        retracted, noMatch, queued,
+        retracted, noMatch, unresolved,
+        queued:    ledger?.queued    || 0,
+        explained: ledger?.explained || 0,
+        outcomes:  ledger?.rows      || [],
+        unexplained: ledger?.unexplained || [],
         ready:   channels?.ready || false,
         verdict: channels?.ready ? channels.verdict : null,
         needed:  channels?.ready ? 0 : (channels?.needed ?? null)

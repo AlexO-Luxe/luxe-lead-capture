@@ -275,11 +275,37 @@ Every catch block in submit-enquiry / submit-booking / submit-high-potential cal
 Helper: `api/_alert.js`. Test endpoint: `/api/test-alert?secret=<CRON_SECRET>`.
 
 ### Daily digest
-Every upload attempt also goes to `logGadsEvent` -> Redis sorted set `gads:events` (35d retention). The endpoint `/api/gads-daily-summary?secret=<CRON_SECRET>&hours=24` aggregates the last N hours and emails alex@ a navy/gold card with per-action OK/fail/value/click-ID coverage + last 5 failures.
+Every upload attempt also goes to `logGadsEvent` -> Redis sorted set `gads:events` (35d retention). The endpoint `/api/daily-digest?secret=<CRON_SECRET>&hours=24` aggregates the last N hours and emails alex@ one navy/gold message. Add `&dryRun=1` to get the subject, per-section stat/tone and rendered HTML back as JSON without sending.
 
-Triggered by a Claude routine (`gads-daily-summary-email`) at 09:30 London daily. The routine only fires when the Claude Code app is open — if you need bulletproof firing, mirror it as a Vercel cron in `vercel.json`.
+Sections, each dropped when it has nothing to say:
 
-Helper: `api/_log.js` (logGadsEvent, readGadsEvents).
+| Section | What it answers |
+|---|---|
+| Google Ads uploads | per-action OK/fail/value/click-ID coverage, plus the last 5 genuine failures |
+| Conversion follow up | did the Step 1 uploads actually land as recorded conversions (`_landing-check.js`) |
+| Junk lead retraction | did the junk conversions come back out, and did anything fail without an explanation |
+| Booking value sync | `sync-booking-values.js` |
+| Errors | `_errlog.js`, grouped by source |
+
+Uploads and retraction are opposite directions of travel and are kept in separate cards on purpose. They shared one card until 2026-09-09, which produced a headline reading "0 not accounted for" directly above a red list of eight names that had nothing to do with landing.
+
+Triggered by a Claude routine (`gads-daily-summary-email`) at 09:30 London daily. The routine only fires when the Claude Code app is open, so if you need bulletproof firing, mirror it as a Vercel cron in `vercel.json`.
+
+Helpers: `api/_log.js` (logGadsEvent, readGadsEvents), `api/_digest.js` (shared shell and table furniture).
+
+#### Retraction outcomes
+A retraction that does not go through is usually not a fault, so every attempt carries an outcome code (set in `gads-retract.js`, classified in `_landing-check.js`). Only `unmatched` is a real problem: everything else already has an answer and is tallied rather than alarmed on.
+
+| Code | Meaning | Counts as a failure |
+|---|---|---|
+| `retracted` | removed from Google | no, it worked |
+| `expired` | lead unqualified past Google's 55 day adjustment window | no |
+| `not_recorded` | Google holds no conversion with that order id, mostly Performance Max | no |
+| `row_gone` | Monday row merged or deleted between queueing and retraction | no |
+| `relabelled` / `not_ppc` | guard tripped, never sent | no |
+| `unmatched` | inside the window, sent to Google, still no match | **yes** |
+
+`retractionLedger()` in `_landing-check.js` gives the 30 day running total by outcome and feeds both the digest section and `/api/landing-status`. Events logged before 2026-09-09 carry no outcome field, so the classifier reads the code back out of the logged wording, keeping the full 35 days of history usable.
 
 ### Weekly PPC summary
 `api/weekly-summary.js`, Vercel cron Friday 09:00 UTC (10:00 BST). Reads PPC bookings from Monday Bookings board filtered by `date9` (close date), groups by campaign, emails alex@ with a navy header card. Manual trigger: `?secret=<CRON_SECRET>&days=N&dryRun=1`.

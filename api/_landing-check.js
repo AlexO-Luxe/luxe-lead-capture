@@ -145,8 +145,103 @@ async function checkLandingWindow ({ days = 7, settleDays = SETTLE_DAYS } = {}) 
 }
 
 
-// Leads whose conversion Google could not find when asked for it by name
-// through the adjustment API.
+// ── Retraction outcomes ──────────────────────────────────────
+// A retraction that does not go through is usually not a fault. A lead
+// unqualified four months after it landed was never adjustable, and a
+// conversion Google holds no record of cannot be removed. Lumping those in
+// with real failures made a clean day read as "2 failed" and pushed the
+// digest subject line to red over nothing.
+//
+// So every attempt carries an outcome code (set in gads-retract.js) and the
+// codes carry their own meaning here:
+//   expected     nothing to chase, it is tallied and left alone
+//   reachedGoogle the adjustment API was actually called, so the result can
+//                 speak to whether Performance Max conversions are addressable
+const RETRACTION_OUTCOMES = {
+  retracted:    { label: 'Removed from Google',                 expected: true,  reachedGoogle: true,  note: '' },
+  expired:      { label: 'Past the 55 day window',              expected: true,  reachedGoogle: false, note: 'unqualified too late to adjust' },
+  not_recorded: { label: 'Google held no conversion to remove', expected: true,  reachedGoogle: true,  note: 'mostly Performance Max' },
+  row_gone:     { label: 'Monday row merged or deleted',        expected: true,  reachedGoogle: false, note: '' },
+  relabelled:   { label: 'Reason changed before retraction',    expected: true,  reachedGoogle: false, note: '' },
+  not_ppc:      { label: 'Not a PPC lead',                      expected: true,  reachedGoogle: false, note: '' },
+  unmatched:    { label: 'No match, no explanation',            expected: false, reachedGoogle: true,  note: 'worth a look' }
+};
+
+// Events logged before the outcome field existed (pre 2026-09-09) carry the
+// same information in prose, so the wording is read back rather than losing
+// 35 days of history the moment this ships.
+function classifyRetraction (e) {
+  if (e.outcome && RETRACTION_OUTCOMES[e.outcome]) return e.outcome;
+  if (e.ok) return 'retracted';
+  const r = (e.reason || '') + ' ' + (e.error || '');
+  if (/adjustment window|days old, past/i.test(r))                return 'expired';
+  if (/no longer on the Leads board|merged or deleted/i.test(r))   return 'row_gone';
+  if (/never recorded a Step 1 conversion|can't be found|CONVERSION_NOT_FOUND/i.test(r)) return 'not_recorded';
+  if (/Reason not Qualified/i.test(r))                             return 'relabelled';
+  if (/not a PPC lead/i.test(r))                                   return 'not_ppc';
+  return 'unmatched';
+}
+
+// Running total of what retraction has actually done, by outcome.
+//
+// Answers the standing question in one place: how many junk leads have been
+// pulled back out of Google, how many could not be and why, and whether any
+// of them failed for a reason nobody has an answer for. Only that last group
+// is worth anyone's attention, and it is the only one the digest alarms on.
+async function retractionLedger ({ days = 30, limit = 8 } = {}) {
+  const events   = await readGadsEvents(Date.now() - days * 86400000, Date.now());
+  const attempts = events.filter(e => /Step 1 retraction/.test(e.action || ''));
+
+  const tally = {};
+  const unexplained = [];
+  for (const e of attempts) {
+    const code = classifyRetraction(e);
+    tally[code] = (tally[code] || 0) + 1;
+    if (!RETRACTION_OUTCOMES[code]?.expected) {
+      unexplained.push({
+        itemId:   e.mondayId || '',
+        name:     e.name || e.mondayId || '',
+        campaign: e.campaign || '',
+        channel:  e.channel || '',
+        at:       e.ts,
+        reason:   e.reason || ''
+      });
+    }
+  }
+
+  // Ordered for reading, not alphabetically: the win first, the explained
+  // middle, the open question last where it cannot be skimmed past.
+  const ORDER = ['retracted', 'expired', 'not_recorded', 'row_gone', 'relabelled', 'not_ppc', 'unmatched'];
+  const rows = ORDER
+    .filter(code => tally[code])
+    .map(code => ({ code, count: tally[code], ...RETRACTION_OUTCOMES[code] }));
+
+  let queued = 0;
+  try {
+    const { Redis } = await import('@upstash/redis');
+    queued = await Redis.fromEnv().zcard('gads:retract:pending');
+  } catch (err) {
+    console.warn('pending retraction count failed:', err.message);
+  }
+
+  return {
+    days,
+    total:      attempts.length,
+    retracted:  tally.retracted || 0,
+    // Everything that did not go through but has an answer already.
+    explained:  rows.filter(r => r.expected && r.code !== 'retracted').reduce((a, r) => a + r.count, 0),
+    unresolved: tally.unmatched || 0,
+    queued:     queued || 0,
+    rows,
+    unexplained: unexplained.slice(-limit).reverse()
+  };
+}
+
+
+// Junk leads whose Step 1 conversion Google could not find when asked to
+// remove it. Every name here was marked Budget too low or Spam enquiry on the
+// Leads board, so the attempt was to take a bad conversion back out, never to
+// touch a good one.
 //
 // This is NOT proof the conversion was never recorded. Checked on
 // 2026-08-24: all three leads listed had a real click in Google on the
@@ -266,7 +361,13 @@ async function stepLanding ({ days = 7, settleDays = SETTLE_DAYS } = {}) {
 // the evidence is still too thin to say anything honest.
 async function retractionByChannel ({ days = 60, minPerChannel = 5 } = {}) {
   const events = await readGadsEvents(Date.now() - days * 86400000, Date.now());
-  const all = events.filter(e => /Step 1 retraction/.test(e.action || ''));
+  // Only attempts that actually called the adjustment API can say anything
+  // about whether a channel is addressable. A lead skipped for being 156 days
+  // old never reached Google, and counting it as a Performance Max failure
+  // would answer the question with evidence that has nothing to do with it.
+  const all = events
+    .filter(e => /Step 1 retraction/.test(e.action || ''))
+    .filter(e => RETRACTION_OUTCOMES[classifyRetraction(e)]?.reachedGoogle);
   // Channel tagging was broken until 2026-09-07 (the channel cache never
   // survived the KV round trip), but most events carry the campaign name,
   // so the channel can be derived after the fact.
@@ -322,4 +423,7 @@ async function retractionByChannel ({ days = 60, minPerChannel = 5 } = {}) {
            needed: ready ? 0 : Math.max(minPerChannel - (pmax?.total || 0), minPerChannel - (search?.total || 0)) };
 }
 
-module.exports = { checkLandingWindow, missingLeads, retractionByChannel, stepLanding, SETTLE_DAYS };
+module.exports = {
+  checkLandingWindow, missingLeads, retractionByChannel, retractionLedger,
+  classifyRetraction, RETRACTION_OUTCOMES, stepLanding, SETTLE_DAYS
+};
