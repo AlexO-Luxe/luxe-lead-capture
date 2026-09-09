@@ -115,7 +115,7 @@ function gbp(n) {
  *   notes: [{ author, at, text, kind }]   kind: 'open' | 'mid' | 'qualified'
  *   booking: {                          Booking Flow board row, null if none yet
  *     apartment, checkIn, checkOut, nights, nightlyRate,
- *     commission, commissionEstimated, status, url
+ *     commission, commissionEstimated, status, bookingType, salesperson, url
  *   }
  *   nextAction, nextActionDue
  *   mondayUrl, whatsappUrl
@@ -192,11 +192,53 @@ function renderLeadQualified(lead) {
           <p style="margin:0 0 2px;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.muted};">${label}</p>
           <p style="margin:0;font-size:12.5px;color:${BRAND.ink};font-weight:500;word-break:break-word;">${valueHtml}</p>
         </td>`;
+  // Asked-for vs agreed, computed so nobody does the comparison in their
+  // head: the guest's weekly budget against the agreed rate's weekly
+  // equivalent, and the nights they asked for against the nights agreed.
+  // Each half renders only when both of its numbers exist.
+  const num = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
+  const deltaParts = [];
+  if (bk) {
+    const budgetWk = num(lead.weeklyRate);
+    const agreedWk = num(bk.nightlyRate) ? Math.round(bk.nightlyRate * 7) : null;
+    if (budgetWk && agreedWk) {
+      const pct   = Math.round(((agreedWk - budgetWk) / budgetWk) * 100);
+      const tone  = pct >= 0 ? BRAND.green : BRAND.amber;
+      deltaParts.push(`Budgeted ${gbp(budgetWk)}/week, agreed ${gbp(agreedWk)}/week <span style="color:${tone};font-weight:600;">(${pct >= 0 ? '+' : ''}${pct}%)</span>`);
+    }
+    const askedN  = num(lead.nights);
+    const agreedN = num(bk.nights);
+    if (askedN && agreedN && askedN !== agreedN) {
+      deltaParts.push(`Asked ${askedN} nights, agreed <span style="color:${BRAND.ink};font-weight:600;">${agreedN}</span>`);
+    }
+  }
+  const deltaHtml = deltaParts.length
+    ? `<p style="margin:8px 0 0;font-size:11px;color:${BRAND.muted};line-height:1.6;">${deltaParts.join(' &nbsp;&middot;&nbsp; ')}</p>`
+    : '';
+
+  // What the salesperson still has to fill in on the booking row, named so
+  // the nudge lands on the right desk. Commission has its own in-cell note,
+  // so it stays out of this list. Only for a real row: the apartment-only
+  // fallback has no row to fill in.
+  let checklistHtml = '';
+  if (bk && bk.itemId) {
+    const missing = [
+      [!bk.apartment,        'apartment'],
+      [!bk.checkIn,          'check-in'],
+      [!num(bk.nights),      'nights'],
+      [!num(bk.nightlyRate), 'nightly rate']
+    ].filter(([m]) => m).map(([, label]) => label);
+    if (missing.length) {
+      const who = String(bk.salesperson || lead.assignedTo || '').trim().split(/\s+/)[0] || 'Salesperson';
+      checklistHtml = `<p style="margin:6px 0 0;font-size:11px;color:#8a6d2f;line-height:1.5;">${escHtml(who)}: ${escHtml(missing.join(', '))} still missing on Booking Flow</p>`;
+    }
+  }
+
   const bookingHtml = bk ? `
   <tr><td style="background:#ffffff;padding:24px 32px 0;" class="le-pad">
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;"><tr>
       <td><p style="margin:0;font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND.goldLabel};">Booking Agreed</p></td>
-      <td style="text-align:right;"><p style="margin:0;font-size:10px;color:${BRAND.muted};">Booking Flow board${bk.status ? ` &middot; ${escHtml(bk.status)}` : ''}</p></td>
+      <td style="text-align:right;"><p style="margin:0;font-size:10px;color:${BRAND.muted};">Booking Flow board${bk.bookingType ? ` &middot; <span style="color:${BRAND.goldLabel};font-weight:600;">${escHtml(bk.bookingType)}</span>` : ''}${bk.status ? ` &middot; ${escHtml(bk.status)}` : ''}</p></td>
     </tr></table>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${BRAND.goldSoft};border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
       <tr>${bkCell('Apartment agreed', pend(bk.apartment) || escHtml(bk.apartment), { width: '100%', colspan: 2, noRight: true })}</tr>
@@ -215,6 +257,8 @@ function renderLeadQualified(lead) {
         </td>
       </tr>
     </table>
+    ${deltaHtml}
+    ${checklistHtml}
     ${bk.url ? `<p style="margin:7px 0 0;font-size:11px;color:${BRAND.muted};"><a href="${escHtml(bk.url)}" style="color:${BRAND.gold};text-decoration:none;">Open the booking row &rarr;</a></p>` : ''}
   </td></tr>` : '';
 
