@@ -1851,7 +1851,12 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     ...(duplicateOf?.assigneeIds?.length > 0 && {
       people_1: { personsAndTeams: duplicateOf.assigneeIds.map(id => ({ id, kind: 'person' })) }
     }),
-    ...(leadSource  && { color_mkxk8y67: { label: leadSource } }),
+    // Stay Luxe site enquiries brand the Lead Source column so the board can
+    // split the two businesses; the channel dropdown still records how they
+    // arrived (Google Advert / Direct / Google Search (organic) / ...).
+    ...((leadSource || p.enquiry_source === 'stayluxe') && {
+      color_mkxk8y67: { label: p.enquiry_source === 'stayluxe' ? 'Stay Luxe' : leadSource }
+    }),
     ...(leadChannel && leadChannel !== 'Unknown' && { dropdown_mkxkfbff: { labels: [leadChannel] } }),
     dropdown_mm1v31yb: { labels: [partnerPortal(p)?.formName || '/Reservations Form'] },
     // Partner portal leads are flagged on the Group / Partnership Label column
