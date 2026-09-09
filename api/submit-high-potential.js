@@ -8,14 +8,16 @@ const { logGadsEvent }  = require('./_log.js');
 
 const POTENTIAL_CONFIG = {
   'high potential': {
-    value:    300.0,
-    actionId: () => process.env.GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID,
-    label:    'High Potential'
+    value:            300.0,
+    actionId:         () => process.env.GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID,
+    stayluxeActionId: () => process.env.STAYLUXE_HIGH_POTENTIAL_ACTION_ID,
+    label:            'High Potential'
   },
   'moderate potential': {
-    value:    150.0,
-    actionId: () => process.env.GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID,
-    label:    'Moderate Potential'
+    value:            150.0,
+    actionId:         () => process.env.GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID,
+    stayluxeActionId: () => process.env.STAYLUXE_MODERATE_POTENTIAL_ACTION_ID,
+    label:            'Moderate Potential'
   }
 };
 
@@ -57,7 +59,7 @@ module.exports = async function handler(req, res) {
       query {
         items(ids: [${itemId}]) {
           id name created_at
-          column_values(ids: ["text4__1", "color_mkxk8y67", "mirror28__1", "email", "phone_1", "text_mm4ncd41", "text_mm4n9t2x", "text37", "text60"]) {
+          column_values(ids: ["text4__1", "color_mkxk8y67", "dropdown_mkxkfbff", "mirror28__1", "email", "phone_1", "text_mm4ncd41", "text_mm4n9t2x", "text37", "text60"]) {
             id text value
           }
         }
@@ -80,7 +82,12 @@ module.exports = async function handler(req, res) {
     // text4__1 can hold a braid or fbclid instead of a gclid; guard it so we
     // never ship an unmatchable id as adIdentifiers.gclid.
     const gclid      = cleanGclid(cols['text4__1'], cols['text_mm4ncd41'], cols['text_mm4n9t2x']);
-    const leadSource = cols['color_mkxk8y67'];
+    // Stay Luxe rows carry the brand in color_mkxk8y67 and the channel in
+    // dropdown_mkxkfbff; Student Luxe rows put the channel straight in
+    // color_mkxk8y67 ("PPC", "Organic", ...).
+    const leadSource  = cols['color_mkxk8y67'];
+    const isStayLuxe  = leadSource.toLowerCase().includes('stay luxe');
+    const leadChannel = (cols['dropdown_mkxkfbff'] || '').toLowerCase();
     const timestamp  = cols['mirror28__1'] || item.created_at;
     const email      = cols['email'];
     const phone      = cols['phone_1'];
@@ -92,11 +99,26 @@ module.exports = async function handler(req, res) {
 
     console.log('Item data:', { itemId, gclid, gbraid, wbraid, leadSource, timestamp, hasEmail: !!email, hasPhone: !!phone });
 
-    // ── GUARD: Only fire for PPC leads ────────────────────────
-    if (!leadSource.toLowerCase().includes('ppc')) {
+    // ── GUARD: Only fire for paid-click leads ─────────────────
+    if (isStayLuxe) {
+      if (!leadChannel.includes('google advert')) {
+        console.log('Stay Luxe lead not from Google Ads, skipping. Channel:', leadChannel);
+        return res.status(200).json({ skipped: true, reason: 'stayluxe not google advert' });
+      }
+    } else if (!leadSource.toLowerCase().includes('ppc')) {
       console.log('Not PPC, skipping. Source:', leadSource);
       return res.status(200).json({ skipped: true, reason: 'not ppc' });
     }
+
+    // Stay Luxe conversions land in the Stay Luxe Ads account under the same
+    // MCC. Skip (never fall back to a Student Luxe action) if unconfigured.
+    const actionId            = isStayLuxe ? config.stayluxeActionId() : config.actionId();
+    const operatingCustomerId = isStayLuxe ? (process.env.STAYLUXE_ADS_CUSTOMER_ID || '').trim() : '';
+    if (isStayLuxe && (!actionId || !operatingCustomerId)) {
+      console.log('Stay Luxe potential upload skipped — STAYLUXE_* env not configured');
+      return res.status(200).json({ skipped: true, reason: 'stayluxe_not_configured' });
+    }
+    const logSource = isStayLuxe ? 'Stay Luxe lead-potential' : 'Student Luxe lead-potential';
 
     // Upload via Data Manager API — Enhanced Conversions for Leads.
     // Email + phone + hashed name match the lead back to the original click
@@ -115,11 +137,13 @@ module.exports = async function handler(req, res) {
         itemId,
         value:    config.value,
         currency: 'GBP',
-        actionId: config.actionId()
+        actionId,
+        operatingCustomerId,
+        reference: isStayLuxe ? 'slx-lead-potential' : 'sl-lead-potential'
       });
 
       await logGadsEvent({
-        source:    'Student Luxe lead-potential',
+        source:    logSource,
         action:    config.label,
         ok:        !result?.skipped,
         reason:    result?.reason || 'uploaded',
@@ -135,7 +159,7 @@ module.exports = async function handler(req, res) {
     } catch (uploadErr) {
       console.error('submit-high-potential upload error:', uploadErr.message);
       // Log only. Replay cron owns alerting once a fail fails to self-heal.
-      await logGadsEvent({ source: 'Student Luxe lead-potential', action: config.label, ok: false, reason: 'exception', error: uploadErr.message, email, value: config.value, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid });
+      await logGadsEvent({ source: logSource, action: config.label, ok: false, reason: 'exception', error: uploadErr.message, email, value: config.value, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!gbraid, hasWbraid: !!wbraid });
       return res.status(200).json({ error: uploadErr.message, itemId });
     }
 
@@ -159,7 +183,7 @@ const {
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 
-async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, itemId, value, currency, actionId }) {
+async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, itemId, value, currency, actionId, operatingCustomerId, reference = 'sl-lead-potential' }) {
   if (!actionId) {
     throw new Error('Missing conversion action id — check GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID / GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID in Vercel env');
   }
@@ -187,7 +211,7 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, it
   }
 
   const event = {
-    destinationReferences: ['sl-lead-potential'],
+    destinationReferences: [reference],
     // Canonical txn, same convention as replay-failed-events and the
     // dissonance fix mode, so every path dedupes against every other.
     // Never put the raw email in here: Google started rejecting
@@ -206,7 +230,8 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, it
     destinations: [
       conversionDestination({
         conversionActionId: actionId,
-        reference:          'sl-lead-potential'
+        reference,
+        ...(operatingCustomerId && { operatingCustomerId })
       })
     ],
     events:  [event],

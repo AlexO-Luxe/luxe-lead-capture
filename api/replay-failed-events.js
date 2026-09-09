@@ -164,7 +164,7 @@ module.exports = async function handler (req, res) {
         conversionValue:       value
       };
       const body = {
-        destinations: [ conversionDestination({ conversionActionId: plan.actionId, reference: 'sl-replay' }) ],
+        destinations: [ conversionDestination({ conversionActionId: plan.actionId, reference: 'sl-replay', ...(plan.operatingCustomerId && { operatingCustomerId: plan.operatingCustomerId }) }) ],
         events:  [event],
         consent: CONSENT_GRANTED
       };
@@ -191,21 +191,29 @@ module.exports = async function handler (req, res) {
   }
 };
 
-// Map a KV fail record to { board, actionId, value, label }.
+// Map a KV fail record to { board, actionId, value, label, operatingCustomerId }.
+// Stay Luxe fails (their log source starts "Stay Luxe ...") replay into the
+// Stay Luxe Ads account via its own action ids; never fall back to the
+// Student Luxe ones — an unconfigured Stay Luxe env returns null (skip).
 function classify (job) {
   const src = (job.source || '').toLowerCase();
   const act = (job.action || '').toLowerCase();
+  const slx = src.includes('stay luxe');
+  const operatingCustomerId = slx ? (process.env.STAYLUXE_ADS_CUSTOMER_ID || '').trim() : '';
+  const pick = (slEnv, slxEnv) => slx ? process.env[slxEnv] : process.env[slEnv];
+  const done = (plan) => (slx && (!plan.actionId || !operatingCustomerId)) ? null : { ...plan, operatingCustomerId };
+
   if (src.includes('enquiry')) {
-    return { board: LEADS_BOARD, actionId: process.env.GOOGLE_ADS_CONVERSION_ACTION_ID, value: 1.0, label: 'Step 1 NEW (server-side enquiry)' };
+    return done({ board: LEADS_BOARD, actionId: pick('GOOGLE_ADS_CONVERSION_ACTION_ID', 'STAYLUXE_CONVERSION_ACTION_ID'), value: 1.0, label: 'Step 1 NEW (server-side enquiry)' });
   }
   if (src.includes('lead-potential')) {
-    if (act.includes('high'))     return { board: LEADS_BOARD, actionId: process.env.GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID,     value: 300.0, label: 'High Potential' };
-    if (act.includes('moderate')) return { board: LEADS_BOARD, actionId: process.env.GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID, value: 150.0, label: 'Moderate Potential' };
+    if (act.includes('high'))     return done({ board: LEADS_BOARD, actionId: pick('GOOGLE_ADS_HIGH_POTENTIAL_ACTION_ID', 'STAYLUXE_HIGH_POTENTIAL_ACTION_ID'),         value: 300.0, label: 'High Potential' });
+    if (act.includes('moderate')) return done({ board: LEADS_BOARD, actionId: pick('GOOGLE_ADS_MODERATE_POTENTIAL_ACTION_ID', 'STAYLUXE_MODERATE_POTENTIAL_ACTION_ID'), value: 150.0, label: 'Moderate Potential' });
     return null;
   }
   if (src.includes('booking')) {
     // value comes from the KV record (job.value); actionId is the booking action.
-    return { board: BOOKINGS_BOARD, actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID, value: null, label: 'Confirmed Booking' };
+    return done({ board: BOOKINGS_BOARD, actionId: pick('GOOGLE_ADS_BOOKING_ACTION_ID', 'STAYLUXE_BOOKING_ACTION_ID'), value: null, label: 'Confirmed Booking' });
   }
   return null;
 }

@@ -134,7 +134,9 @@ module.exports = async function handler(req, res) {
 
   // ── GOOGLE ADS SERVER-SIDE CONVERSION ─────────────────────
   const gadsCtx = {
-    source:    'Student Luxe enquiry',
+    // Brand the log source: replay-failed-events routes retries by this
+    // string, so a Stay Luxe fail must never replay into the SL action.
+    source:    p.enquiry_source === 'stayluxe' ? 'Stay Luxe enquiry' : 'Student Luxe enquiry',
     action:    'Step 1 NEW (server-side enquiry)',
     email:     p.email,
     mondayId,

@@ -64,7 +64,7 @@ module.exports = async function handler(req, res) {
             ... on BoardRelationValue {
               linked_items {
                 id
-                column_values(ids: ["email", "phone_1", "text_mm4ncd41", "text_mm4n9t2x", "text37", "text60"]) { id text }
+                column_values(ids: ["email", "phone_1", "text_mm4ncd41", "text_mm4n9t2x", "text37", "text60", "dropdown_mkxkfbff"]) { id text }
               }
             }
           }
@@ -121,22 +121,40 @@ module.exports = async function handler(req, res) {
     const revenueRaw  = bookingVal !== null ? String(bookingVal) : cols['numeric_mm1ge9h4'];
     const timestamp   = item.created_at;
     const isPPC       = (leadSource || '').toLowerCase().includes('ppc');
+    // Stay Luxe rows mirror the brand into the source column; the channel
+    // lives on the linked lead in dropdown_mkxkfbff.
+    const isStayLuxe  = (leadSource || '').toLowerCase().includes('stay luxe');
 
     // Extract email + phone + click IDs from linked lead for enhanced matching
     const relationCol  = (item.relation || []).find(c => c.id === 'link_to_leads26');
     const linkedLead   = relationCol?.linked_items?.[0];
-    let leadEmail = '', leadPhone = '', leadGbraid = '', leadWbraid = '', leadFirst = '', leadLast = '';
+    let leadEmail = '', leadPhone = '', leadGbraid = '', leadWbraid = '', leadFirst = '', leadLast = '', leadChannel = '';
     if (linkedLead) {
       linkedLead.column_values.forEach(c => {
-        if (c.id === 'email')          leadEmail  = c.text || '';
-        if (c.id === 'phone_1')        leadPhone  = c.text || '';
-        if (c.id === 'text_mm4ncd41')  leadGbraid = c.text || '';
-        if (c.id === 'text_mm4n9t2x')  leadWbraid = c.text || '';
-        if (c.id === 'text37')         leadFirst  = c.text || '';
-        if (c.id === 'text60')         leadLast   = c.text || '';
+        if (c.id === 'email')             leadEmail   = c.text || '';
+        if (c.id === 'phone_1')           leadPhone   = c.text || '';
+        if (c.id === 'text_mm4ncd41')     leadGbraid  = c.text || '';
+        if (c.id === 'text_mm4n9t2x')     leadWbraid  = c.text || '';
+        if (c.id === 'text37')            leadFirst   = c.text || '';
+        if (c.id === 'text60')            leadLast    = c.text || '';
+        if (c.id === 'dropdown_mkxkfbff') leadChannel = c.text || '';
       });
     }
     const leadName = [leadFirst, leadLast].filter(Boolean).join(' ').trim();
+
+    // Paid-click gate per brand: SL = source contains "ppc"; Stay Luxe =
+    // linked lead's channel is a Google advert. Stay Luxe uploads go to the
+    // Stay Luxe Ads account; skip (never fall back to the SL action) if the
+    // STAYLUXE_* env is missing.
+    const isStayLuxeAd     = isStayLuxe && leadChannel.toLowerCase().includes('google advert');
+    const bookingActionId  = isStayLuxe ? process.env.STAYLUXE_BOOKING_ACTION_ID : process.env.GOOGLE_ADS_BOOKING_ACTION_ID;
+    const operatingCustomerId = isStayLuxe ? (process.env.STAYLUXE_ADS_CUSTOMER_ID || '').trim() : '';
+    const bookingReference = isStayLuxe ? 'slx-booking' : 'sl-booking';
+    const logSource        = isStayLuxe ? 'Stay Luxe booking' : 'Student Luxe booking';
+    if (isStayLuxeAd && (!bookingActionId || !operatingCustomerId)) {
+      console.log('Stay Luxe booking upload skipped — STAYLUXE_* env not configured');
+      return res.status(200).json({ skipped: true, reason: 'stayluxe_not_configured' });
+    }
     // The mirror can surface a braid or fbclid; never ship those as a gclid.
     const gclid    = cleanGclid(cols['mirror21__1'], leadGbraid, leadWbraid);
     const hasGclid = !!gclid;
@@ -159,18 +177,20 @@ module.exports = async function handler(req, res) {
 
       const cleanValue = parseFloat((revenueRaw || '').toString().replace(/[£$€,\s]/g, ''));
 
-      if (cleanValue > 0 && isPPC) {
+      if (cleanValue > 0 && (isPPC || isStayLuxeAd)) {
         console.log('Confirmed status + revenue present, uploading. Value: £' + cleanValue);
         // Own try/catch so a failure alert carries full lead context
         // (email, name, click ids) instead of falling through to the
         // outer catch, which only has mondayId in scope.
         try {
-          const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-          await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+          const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: bookingActionId, operatingCustomerId, reference: bookingReference });
+          await logGadsEvent({ source: logSource, action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
 
           // Customer Match: add the booker to the Google Ads customer list.
           // Non-fatal, the nightly audience-sync sweep heals any miss.
-          if (!result?.skipped && (leadEmail || leadPhone)) {
+          // ponytail: Customer Match lists are Student Luxe only for now;
+          // build Stay Luxe lists in its own account before including them.
+          if (!isStayLuxe && !result?.skipped && (leadEmail || leadPhone)) {
             try {
               await ingestBookers([{ email: leadEmail, phone: leadPhone }]);
               // A £5k+ booking also joins the high-value list, the sharper
@@ -186,7 +206,7 @@ module.exports = async function handler(req, res) {
           console.error('submit-booking upload error:', uploadErr.message);
           // Log only. Alerting is owned by /api/replay-failed-events, which
           // emails once a fail has not self-healed after STUCK_MS.
-          await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
+          await logGadsEvent({ source: logSource, action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
           return res.status(200).json({ error: uploadErr.message, itemId });
         }
       }
@@ -202,7 +222,7 @@ module.exports = async function handler(req, res) {
 
     // ── TRIGGER B: Revenue column filled ─────────────────────
     if (isRevenueTrigger) {
-      if (!isPPC) return res.status(200).json({ skipped: true, reason: 'not ppc' });
+      if (!isPPC && !isStayLuxeAd) return res.status(200).json({ skipped: true, reason: 'not ppc' });
       if (isPendingStatus(status)) return res.status(200).json({ skipped: true, reason: 'pending booking, not uploading' });
 
       const eventValue = event.value?.value ?? event.value ?? '';
@@ -214,12 +234,14 @@ module.exports = async function handler(req, res) {
 
       console.log('Revenue filled for PPC booking, uploading. Value: £' + cleanValue);
       try {
-        const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: process.env.GOOGLE_ADS_BOOKING_ACTION_ID });
-        await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
+        const result = await uploadConversion({ gclid, gbraid: leadGbraid, wbraid: leadWbraid, email: leadEmail, phone: leadPhone, name: leadName, itemId, value: cleanValue, currency: 'GBP', actionId: bookingActionId, operatingCustomerId, reference: bookingReference });
+        await logGadsEvent({ source: logSource, action: 'Confirmed Booking', ok: !result?.skipped, reason: result?.reason || 'uploaded', email: leadEmail, value: cleanValue, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid, mondayId: itemId });
 
           // Customer Match: add the booker to the Google Ads customer list.
           // Non-fatal, the nightly audience-sync sweep heals any miss.
-          if (!result?.skipped && (leadEmail || leadPhone)) {
+          // ponytail: Customer Match lists are Student Luxe only for now;
+          // build Stay Luxe lists in its own account before including them.
+          if (!isStayLuxe && !result?.skipped && (leadEmail || leadPhone)) {
             try {
               await ingestBookers([{ email: leadEmail, phone: leadPhone }]);
               // A £5k+ booking also joins the high-value list, the sharper
@@ -234,7 +256,7 @@ module.exports = async function handler(req, res) {
       } catch (uploadErr) {
         console.error('submit-booking upload error:', uploadErr.message);
         // Log only. Replay cron owns alerting once a fail fails to self-heal.
-        await logGadsEvent({ source: 'Student Luxe booking', action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
+        await logGadsEvent({ source: logSource, action: 'Confirmed Booking', ok: false, reason: 'exception', error: uploadErr.message, email: leadEmail, value: cleanValue, mondayId: itemId, hasGclid: !!gclid, hasGbraid: !!leadGbraid, hasWbraid: !!leadWbraid });
         return res.status(200).json({ error: uploadErr.message, itemId });
       }
     }
@@ -262,7 +284,7 @@ const {
   CONSENT_GRANTED
 } = require('./_dataManager.js');
 
-async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, itemId, value, currency, actionId }) {
+async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, itemId, value, currency, actionId, operatingCustomerId, reference = 'sl-booking' }) {
   const nameParts = (name || '').trim().split(/\s+/).filter(Boolean);
   const firstName = nameParts[0] || '';
   const lastName  = nameParts.slice(1).join(' ');
@@ -287,7 +309,7 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, it
   }
 
   const event = {
-    destinationReferences: ['sl-booking'],
+    destinationReferences: [reference],
     // Canonical txn, same convention as replay-failed-events and the
     // dissonance fix mode, so every path dedupes against every other.
     // Never put the raw email in here: Google started rejecting
@@ -306,7 +328,8 @@ async function uploadConversion ({ gclid, gbraid, wbraid, email, phone, name, it
     destinations: [
       conversionDestination({
         conversionActionId: actionId,
-        reference:          'sl-booking'
+        reference,
+        ...(operatingCustomerId && { operatingCustomerId })
       })
     ],
     events:  [event],
