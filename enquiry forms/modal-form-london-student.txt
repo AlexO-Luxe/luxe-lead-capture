@@ -717,7 +717,7 @@ span.flatpickr-weekday{font-family:'DM Sans',sans-serif;font-size:11px;font-weig
         var first=(payload.full_name||'').split(' ')[0]||'';
         var cityRaw=payload.city||payload.other_city||'';
         var city=String(cityRaw).replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
-        var msg='Hi Student Luxe! I\'m '+first+'. I\'ve just sent an enquiry'+(city?' for '+city:'')+'.'+(ref?' (enquiry ref '+ref+')':'');
+        var msg='Hi Student Luxe! I\'m '+first+'. I\'ve just sent an enquiry'+(city?' for '+city:'')+'.'+(ref?'\n\nEnquiry ref '+ref:'');
         var link='https://wa.me/442030070017?text='+encodeURIComponent(msg);
         var panel=document.getElementById('slWaPanel');if(!panel)return;
         document.getElementById('slWaBtn').href=link;document.getElementById('slWaDesk').href=link;
