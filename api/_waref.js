@@ -29,9 +29,16 @@ function randomRef() {
 
 // Mint a collision-free ref and store the bundle under it.
 // Returns null on any failure so callers can proceed without a ref.
-async function mintRef(bundle) {
+async function mintRef(bundle, preferredRef) {
   try {
     const k = await kv();
+    // The enquiry form mints its own 6-character ref so the thank-you card can
+    // show the WhatsApp link instantly. Honour it unless the key is taken.
+    const pref = String(preferredRef || '').trim().toUpperCase();
+    if (/^SL-[2-9A-HJKMNP-Z]{4,8}$/.test(pref)) {
+      const claimed = await k.set('waref:' + pref, bundle, { nx: true, ex: REF_TTL });
+      if (claimed === 'OK' || claimed === true) return pref;
+    }
     for (let attempt = 0; attempt < 5; attempt++) {
       const ref = randomRef();
       const claimed = await k.set('waref:' + ref, bundle, { nx: true, ex: REF_TTL });

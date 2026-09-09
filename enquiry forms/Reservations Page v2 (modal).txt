@@ -3618,7 +3618,8 @@ html.sl-modal-open #sl-ap{display:none !important;}
         try{if(window.QRCode){new QRCode(document.getElementById('slWaQr'),{text:link,width:96,height:96,colorDark:'#0d1a2e',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}}catch(e){}
         panel.style.display='flex';
       }
-      if(waWanted)setTimeout(function(){slShowWhatsApp(null);},4000);
+      var waRef=null;if(waWanted){var A='23456789ABCDEFGHJKMNPQRSTUVWXYZ',r='';try{var b=new Uint8Array(6);crypto.getRandomValues(b);for(var i=0;i<6;i++)r+=A[b[i]%A.length];}catch(e){for(var j=0;j<6;j++)r+=A[Math.floor(Math.random()*A.length)];}waRef='SL-'+r;formPayload.wa_ref=waRef;}
+      slShowWhatsApp(waRef);
 
       fetch(SUBMIT_URL, {
         method:  'POST',

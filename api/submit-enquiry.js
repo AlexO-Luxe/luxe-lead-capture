@@ -206,7 +206,7 @@ module.exports = async function handler(req, res) {
       referrer:       p.referrer || '',
       first_referrer: p.first_referrer || '',
       first_seen:     p.first_seen || ''
-    });
+    }, p.wa_ref);
   }
 
   return res.status(200).json({ success: true, ref: waRef });
