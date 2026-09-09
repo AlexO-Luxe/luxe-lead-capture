@@ -15,42 +15,7 @@ const RESEND_API = 'https://api.resend.com/emails';
 const { logError } = require('./_errlog.js');
 
 // Upstash Redis, lazy singleton (same pattern as _attribution.js)
-let _kv = null;
-async function kv() {
-  if (_kv) return _kv;
-  const { Redis } = await import('@upstash/redis');
-  _kv = Redis.fromEnv();
-  return _kv;
-}
-
-const REF_TTL = 60 * 60 * 24 * 90; // 90 days, matches click attribution window
-// No 0/O/1/I/L so the ref survives being read aloud or retyped
-const REF_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-
-function randomRef() {
-  let s = '';
-  for (let i = 0; i < 4; i++) {
-    s += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
-  }
-  return 'SL-' + s;
-}
-
-// Mint a collision-free ref and store the click bundle under it.
-// Returns null on any failure so the modal can proceed without a ref.
-async function mintRef(bundle) {
-  try {
-    const k = await kv();
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const ref = randomRef();
-      const claimed = await k.set('waref:' + ref, bundle, { nx: true, ex: REF_TTL });
-      if (claimed === 'OK' || claimed === true) return ref;
-    }
-    return null;
-  } catch (err) {
-    console.error('submit-whatsapp: ref mint failed (non-fatal):', err.message);
-    return null;
-  }
-}
+const { mintRef } = require('./_waref.js');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

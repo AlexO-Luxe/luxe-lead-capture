@@ -11,6 +11,7 @@ const { buildTouch, getSession, attachSubmission, classifyTouch, countryName } =
 const { primeCampaignNames, campaignName, resolveCampaignId } = require('./_campaigns.js');
 const { logError } = require('./_errlog.js');
 const { recordOptOut } = require('./_audience.js');
+const { mintRef } = require('./_waref.js');
 const { logGadsEvent }  = require('./_log.js');
 
 // ── IP BLOCKLIST ──────────────────────────────────────────────
@@ -174,7 +175,41 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  return res.status(200).json({ success: true });
+  // ── WhatsApp hand-off (non-fatal) ─────────────────────────
+  // Guest ticked WhatsApp: mint an enquiry ref carrying the click bundle
+  // and the Monday item, so the thank-you card can open a WhatsApp chat
+  // whose first message Oskar matches straight to this lead.
+  let waRef = null;
+  if (mondayId && /whatsapp/i.test(String(p.response_methods || ''))) {
+    waRef = await mintRef({
+      source:         'enquiry-form',
+      monday_item_id: String(mondayId),
+      guest_name:     p.full_name || '',
+      city:           p.city || '',
+      timestamp:      p.submitted_at || new Date().toISOString(),
+      page_path:      p.submit_page || p.landing_page || '',
+      landing_page:   p.landing_page || '',
+      utm_source:     p.utm_source || '',
+      utm_medium:     p.utm_medium || '',
+      utm_campaign:   p.utm_campaign || '',
+      utm_adgroup:    p.utm_adgroup || '',
+      utm_term:       p.utm_term || '',
+      utm_matchtype:  p.utm_matchtype || '',
+      gclid:          p.gclid || '',
+      gbraid:         p.gbraid || '',
+      wbraid:         p.wbraid || '',
+      fbclid:         p.fbclid || '',
+      session_id:     p.session_id || '',
+      visited_paths:  p.visited_paths || '',
+      first_gclid:    p.first_gclid || '',
+      first_campaign: p.first_campaign || '',
+      referrer:       p.referrer || '',
+      first_referrer: p.first_referrer || '',
+      first_seen:     p.first_seen || ''
+    });
+  }
+
+  return res.status(200).json({ success: true, ref: waRef });
 };
 
 // ──────────────────────────────────────────────────────────────

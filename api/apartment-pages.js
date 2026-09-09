@@ -13,6 +13,7 @@ const MONDAY_API   = 'https://api.monday.com/v2';
 const BOARD_ID     = 18392931240;
 const STATUS_COL   = 'color_mkyw8gdm';
 const URL_COL      = 'link_mkyw9d7e';
+const CITY_COL     = 'dropdown_mkzkn4y9';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 let cache = null;
@@ -49,7 +50,7 @@ module.exports = async function handler(req, res) {
               cursor
               items {
                 name
-                column_values(ids: ["${STATUS_COL}", "${URL_COL}"]) {
+                column_values(ids: ["${STATUS_COL}", "${URL_COL}", "${CITY_COL}"]) {
                   id
                   text
                   value
@@ -131,7 +132,9 @@ module.exports = async function handler(req, res) {
             .replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        const city = detectCity(slug);
+        // City: the board's city dropdown wins; slug guess is the fallback
+        const cityCol = item.column_values.find(c => c.id === CITY_COL);
+        const city = normaliseCity(cityCol && cityCol.text) || detectCity(slug);
         apartments.push({ slug, name, city });
       }
 
@@ -149,6 +152,21 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: err.message });
   }
 };
+
+// ── Normalise the board's city dropdown text to a form slug ──
+// "Milan" → milan, "New York" → new-york, "Washington DC" → washington.
+// Returns '' when the column is empty so detectCity can take over.
+function normaliseCity(text) {
+  if (!text) return '';
+  const slug = String(text).trim().toLowerCase().replace(/\s+/g, '-');
+  const aliases = {
+    'washington-dc': 'washington',
+    'washington-d.c.': 'washington',
+    'nyc': 'new-york',
+    'la': 'los-angeles',
+  };
+  return aliases[slug] || slug;
+}
 
 // ── Detect city from slug ────────────────────────────────────
 function detectCity(slug) {
