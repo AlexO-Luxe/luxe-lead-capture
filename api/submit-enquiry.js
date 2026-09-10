@@ -885,14 +885,22 @@ ${closedBanner}
     return;
   }
 
+  // Stay Luxe submissions send from the Stay Luxe address with the brand
+  // name swapped throughout the template. The layout and logos stay shared
+  // until a dedicated Stay Luxe template exists.
+  const isStayLuxe = p.enquiry_source === 'stayluxe';
+  const brandedHtml = isStayLuxe ? html.split('Student Luxe').join('Stay Luxe') : html;
+
   const cityLabel = formatCity(p.city) || '';
   return resendSend({
-    from:    `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
+    from:    isStayLuxe
+      ? `Stay Luxe <${process.env.STAYLUXE_FROM_EMAIL || 'reservations@stayluxe.co.uk'}>`
+      : `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
     to:      [p.email],
     subject: isTypeA
       ? `Your enquiry about ${escHtml(p.apartment_ref || 'your apartment')}`
       : `Your ${cityLabel} apartment enquiry`.trim(),
-    html
+    html: brandedHtml
   });
 }
 // ──────────────────────────────────────────────────────────────
@@ -1533,6 +1541,8 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
   return resendSend({
     from:    portal
       ? `${portal.fromName} <${portal.fromEmail}>`
+      : p.enquiry_source === 'stayluxe'
+      ? `Stay Luxe <${process.env.STAYLUXE_FROM_EMAIL || 'reservations@stayluxe.co.uk'}>`
       : `${process.env.FROM_NAME || 'Student Luxe'} <${process.env.FROM_EMAIL}>`,
     // Partner routing: PBSA and undecided enquiries are Paige's, and she reads
     // the partner alias, so they stop there. Anything the sales team actually
