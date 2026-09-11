@@ -32,6 +32,7 @@ const SECTION_KEY = 'digest:pmax';
 
 const { shell, table, th, td, emptyRow, esc, sendDigest, BRAND } = require('./_digest.js');
 const { logError } = require('./_errlog.js');
+const { bookerProfileSections } = require('./_booker-profile.js');
 
 // Conversion action names as they appear in segments.conversion_action_name.
 // Matched loosely so a rename in the Ads UI does not silently drop a column.
@@ -55,6 +56,9 @@ module.exports = async function handler (req, res) {
   }
 
   const days      = Math.max(1, Math.min(90, parseInt(req.query?.days || '14', 10)));
+  // Bookings are sparse, so the booker profile reads a much longer window
+  // than the spend review. Both are overridable.
+  const profileDays = Math.max(30, Math.min(365, parseInt(req.query?.profileDays || '180', 10)));
   const minSpend  = Math.max(0, parseFloat(req.query?.minSpend  || '40'));
   const minClicks = Math.max(0, parseInt(req.query?.minClicks || '30', 10));
   const dryRun    = req.query?.dryRun === '1';
@@ -67,11 +71,14 @@ module.exports = async function handler (req, res) {
     if (!CUSTOMER_ID) throw new Error('GOOGLE_ADS_CUSTOMER_ID missing');
     const token = await getAccessToken();
 
-    const [campaigns, assetGroups, stepsByCampaign, leads] = await Promise.all([
+    const [campaigns, assetGroups, stepsByCampaign, leads, profileResult] = await Promise.all([
       fetchCampaigns(token, sinceIso, untilIso),
       fetchAssetGroups(token, sinceIso, untilIso),
       fetchStepBreakdown(token, sinceIso, untilIso),
-      fetchPpcLeads(sinceMs)
+      fetchPpcLeads(sinceMs),
+      // The profile must not cost the spend review: a failure drops the two
+      // profile cards and the email still goes.
+      bookerProfileSections(profileDays).catch(e => { console.warn('booker profile failed:', e.message); return []; })
     ]);
 
     // Search categories are one query per campaign; only campaigns that
@@ -94,19 +101,22 @@ module.exports = async function handler (req, res) {
       return res.status(200).json(section);
     }
 
-    const section = pmaxSection(out, days);
+    const section  = pmaxSection(out, days);
+    const [todo, profile] = profileResult;
+    const sections = [todo, profile, section].filter(Boolean);
+    const subject  = subjectFor(section, todo, days);
     const html = shell({
       eyebrow:  'Student Luxe',
-      title:    section.empty ? 'Performance Max review, nothing to flag' : `Performance Max review, ${section.stat}`,
-      subtitle: `Last ${days} days · spend threshold £${minSpend} · click threshold ${minClicks}`,
-      sections: [section],
-      footer:   'Weekly Performance Max review (/api/pmax-review). Google exposes no per-click keyword for Performance Max; search categories are Google&#39;s own query themes per campaign. Asset groups and categories are flagged when they clear the threshold with no conversions in the window. Review before pausing: a 14 day window is short for a 248 night booking cycle.'
+      title:    'Weekly PPC review',
+      subtitle: `Perf Max last ${days} days · booker profile last ${profileDays} days · spend threshold £${minSpend} · click threshold ${minClicks}`,
+      sections,
+      footer:   'Weekly PPC review (/api/pmax-review). The to-do list is derived from where booked leads over-index against all leads in Monday; each item needs at least two bookings behind it, except search terms. Google exposes no per-click keyword for Performance Max; search categories are Google&#39;s own query themes per campaign. Asset groups and categories are flagged when they clear the threshold with no conversions in the window. Review before pausing: a 14 day window is short for a long booking cycle.'
     });
 
-    if (dryRun) return res.status(200).json({ dryRun: true, days, minSpend, minClicks, out, subject: subjectFor(section, days), html });
+    if (dryRun) return res.status(200).json({ dryRun: true, days, profileDays, minSpend, minClicks, out, todos: todo?.empty ? [] : todo?.stat, subject, html });
 
-    await sendDigest({ subject: subjectFor(section, days), html });
-    return res.status(200).json({ sent: true, subject: subjectFor(section, days), flagged: out.flaggedAssetGroups.length + out.flaggedCategories.length });
+    await sendDigest({ subject, html });
+    return res.status(200).json({ sent: true, subject, flagged: out.flaggedAssetGroups.length + out.flaggedCategories.length, profile: !!(profile && !profile.empty) });
 
   } catch (err) {
     console.error('pmax-review error:', err.message);
@@ -115,10 +125,11 @@ module.exports = async function handler (req, res) {
   }
 };
 
-function subjectFor (section, days) {
-  return section.empty
-    ? `Perf Max review: nothing to flag (last ${days}d)`
-    : `Perf Max review: ${section.stat} (last ${days}d)`;
+function subjectFor (section, todo, days) {
+  const parts = [];
+  if (todo && !todo.empty) parts.push(todo.stat + ' to do');
+  parts.push(section.empty ? 'nothing to flag' : section.stat);
+  return `Weekly PPC review: ${parts.join(', ')} (Perf Max last ${days}d)`;
 }
 
 // ── Analysis ───────────────────────────────────────────────────
