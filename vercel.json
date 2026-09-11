@@ -34,6 +34,10 @@
       "schedule": "0 7 * * 1"
     },
     {
+      "path": "/api/pmax-review?days=14",
+      "schedule": "30 7 * * 1"
+    },
+    {
       "path": "/api/daily-digest?brand=stayluxe&hours=24",
       "schedule": "35 8 * * *"
     }

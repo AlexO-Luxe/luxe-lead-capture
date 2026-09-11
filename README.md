@@ -57,6 +57,7 @@ Outbound monitoring:
 | `api/track.js` | Squarespace page-view ping. Writes 90d session record to Upstash Redis |
 | `api/weekly-summary.js` | Friday cron. Reads PPC bookings from Monday, emails weekly summary |
 | `api/gads-daily-summary.js` | Claude routine target. Reads `gads:events` KV log, emails daily digest |
+| `api/pmax-review.js` | Weekly cron (Mon 07:30 UTC). Performance Max review: campaign scoreboard (Google cost and Step 1 to 4 against Monday leads, junk and bookings), asset groups spending with no Step 1, and Google search categories clicking with no conversions (negative keyword candidates). Manual: `?secret=<CRON_SECRET>&days=14&minSpend=40&minClicks=30&dryRun=1`. `?section=1` stashes the card for the combined weekly report, `?cached=1` serves it |
 | `api/enrich-attribution.js` | Daily cron (06:00 UTC). Backfills campaign/adgroup/keyword/matchtype onto Leads from the gclid via Google Ads `click_view`. Manual: `?secret=<CRON_SECRET>&limit=&lookback=&maxAgeDays=&dryRun=1` |
 | `api/replay-failed-events.js` | Rebuilds + re-uploads failed conversions from the `gads:events` KV log via EC for Leads. Manual: `?secret=<CRON_SECRET>&hours=&dryRun=1` |
 | `api/lead-qualified-webhook.js` | Monday webhook on status -> Qualified. Parks the lead in the delay queue (does not email directly) |
