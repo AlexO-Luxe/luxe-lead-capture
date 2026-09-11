@@ -63,6 +63,10 @@
                 'utm_campaign', 'utm_adgroup', 'utm_term',
                 'utm_matchtype', 'utm_source', 'utm_medium'];
 
+  function delCookie(name) {
+    document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax; Secure';
+  }
+
   fields.forEach(function (f) {
     var v = params.get(f);
     if (v) {
@@ -74,6 +78,22 @@
       setFirstTouch('sl_first_' + key.slice(3), v); // first-touch
     }
   });
+
+  // ── New click resets stale last-touch detail ───────────────
+  // A fresh Google click (any click id, or a utm_campaign) replaces the
+  // previous one, so the keyword-level cookies from that previous click
+  // must not ride along. Performance Max never supplies a keyword, so
+  // without this a Search keyword from weeks earlier would show up under
+  // a later Performance Max click. First-touch twins are never touched.
+  var newGoogleClick = params.get('gclid') || params.get('gbraid') ||
+                       params.get('wbraid') || params.get('utm_campaign');
+  if (newGoogleClick) {
+    [['gclid', 'sl_gclid'], ['gbraid', 'sl_gbraid'], ['wbraid', 'sl_wbraid'],
+     ['utm_adgroup', 'sl_adgroup'], ['utm_term', 'sl_term'],
+     ['utm_matchtype', 'sl_matchtype']].forEach(function (pair) {
+      if (!params.get(pair[0])) delCookie(pair[1]);
+    });
+  }
 
   // ── First-touch referrer + landing ─────────────────────────
   if (document.referrer && document.referrer.indexOf(location.host) === -1) {

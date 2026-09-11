@@ -1131,7 +1131,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
           <tr><td colspan="2" style="padding:8px 0 4px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#856404;font-weight:600;">Full tracking — copy into the Monday row</td></tr>
           ${row('Campaign',        bestCampaign(p))}
           ${row('Ad group',        p.utm_adgroup)}
-          ${row('Search term',     p.utm_term)}
+          ${searchTermRows(p, bestCampaign(p)).map(r => row(r[0], r[1])).join('')}
           ${row('Match type',      p.utm_matchtype)}
           ${row('gclid',           p.gclid)}
           ${row('gbraid',          p.gbraid)}
@@ -1525,7 +1525,7 @@ async function sendTeamNotification(p, mondayId, mondayError, duplicateOf, submi
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;width:160px;">Submitted</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${submittedFormatted}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Lead Source (Where)</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(leadSource||'—')}</td></tr>
       <tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Lead Source (How)</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(leadChannel||'—')}</td></tr>
-      ${(p.utm_term || '').trim() ? `<tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Search term</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(p.utm_term.trim())}</td></tr>` : ''}
+      ${searchTermRows(p, bestCampaign(p)).map(r => `<tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">${r[0]}</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(r[1])}</td></tr>`).join('')}
       ${leadSource === 'PPC' && bestCampaign(p) ? `<tr><td style="padding:3px 0;font-size:11px;color:#9b9b9b;">Campaign</td><td style="padding:3px 0;font-size:11px;color:#1a1a1a;font-weight:500;">${escHtml(bestCampaign(p))}</td></tr>` : ''}
     </table>
   </td></tr>
@@ -1770,6 +1770,37 @@ function extractCampaignFromPaths(visitedPaths) {
     }
   } catch(e) {}
   return '';
+}
+
+// Honest keyword labelling for the team email. utm_term is a 90 day
+// last-touch cookie that older tracking snippets never cleared, so a Search
+// keyword could ride along under a later Performance Max click, and
+// Performance Max never supplies a keyword of its own. A term is treated as
+// carried over when the current campaign is Performance Max, or when it is
+// identical to the first-touch term and the first-touch campaign differs
+// from the current one. Carried-over terms are shown as an earlier click,
+// never as this click's search term.
+function searchTermRows(p, campaign) {
+  const term          = (p.utm_term      || '').trim();
+  const firstTerm     = (p.first_term    || '').trim();
+  const firstCampaign = resolveCampaign((p.first_campaign || '').trim()) || '';
+  const cur           = (campaign || '').trim();
+  const isPmax        = /perf[-_ ]?max|pmax|performance/i.test(cur);
+  const carriedOver   = !!term && (isPmax ||
+    (!!firstTerm && term === firstTerm && !!firstCampaign && !!cur && firstCampaign !== cur));
+
+  const rows = [];
+  if (term && !carriedOver) rows.push(['Search term', term]);
+
+  const earlier = carriedOver ? term : (firstTerm && firstTerm !== term ? firstTerm : '');
+  if (earlier) {
+    const where = (firstCampaign && firstCampaign !== cur)
+      ? `first click, ${firstCampaign}`
+      : 'earlier click';
+    rows.push(['Earlier search term', `${earlier} (${where})`]);
+  }
+  if (isPmax && !rows.length) rows.push(['Search term', 'Not available for Performance Max']);
+  return rows;
 }
 
 function bestCampaign(p) {
