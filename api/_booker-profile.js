@@ -171,19 +171,30 @@ function buildTodos (dims, bookerCount, leadCount) {
 // ── Sections ───────────────────────────────────────────────────
 function todoSection (out, days) {
   if (!out.bookerCount) {
-    return { title: 'Booker profile: to do', stat: 'no bookings in window', tone: 'plain', empty: true };
+    return { title: 'Booker profile: to do', stat: 'no bookings in window', tone: 'plain', empty: true, items: [] };
   }
-  const items = out.todos.map((t, i) => `
+  return renderTodoCard(out.todos, {
+    subtitle: `Built from ${out.bookerCount} booking${out.bookerCount === 1 ? '' : 's'} against ${out.leadCount.toLocaleString('en-GB')} leads, last ${days} days. Each item needs at least two bookings behind it, except search terms.`
+  });
+}
+
+// Renders a numbered to-do card from { area, text, manual?, id? } items.
+// Also used by pmax-review to merge standing manual jobs in front of the
+// profile-derived ones. The items are kept on the section so a caller can
+// re-render with more of them.
+function renderTodoCard (items, { subtitle } = {}) {
+  const rows = items.map((t, i) => `
     <tr>
-      ${td(`<span style="display:inline-block;min-width:18px;height:18px;line-height:18px;border-radius:9px;background:${BRAND.navy};color:#fff;font-size:10.5px;text-align:center;font-weight:600;">${i + 1}</span>`, 'center', 'width:30px;vertical-align:top;')}
-      ${td(`<span style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.gold};font-weight:600;">${esc(t.area)}</span><br>${esc(t.text)}`, 'left', 'line-height:1.5;')}
+      ${td(`<span style="display:inline-block;min-width:18px;height:18px;line-height:18px;border-radius:9px;background:${t.manual ? BRAND.gold : BRAND.navy};color:#fff;font-size:10.5px;text-align:center;font-weight:600;">${i + 1}</span>`, 'center', 'width:30px;vertical-align:top;')}
+      ${td(`<span style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.gold};font-weight:600;">${esc(t.area)}</span>${t.manual ? `<span style="font-size:10px;color:${BRAND.muted};"> &middot; standing job${t.id ? ', id ' + esc(t.id) : ''}</span>` : ''}<br>${esc(t.text)}`, 'left', 'line-height:1.5;')}
     </tr>`).join('');
   return {
-    title: 'Booker profile: to do',
-    stat: `${out.todos.length} action${out.todos.length === 1 ? '' : 's'}`,
-    tone: out.todos.length ? 'warn' : 'good',
-    subtitle: `Built from ${out.bookerCount} booking${out.bookerCount === 1 ? '' : 's'} against ${out.leadCount.toLocaleString('en-GB')} leads, last ${days} days. Each item needs at least two bookings behind it, except search terms.`,
-    html: table('', items || emptyRow(2, 'Bookers look like the average lead this window. Nothing to change.'))
+    title: 'To do',
+    stat: `${items.length} action${items.length === 1 ? '' : 's'}`,
+    tone: items.length ? 'warn' : 'good',
+    subtitle: subtitle || '',
+    items,
+    html: table('', rows || emptyRow(2, 'Bookers look like the average lead this window. Nothing to change.'))
   };
 }
 
@@ -341,4 +352,4 @@ async function fetchLeads (sinceMs) {
   return leads;
 }
 
-module.exports = { bookerProfileSections, buildProfile, todoSection, profileSection, DIMENSIONS };
+module.exports = { bookerProfileSections, buildProfile, todoSection, profileSection, renderTodoCard, DIMENSIONS };

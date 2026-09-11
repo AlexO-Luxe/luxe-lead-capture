@@ -33,6 +33,7 @@ const SECTION_KEY = 'digest:pmax';
 const { shell, table, th, td, emptyRow, esc, sendDigest, BRAND } = require('./_digest.js');
 const { logError } = require('./_errlog.js');
 const { bookerProfileSections } = require('./_booker-profile.js');
+const { openManualTodos, markManualTodoDone } = require('./_manual-todos.js');
 
 // Conversion action names as they appear in segments.conversion_action_name.
 // Matched loosely so a rename in the Ads UI does not silently drop a column.
@@ -48,6 +49,12 @@ module.exports = async function handler (req, res) {
   const digestOk = process.env.DIGEST_TOKEN && bearer === process.env.DIGEST_TOKEN;
   if (req.query?.secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET && !digestOk) {
     return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  // Clear a standing to-do without a deploy.
+  if (req.query?.todoDone) {
+    const r = await markManualTodoDone(String(req.query.todoDone));
+    return res.status(r.ok ? 200 : 404).json(r);
   }
 
   if (req.query?.cached === '1') {
@@ -71,14 +78,15 @@ module.exports = async function handler (req, res) {
     if (!CUSTOMER_ID) throw new Error('GOOGLE_ADS_CUSTOMER_ID missing');
     const token = await getAccessToken();
 
-    const [campaigns, assetGroups, stepsByCampaign, leads, profileResult] = await Promise.all([
+    const [campaigns, assetGroups, stepsByCampaign, leads, profileResult, manualTodos] = await Promise.all([
       fetchCampaigns(token, sinceIso, untilIso),
       fetchAssetGroups(token, sinceIso, untilIso),
       fetchStepBreakdown(token, sinceIso, untilIso),
       fetchPpcLeads(sinceMs),
       // The profile must not cost the spend review: a failure drops the two
       // profile cards and the email still goes.
-      bookerProfileSections(profileDays).catch(e => { console.warn('booker profile failed:', e.message); return []; })
+      bookerProfileSections(profileDays).catch(e => { console.warn('booker profile failed:', e.message); return []; }),
+      openManualTodos()
     ]);
 
     // Search categories are one query per campaign; only campaigns that
@@ -102,7 +110,7 @@ module.exports = async function handler (req, res) {
     }
 
     const section  = pmaxSection(out, days);
-    const [todo, profile] = profileResult;
+    const [todo, profile] = withManualTodos(profileResult, manualTodos, profileDays);
     const sections = [todo, profile, section].filter(Boolean);
     const subject  = subjectFor(section, todo, days);
     const html = shell({
@@ -124,6 +132,24 @@ module.exports = async function handler (req, res) {
     return res.status(500).json({ error: err.message });
   }
 };
+
+// Standing manual jobs sit at the top of the to-do card, above the
+// profile-derived actions, and keep the card alive even when the profile
+// has nothing to say or failed to build.
+function withManualTodos (profileResult, manualTodos, profileDays) {
+  const [todo, profile] = profileResult || [];
+  if (!manualTodos || !manualTodos.length) return [todo, profile];
+  const { renderTodoCard } = require('./_booker-profile.js');
+  const derived = (todo && !todo.empty) ? todo.items || [] : [];
+  const items = manualTodos.map(t => ({ area: t.area, text: t.text, manual: true, id: t.id })).concat(derived);
+  const merged = renderTodoCard(items, {
+    subtitle: [
+      `${manualTodos.length} standing job${manualTodos.length === 1 ? '' : 's'} (clear with ?todoDone=<id>)`,
+      todo && !todo.empty ? todo.subtitle : `No profile-derived actions this week (last ${profileDays} days).`
+    ].join(' · ')
+  });
+  return [merged, profile];
+}
 
 function subjectFor (section, todo, days) {
   const parts = [];
