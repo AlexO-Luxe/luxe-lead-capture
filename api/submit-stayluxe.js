@@ -1143,7 +1143,10 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text60:              lastname,
     email:               p.email ? { email: p.email, text: p.email } : {},
     phone_1: p.phone ? (function(){
-      const raw = p.phone.replace(/[\s\-().]/g, '');
+      // One leading plus at most, parity with submit-enquiry: an interior
+      // plus from prefix-plus-typed-plus makes Monday reject the row.
+      let raw = p.phone.replace(/[\s\-().]/g, '');
+      raw = (raw.startsWith('+') ? '+' : '') + raw.replace(/\+/g, '');
       // Detect country from dial code prefix
       const dialMap = {
         '+44':'GB', '+1':'US', '+33':'FR', '+49':'DE', '+39':'IT',
@@ -1339,12 +1342,31 @@ function stripGuiltyColumns (cv, msg, p) {
   ];
   const out = [];
   let matched = false;
+
+  // Precision first, parity with submit-enquiry: strip exactly the column
+  // the error names when it names one.
+  const allCols = groups.flatMap(g => g.cols);
+  const named = [...m.matchAll(/"column_id"\s*:\s*"([a-z0-9_]+)"/g)].map(x => x[1]);
+  for (const id of named) {
+    const col = allCols.find(([cid]) => cid === id);
+    if (col && cv[col[0]] !== undefined) {
+      delete cv[col[0]];
+      out.push({ id: col[0], label: col[1], value: col[2] || '' });
+      matched = true;
+    }
+  }
+  if (matched) return out;
+
+  // Heuristics second, first matching group only: the error echoes our
+  // payload, whose column ids contain words like dropdown and color, so
+  // matching every group strips innocents.
   for (const g of groups) {
     if (!g.re.test(m)) continue;
     matched = true;
     g.cols.forEach(([id, label, value]) => {
       if (cv[id] !== undefined) { delete cv[id]; out.push({ id, label, value: value || '' }); }
     });
+    break;
   }
   if (!matched) {
     groups.forEach(g => g.cols.forEach(([id, label, value]) => {

@@ -1812,7 +1812,11 @@ async function pushToMonday(p, submitterIp, duplicateOf) {
     text60:           lastname,
     email:            p.email ? { email: p.email, text: p.email } : {},
     phone_1: p.phone ? (function(){
-      const raw = p.phone.replace(/[\s\-().]/g, '');
+      // One leading plus at most: guests pick a +44 prefix AND type a plus
+      // ("+44 +7404393194"), and an interior plus makes Monday reject the
+      // whole row (Aicha DIA, 2026-09-12).
+      let raw = p.phone.replace(/[\s\-().]/g, '');
+      raw = (raw.startsWith('+') ? '+' : '') + raw.replace(/\+/g, '');
       const dialMap = {'+44':'GB','+1':'US','+33':'FR','+49':'DE','+39':'IT','+34':'ES','+351':'PT','+31':'NL','+32':'BE','+41':'CH','+43':'AT','+46':'SE','+47':'NO','+45':'DK','+358':'FI','+48':'PL','+420':'CZ','+36':'HU','+40':'RO','+380':'UA','+7':'RU','+86':'CN','+81':'JP','+82':'KR','+91':'IN','+61':'AU','+64':'NZ','+27':'ZA','+55':'BR','+52':'MX','+971':'AE','+966':'SA','+974':'QA','+852':'HK','+65':'SG','+60':'MY','+66':'TH','+62':'ID'};
       let countryShortName = 'GB';
       for (const [prefix, code] of Object.entries(dialMap)) {
@@ -1990,12 +1994,33 @@ function stripGuiltyColumns (cv, msg, p) {
   ];
   const out = [];
   let matched = false;
+
+  // Precision first: when the error names the guilty column id, strip
+  // exactly that and nothing else.
+  const allCols = groups.flatMap(g => g.cols);
+  const named = [...m.matchAll(/"column_id"\s*:\s*"([a-z0-9_]+)"/g)].map(x => x[1]);
+  for (const id of named) {
+    const col = allCols.find(([cid]) => cid === id);
+    if (col && cv[col[0]] !== undefined) {
+      delete cv[col[0]];
+      out.push({ id: col[0], label: col[1], value: col[2] || '' });
+      matched = true;
+    }
+  }
+  if (matched) return out;
+
+  // Heuristics second, but only the FIRST matching group: Monday rejects one
+  // column at a time, and the error message echoes our whole payload, whose
+  // column ids contain words like dropdown and color. Matching every group
+  // against that echo is how a bad phone number blanked nine valid fields
+  // (Aicha DIA, 2026-09-12).
   for (const g of groups) {
     if (!g.re.test(m)) continue;
     matched = true;
     g.cols.forEach(([id, label, value]) => {
       if (cv[id] !== undefined) { delete cv[id]; out.push({ id, label, value: value || '' }); }
     });
+    break;
   }
   if (!matched) {
     groups.forEach(g => g.cols.forEach(([id, label, value]) => {
